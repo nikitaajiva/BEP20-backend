@@ -1,0 +1,42 @@
+{
+  "name": "auth-system",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "jest --runInBand --detectOpenHandles",
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "dc": "node scripts/rewards/distributeDifferentialCascade.js",
+    "dcb": "node scripts/rewards/distributeCommunityPositioningBonus.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async-mutex": "^0.4.0",
+    "axios": "^1.9.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "decimal.js": "^10.5.0",
+    "dotenv": "^16.5.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "mongoose": "^8.15.1",
+    "mongoose-paginate-v2": "^1.9.1",
+    "node-cron": "^4.2.0",
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^7.0.6",
+    "nodemon": "^3.1.14",
+    "p-map": "^4.0.0",
+    "uuid": "^11.1.0",
+    "xrpl": "^4.2.5"
+  },
+  "description": "",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.1.1"
+  }
+}

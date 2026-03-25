@@ -1,0 +1,287 @@
+# Test Scenarios for XRP Referral and Wallet Engine V2
+
+## 1. User and Ledger Management (Prerequisites for many tests)
+    - 1.1. Create a new user successfully.
+    - 1.2. Get or create a ledger for an existing user.
+    - 1.3. Get or create a ledger for a new user (should create both user and ledger implicitly if designed that way, or test separate user creation first).
+
+## 2. Deposit Event (`LP_DEPOSIT`)
+    - 2.1. **First Deposit - No Airdrop Time Window**:
+        - User makes their first LP deposit *after* the airdrop eligibility window.
+        - Expected:
+            - `LP_DEPOSIT` event enqueued to Outbox.
+            - Handler processes the event.
+            - User's `ledger.wallets.lp` increases by deposit amount.
+            - `DEPOSIT` ledger row created.
+            - `user.counters.selfLp` increases by deposit amount.
+            - `ledger.limits.swiftLimit.cap`, `boostLimit.cap`, `zeroRiskLimit.cap` set to deposit amount.
+            - `ledger.limits.fiveXLimit.cap` set to 5x deposit amount.
+            - No airdrop credited (`AIRDROP_ACTIVATION` ledger row NOT created).
+            - If user has a sponsor, `REF_DEPOSIT` event enqueued for the sponsor.
+    - 2.2. **First Deposit - Within Airdrop Time Window (e.g., 100% match)**:
+        - User registers and makes their first LP deposit within the 100% airdrop match window (e.g., within 24 hours).
+        - Assume `companyAirdropAvailable` is sufficient.
+        - Expected:
+            - All outcomes from 2.1.
+            - `actualMatchedAirdrop` calculated correctly (e.g., min(deposit, company_airdrop_pool_share)).
+            - `ledger.wallets.lp` additionally credited with `actualMatchedAirdrop`.
+            - `AIRDROP_ACTIVATION` ledger row created for the airdrop amount.
+            - Limits set based on the *original deposit amount*, not including airdrop.
+    - 2.3. **First Deposit - Partial Airdrop Match (Company Pool Limited)**:
+        - User makes first deposit, qualifies for 100% match by time, but `companyAirdropAvailable` is less than their deposit.
+        - Expected:
+            - All outcomes from 2.1.
+            - `actualMatchedAirdrop` is limited by `companyAirdropAvailable`.
+            - `ledger.wallets.lp` credited with this limited airdrop.
+            - `AIRDROP_ACTIVATION` ledger row for the limited airdrop.
+    - 2.4. **First Deposit - Partial Airdrop Match (Time-based Percentage)**:
+        - User makes first deposit, qualifies for a partial match (e.g., 50% based on §3 table). `companyAirdropAvailable` is sufficient.
+        - Expected:
+            - All outcomes from 2.1.
+            - `actualMatchedAirdrop` calculated based on the 50% of deposit.
+            - `ledger.wallets.lp` credited with this 50% airdrop.
+            - `AIRDROP_ACTIVATION` ledger row for this 50% airdrop.
+    - 2.5. **Subsequent Deposit**:
+        - User who has already made a first deposit makes another LP deposit.
+        - Expected:
+            - `LP_DEPOSIT` event enqueued.
+            - Handler processes.
+            - `ledger.wallets.lp` increases by deposit amount.
+            - `DEPOSIT` ledger row created.
+            - `user.counters.selfLp` increases.
+            - No changes to `ledger.limits` (caps were set on first deposit).
+            - No airdrop.
+            - If user has a sponsor, `REF_DEPOSIT` event enqueued.
+    - 2.6. **Deposit for Non-existent User**:
+        - Deposit API called with a `userId` that does not exist.
+        - Expected:
+            - Error response from API (e.g., 404 User not found).
+            - No `LP_DEPOSIT` event enqueued.
+    - 2.7. **Deposit with Invalid Amount (e.g., zero or negative)**:
+        - Deposit API called with amount <= 0.
+        - Expected:
+            - Error response from API (e.g., 400 Invalid amount).
+            - No `LP_DEPOSIT` event enqueued.
+    - 2.8. **Duplicate Deposit (Same `txHash`)**:
+        - System should ideally prevent reprocessing or double crediting based on `txHash` if that's a unique constraint.
+        - (This might be more of an Outbox/handler idempotency check or a pre-enqueue check).
+        - Expected: If `txHash` is meant to be unique for deposits, a second attempt with same hash should be handled gracefully (e.g., ignored or error, but not double credit).
+
+## 3. Referral Deposit Bonus Event (`REF_DEPOSIT`)
+    - 3.1. **Sponsor Receives Bonus - Max Percentage**:
+        - Referral makes their first deposit very soon after registration (e.g., qualifies for 10% bonus - §4 table).
+        - Sponsor exists and has a ledger.
+        - Expected:
+            - `REF_DEPOSIT` event processed for sponsor.
+            - Sponsor's `ledger.wallets.boost` increases by bonus amount (e.g., 10% of referral's deposit).
+            - `BOOST_BONUS` ledger row created for sponsor.
+            - Sponsor's `BoosterLimit.cap` is NOT affected.
+    - 3.2. **Sponsor Receives Bonus - Partial Percentage**:
+        - Referral makes first deposit later, qualifying for a lower bonus (e.g., 5%).
+        - Expected:
+            - Similar to 3.1, but bonus calculated with 5%.
+    - 3.3. **No Bonus - Time Window Expired**:
+        - Referral makes first deposit after the bonus eligibility window for the sponsor.
+        - Expected:
+            - `REF_DEPOSIT` event processed.
+            - No bonus credited to sponsor's `boost` wallet.
+            - No `BOOST_BONUS` ledger row.
+    - 3.4. **Referral Has No Sponsor**:
+        - User who made the deposit has no `sponsorId`.
+        - Expected:
+            - `LP_DEPOSIT` handler does NOT enqueue a `REF_DEPOSIT` event.
+    - 3.5. **Sponsor Does Not Exist (Integrity Issue, but testable)**:
+        - `REF_DEPOSIT` event has a `sponsorUserId` that doesn't exist in the User collection.
+        - Expected:
+            - Handler catches the error, logs it. Event potentially moved to FAILED.
+            - No ledger entries created for non-existent sponsor.
+
+## 4. Daily ROI Batch Job (`DAILY_ROI_BATCH`)
+    - 4.1. **Batch Job Runs and Enqueues User ROI Jobs**:
+        - Cron job triggers.
+        - Expected:
+            - `DAILY_ROI_BATCH` event enqueued.
+            - Handler processes and finds N users.
+            - N `DAILY_ROI_USER` events are enqueued, one for each user.
+    - 4.2. **Batch Job with No Users**:
+        - Database has no users.
+        - Expected:
+            - `DAILY_ROI_BATCH` event enqueued and processed.
+            - No `DAILY_ROI_USER` events are enqueued.
+    - 4.3. **Batch Job with Many Users (Pagination check)**:
+        - More users than `ROI_USER_BATCH_SIZE`.
+        - Expected:
+            - All users are processed and `DAILY_ROI_USER` events enqueued for all of them (implicitly tests pagination in the handler).
+
+## 5. Daily User ROI (`DAILY_ROI_USER`)
+    - Setup: User with balances in LP, Swift, Boost wallets and defined limits.
+    - 5.1. **ROI Calculation - Basic (No Limits Hit)**:
+        - User has balances in LP, Swift, Boost.
+        - Calculated ROI for each wallet is within respective `swiftLimit.cap - swiftLimit.pending`, `boostLimit.cap - boostLimit.pending`, and overall `fiveXLimit.cap - fiveXLimit.pending`.
+        - Expected:
+            - ROI calculated correctly for LP, Swift, Boost based on §5.1 rate slabs.
+            - `finalRoiCreditedToCommunity` for each wallet segment equals calculated ROI.
+            - `ledger.wallets.communityRewards` increases by total ROI.
+            - `ledger.limits.swiftLimit.pending` and `ledger.limits.boostLimit.pending` increase by respective ROI amounts.
+            - `ledger.limits.fiveXLimit.pending` increases by total ROI.
+            - `ROI_CREDIT` ledger rows created for each wallet's contribution.
+            - If LP ROI > 0, `ROI_CASCADE` event enqueued with the LP portion of `finalRoiCreditedToCommunity`.
+    - 5.2. **ROI Calculation - Swift Limit Hit**:
+        - Calculated Swift ROI exceeds `swiftLimit.cap - swiftLimit.pending`. LP and Boost ROI are within limits.
+        - Expected:
+            - Swift ROI credited is capped by `swiftLimit.cap - swiftLimit.pending`.
+            - `ledger.limits.swiftLimit.pending` becomes equal to `swiftLimit.cap`.
+            - LP and Boost ROI credited fully (assuming they also fit FiveX).
+            - `ledger.wallets.communityRewards` credited with (capped Swift ROI + LP ROI + Boost ROI).
+            - `ledger.limits.fiveXLimit.pending` updated accordingly.
+            - `ROI_CREDIT` ledger rows created.
+            - `ROI_CASCADE` for LP portion.
+    - 5.3. **ROI Calculation - Boost Limit Hit**:
+        - Similar to 5.2, but Boost ROI is capped.
+    - 5.4. **ROI Calculation - FiveX Limit Hit (Partial)**:
+        - Total calculated ROI (LP+Swift+Boost, after individual caps) exceeds `fiveXLimit.cap - fiveXLimit.pending`.
+        - The remaining `fiveXLimit` room is positive but less than total potential ROI.
+        - Expected:
+            - `finalRoiCreditedToCommunity` (sum across wallets) is capped by `fiveXLimit.cap - fiveXLimit.pending`.
+            - (The logic needs to specify how this reduction is attributed back to LP, Swift, Boost if `ROI_CASCADE` only takes the LP part of the *final credited amount*). *Correction: `ROI_CASCADE` payload is `lpRoiAmount`, which is the *final amount from LP credited to Community Rewards after all limits*. So, the `lpRoiAmount` itself will be reduced if FiveX is the constraint.*
+            - `ledger.limits.fiveXLimit.pending` becomes equal to `fiveXLimit.cap`.
+            - `ledger.wallets.communityRewards` credited with the capped total.
+            - Individual `swiftLimit.pending` / `boostLimit.pending` are updated with amounts *actually* credited from those sources *before* FiveX cap on the total. (This needs careful thought on current implementation).
+                - *Re-check `dailyRoiUserHandler`: It calculates ROI, applies Swift/Boost cap, then sums them up, then applies FiveX cap to the total. The `lpRoiAmount` for cascade IS the final FiveX-capped LP portion.*
+            - `ROI_CREDIT` ledger rows created for amounts *actually* credited.
+            - `ROI_CASCADE` enqueued with the LP portion of the *actually credited* (FiveX capped) community rewards.
+    - 5.5. **ROI Calculation - FiveX Limit Completely Exhausted**:
+        - `fiveXLimit.cap - fiveXLimit.pending` is zero or negative.
+        - Expected:
+            - No ROI credited to `communityRewards` from any source.
+            - No change to `*.pending` limits.
+            - No `ROI_CREDIT` ledger rows.
+            - No `ROI_CASCADE` event.
+    - 5.6. **ROI Calculation - Zero Balance in a Wallet**:
+        - User has 0 in LP wallet, but balances in Swift/Boost.
+        - Expected:
+            - Zero ROI from LP.
+            - ROI from Swift/Boost calculated and processed as per other scenarios.
+            - No `ROI_CASCADE` event if LP ROI is zero.
+    - 5.7. **ROI Calculation - User with No Ledger**:
+        - `DAILY_ROI_USER` event for a user without a ledger (should not happen if `getOrCreateLedger` is robust).
+        - Expected:
+            - Ledger is created.
+            - ROI is likely zero as balances would be zero. No credits.
+    - 5.8. **ROI Rate Slabs Verification**:
+        - Create users with balances in different wallets that fall into various rate slabs (§5.1).
+        - Expected:
+            - ROI calculation uses the correct percentage for each slab.
+            - E.g., User A with 500 LP (slab 1), User B with 1500 LP (slab 2), User C with 6000 LP (slab 3). Verify ROI calculation.
+
+## 6. ROI Cascade Event (`ROI_CASCADE`)
+    - Setup: Chain of users: User -> Sponsor1 -> Sponsor2 -> ... -> Sponsor16 -> Sponsor17.
+    - ROI earner (User) generates LP ROI.
+    - 6.1. **Full Cascade - All Sponsors Unlocked and Within FiveX Limit**:
+        - All 16 direct upline sponsors meet their respective unlock criteria (§6 table: direct referrals, SelfLP/TeamLP).
+        - All 16 sponsors have enough room in their `fiveXLimit.cap - fiveXLimit.pending`.
+        - Expected:
+            - Each of the 16 sponsors receives their percentage of `lpRoiAmount`.
+            - Sponsor's `ledger.wallets.communityRewards` increases.
+            - Sponsor's `ledger.limits.fiveXLimit.pending` increases by amount received.
+            - `ROI_CASCADE` ledger row created for each sponsor.
+            - `qualifiedAncestorsProcessed` count in logs reflects 16.
+            - Sponsor17 (17th level) receives nothing.
+    - 6.2. **Partial Cascade - Some Sponsors Locked**:
+        - E.g., Sponsor3 does not meet unlock criteria. Sponsor8 does not. Others do.
+        - Expected:
+            - Sponsor1, Sponsor2 receive bonus.
+            - Sponsor3 is skipped.
+            - Sponsor4-Sponsor7 receive bonus (distance calculated from original earner).
+            - Sponsor8 is skipped.
+            - Up to 16 *qualified* sponsors receive payments.
+    - 6.3. **Partial Cascade - Sponsor Hits FiveX Limit**:
+        - E.g., Sponsor5 is unlocked, but their `fiveXLimit` only allows partial payment of the calculated cascade amount.
+        - Expected:
+            - Sponsor5 receives the partial amount.
+            - Sponsor5's `ledger.limits.fiveXLimit.pending` equals `fiveXLimit.cap`.
+            - Cascade continues to other qualified sponsors if any.
+    - 6.4. **Partial Cascade - Sponsor's FiveX Limit Exhausted**:
+        - E.g., Sponsor6 is unlocked, but their `fiveXLimit.cap - fiveXLimit.pending` is zero.
+        - Expected:
+            - Sponsor6 receives nothing. Cascade continues.
+    - 6.5. **Cascade Stops at 16 Qualified Sponsors**:
+        - More than 16 sponsors in upline are qualified.
+        - Expected:
+            - Only the first 16 qualified sponsors are paid.
+    - 6.6. **Cascade Unlock Criteria Verification (Spot Checks)**:
+        - Create specific scenarios for a sponsor at a certain level:
+            - **Level 1-3 (SelfLP only focus)**:
+                - Sponsor has enough directs, `selfLp` >= 9. Expected: Unlocked.
+                - Sponsor has enough directs, `selfLp` < 9. Expected: Locked.
+            - **Level 4-6 (SelfLP OR TeamLP3)**:
+                - Sponsor: 4 directs, `selfLp`=1500, `teamLp3`=0. Expected: Unlocked (by selfLp).
+                - Sponsor: 4 directs, `selfLp`=100, `teamLp3`=7500. Expected: Unlocked (by teamLp3).
+                - Sponsor: 4 directs, `selfLp`=100, `teamLp3`=7000. Expected: Locked.
+            - **Level 7-10 (SelfLP OR TeamLP5)**:
+                - Sponsor: 7 directs, `selfLp`=3000, `teamLp5`=0. Expected: Unlocked.
+                - Sponsor: 7 directs, `selfLp`=100, `teamLp5`=150000. Expected: Unlocked.
+                - Sponsor: 7 directs, `selfLp`=100, `teamLp5`=100000. Expected: Locked.
+    - 6.7. **Original ROI Earner Has No Path/Sponsor**:
+        - User who generated LP ROI has no `sponsorId` or empty `path`.
+        - Expected:
+            - `ROI_CASCADE` handler processes.
+            - No sponsors found in path.
+            - No cascade payments made. `qualifiedAncestorsProcessed` is 0.
+    - 6.8. **Path Integrity (Short Path)**:
+        - User has a path, e.g., 2 ancestors, but is eligible for 16 levels of cascade.
+        - Expected:
+            - Cascade attempts for the 2 ancestors.
+            - Stops when path ends.
+    - 6.9. **Cascade Amount is Zero or Negative**:
+        - `lpRoiAmount` is positive, but percentage calculation for a level (e.g. rule.pct is 0 or negative, or lpRoiAmount is tiny) results in <=0.
+        - Expected:
+            - Sponsor for that level is skipped for payment.
+            - Does not count as `qualifiedAncestorsProcessed` if no payment made.
+
+## 7. Outbox Worker
+    - 7.1. **Event Processing Success**:
+        - Pending event in Outbox.
+        - Handler succeeds.
+        - Expected: Event status becomes `DONE`. `tryCount` updated.
+    - 7.2. **Event Processing Failure - Max Retries**:
+        - Pending event. Handler fails consistently.
+        - Expected: Event status becomes `RETRY` for `maxRetries` attempts with increasing `nextRunTs`. After max retries, status becomes `FAILED`. `errorDetails` logged.
+    - 7.3. **Event Processing - Temporary Failure then Success**:
+        - Event fails, status `RETRY`.
+        - On a subsequent attempt before hitting `maxRetries`, handler succeeds.
+        - Expected: Event status becomes `DONE`.
+    - 7.4. **Event Locking / Concurrent Processing**:
+        - (Harder to test without specific framework setup)
+        - Ensure that if multiple workers poll, an event is picked up by only one.
+        - Check `status` changes from `PENDING` to `PROCESSING` correctly.
+    - 7.5. **Graceful Shutdown of Outbox Processor**:
+        - Send SIGINT/SIGTERM to server.
+        - Expected:
+            - `outboxProcessor.stop()` is called.
+            - Polling loop ceases.
+            - In-flight events (if any are truly mid-execution and not transactional) might need specific handling observation (though current design aims for transactional handlers).
+
+## 8. Concurrency and Idempotency (Conceptual)
+    - 8.1. **Idempotency of Handlers**:
+        - If an event (e.g. `LP_DEPOSIT` with a specific `triggeringEventId` or unique payload attributes like `txHash`) is somehow processed twice by a handler, the outcome should be the same as processing it once (no double credits).
+        - This is crucial for `LP_DEPOSIT` (e.g. check if `txHash` already processed), `REF_DEPOSIT` (e.g. check if bonus for that original deposit already given), ROI calculations (usually based on current state, so inherently idempotent for a given `processingDate`).
+    - 8.2. **Transactional Integrity**:
+        - If a handler involves multiple DB updates (e.g., updating user, ledger, creating ledger row), all should succeed or all fail together within the MongoDB session.
+        - Example: If creating ledger row fails in `lpDepositHandler`, the changes to `User` and `Ledger` collections should be rolled back.
+
+## 9. Helper Functions
+    - 9.1. `getOrCreateLedger`:
+        - User exists, no ledger: Creates ledger with defaults.
+        - User exists, has ledger: Returns existing ledger.
+        - User does NOT exist: (Depends on desired behavior - current `lpDepositHandler` checks user first, `dailyRoiUserHandler` might rely on `getOrCreateLedger` to create if it's designed to do so for users found by batch). *Ideally, user creation should be explicit.* Assume for now `getOrCreateLedger` expects user to exist.
+    - 9.2. `createLedgerEntry`:
+        - Valid inputs: Creates `LedgerRow` correctly.
+        - Missing required fields: Should throw error or be caught.
+
+## 10. Edge Cases & Validations
+    - 10.1. **Very Small/Large Numbers**: Ensure `Decimal128` handles precision correctly for very small ROI amounts or very large balances/limits without floating point issues.
+    - 10.2. **Invalid Enum Values**: If an event with an unknown `eventType` gets into Outbox (shouldn't happen with controlled enqueueing).
+    - 10.3. **Missing `sponsorId` in user's `path` array**: The `roiCascadeHandler` has a `console.warn` and attempts to fix this. Test this scenario.
+        - User A, sponsor B. User A's path is `[]` but `sponsorId` is B.
+        - User A, sponsor B, grand-sponsor C. User A's path is `[C]` but `sponsorId` is B. (Path is missing direct sponsor). 

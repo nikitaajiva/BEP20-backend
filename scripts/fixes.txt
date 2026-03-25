@@ -1,0 +1,13 @@
+(node:1820485) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1820485) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+MongoDB Connected...
+Processing boost credits...
+Found 727 LP_DEPOSIT_FROM_XAMAN events to process.
+Finished processing boost credits.
+Total credits: 361
+Total deposits: 727
+Credits to be added: 361
+Total amount: 35076.7936363
+Total deposits: 87420.79792100003
+Credits already added: 269
