@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { withdrawXRP, getWithdrawalsHistory, getWithdrawalDisabled, redeemhk,getTodayEventRewards } = require('../controllers/withdrawalController');
+const { withdrawUSDT, getWithdrawalsHistory, getWithdrawalDisabled, redeemhk, getTodayEventRewards } = require('../controllers/withdrawalController');
 const { protect,blockDuringCron } = require('../middleware/authMiddleware');
 
-// POST /api/withdrawals/xrp
-// Process an XRP withdrawal request
-router.post('/xrp', protect, blockDuringCron, withdrawXRP);
+// POST /api/withdrawals/usdt
+// Process a USDT withdrawal request
+router.post('/usdt', protect, blockDuringCron, withdrawUSDT);
 
 
 router.post('/redeem', protect, blockDuringCron, redeemhk);

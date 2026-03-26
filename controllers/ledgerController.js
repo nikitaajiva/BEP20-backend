@@ -10,7 +10,7 @@ const ChainDeposit = require("../models/ChainDeposit");
 const ChainWithdrawal = require("../models/ChainWithdrawal");
 const x1reward = require("../models/X1Reward");
 const Level = require("../models/Level");
-const { sendXrp } = require("../utils/transactions");
+const { sendUsdt } = require("../utils/usdtTransactions");
 const mongoose = require("mongoose");
 const cron = require("node-cron");
 const Decimal128 = mongoose.Types.Decimal128;
@@ -29,14 +29,14 @@ const {
   maxDecimal128,
   roundTo6Decimal128,
 } = require("../utils/decimal128Utils");
-const UserXrpAirdrop = require("../models/UserXrpAirdrop");
+const UserUsdtAirdrop = require("../models/UserUsdtAirdrop");
 const {
   updateUplineTeamLp,
   decreaseUplineTeamLp,
 } = require("../services/lpService");
 const airdropPromotionConfig = require("../config/airdropPromotionConfig");
 const Decimal = require("decimal.js");
-const xrpTransactions = require("../utils/xrpTransactions");
+const usdtTransactions = require("../utils/usdtTransactions");
 const DailyRewardLog = require("../models/DailyRewardLog");
 const CUTOFF_YMD = "2025-08-09";
 
@@ -71,7 +71,7 @@ const getLedgerDetails = async (req, res) => {
 
     /* ================== BASE BALANCES ================== */
     const rawLpBalance = ledger.wallets.lp?.toString() || "0.0";
-    const rawXamanBalance = ledger.wallets.xaman?.toString() || "0.0";
+    const rawUsdtBalance = ledger.wallets.usdt?.toString() || "0.0";
     const rawZeroRisk = ledger.wallets.zeroRisk?.toString() || "0.0";
 
     /* ================== 5X LIMIT ================== */
@@ -151,8 +151,8 @@ const getLedgerDetails = async (req, res) => {
         autopositioning: ledger.wallets.autopositionting?.toString() || "0.0",
       },
 
-      xamanWallet: {
-        balance: rawXamanBalance,
+      usdtWallet: {
+        balance: rawUsdtBalance,
       },
 
       boostWallet: {
@@ -396,7 +396,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
     });
     console.log("🧾 Created AUTOPOSITIONING ledger entry");
 
-    // ---- Record + settle the fee (XRPL)
+    // ---- Record + settle the fee (chain)
     if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
       let EcosystemFeeEntry = await EcosystemFee.create({
         userId,
@@ -406,10 +406,10 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
         narrative: "10% ecosystem fee charged during autopositioning",
       });
 
-    //  const txResult =  await sendXrp({
+    //  const txResult =  await sendUsdt({
     //         idempotency_key: lpDepositLedgerEntry._id,
     //         withdrawal_id: EcosystemFeeEntry._id,
-    //         amount_xrp: ecosystemFeeDeduction,
+    //         amount: ecosystemFeeDeduction,
     //         destination: process.env.ECOSYSTEM_ADDRESS,
     //       });
 
@@ -418,7 +418,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
     //     EcosystemFeeEntry.refId = txResult?.quicknode?.tx_json?.hash;
     //   }
       await EcosystemFeeEntry.save();
-      console.log("🏛️ Ecosystem fee recorded and XRPL debit attempted.");
+      console.log("🏛️ Ecosystem fee recorded and chain debit attempted.");
     }
 
     if (boostBonusEntry) {
@@ -556,7 +556,7 @@ const walletHistory = async (req, res) => {
   try {
     const userId = req.user._id;
     let totals;
-    let runningBalanceXAMAN = 0;
+    let runningBalanceUSDT = 0;
     let runningBalanceLP = 0;
 
     const {
@@ -655,25 +655,25 @@ const walletHistory = async (req, res) => {
       const previousBalance = runningBalance;
       let isDeposit = false;
 
-      /* -------------------- XAMAN -------------------- */
-      if (wallet === "XAMAN") {
-        const isDepositToXaman =
-          entry.eventType === "DEPOSIT" && entry.walletTo === "XAMAN";
+      /* -------------------- USDT -------------------- */
+      if (wallet === "USDT") {
+        const isDepositToUsdt =
+          entry.eventType === "DEPOSIT" && entry.walletTo === "USDT";
 
         const isDebitToExternal =
           (entry.eventType === "WITHDRAWAL" || entry.eventType === "CLAIMED") &&
-          entry.walletFrom === "XAMAN" &&
+          entry.walletFrom === "USDT" &&
           entry.walletTo === "EXTERNAL";
 
-        if (isDepositToXaman) runningBalance += amount;
+        if (isDepositToUsdt) runningBalance += amount;
         else if (isDebitToExternal) runningBalance -= amount;
 
         if (runningBalance < 0) runningBalance = 0;
 
-        if (isDepositToXaman) totalDeposits += amount;
+        if (isDepositToUsdt) totalDeposits += amount;
         if (isDebitToExternal) totalWithdrawals += amount;
 
-        if (entry.walletFrom === "XAMAN" && entry.walletTo === "LP") {
+        if (entry.walletFrom === "USDT" && entry.walletTo === "LP") {
           totalLpositioning += amount;
         }
       }
@@ -781,7 +781,7 @@ if (ecoLinked && ecoLinked.length > 0) {
       if (wallet === "LP") {
         if (entry.walletFrom === "COMMUNITY_REWARDS" && entry.walletTo === "LP")
           totalRewards += amount;
-        if (entry.walletFrom === "XAMAN" && entry.walletTo === "LP")
+        if (entry.walletFrom === "USDT" && entry.walletTo === "LP")
           totalLpositioning += amount;
         if (
           (entry.eventType === "WITHDRAWAL" || entry.eventType === "CLAIMED") &&
@@ -798,7 +798,7 @@ if (ecoLinked && ecoLinked.length > 0) {
     const paginated = sorted.slice(skip, skip + limitNum);
 
     /* -------------------- TOTALS -------------------- */
-    if (wallet === "XAMAN") {
+    if (wallet === "USDT") {
       totals = {
         totalDeposits: totalDeposits.toFixed(6),
         totalLpositioning: totalLpositioning.toFixed(6),
@@ -865,7 +865,7 @@ const reports = async (req, res) => {
       "COMMUNITY_REWARDS",
       "LP",
       "SWIFT",
-      "XAMAN",
+      "USDT",
       "ZERO_RISK",
       "AUTOPOSITIONING",
     ];
@@ -1003,12 +1003,12 @@ const reports = async (req, res) => {
         wallet = "BOOST";
         type = "DEPOSIT";
         historyEntry = { eventType, amount, source: "SYSTEM" };
-      } else if (eventType === "LP_DEPOSIT_FROM_XAMAN") {
+      } else if (eventType === "LP_DEPOSIT_FROM_USDT") {
         wallets["LP"].totalCredits += amount;
-        wallets["LP"].history.push({ eventType, amount, source: "XAMAN" });
+        wallets["LP"].history.push({ eventType, amount, source: "USDT" });
 
-        wallets["XAMAN"].totalWithdrawals += amount;
-        wallets["XAMAN"].history.push({ eventType, amount, target: "LP" });
+        wallets["USDT"].totalWithdrawals += amount;
+        wallets["USDT"].history.push({ eventType, amount, target: "LP" });
         continue;
       } else if (eventType === "SWIFT_TRANSFER_IN") {
         wallet = "SWIFT";
@@ -1030,12 +1030,12 @@ const reports = async (req, res) => {
         type = "DEPOSIT";
         historyEntry = { eventType, amount, source: walletFrom };
 
-        if (wallet === "XAMAN") {
+        if (wallet === "USDT") {
           wallets["ZERO_RISK"].totalCredits += amount;
           wallets["ZERO_RISK"].history.push({
-            eventType: "MIRRORED_DEPOSIT_FROM_XAMAN",
+            eventType: "MIRRORED_DEPOSIT_FROM_USDT",
             amount: amount.toFixed(6),
-            source: "XAMAN",
+            source: "USDT",
           });
         }
       } else if (eventType === "WITHDRAWAL") {
@@ -1182,7 +1182,7 @@ const usersReports = async (req, res) => {
       "COMMUNITY_REWARDS",
       "LP",
       "SWIFT",
-      "XAMAN",
+      "USDT",
       "ZERO_RISK",
       "AUTOPOSITIONING",
     ];
@@ -1314,18 +1314,18 @@ const usersReports = async (req, res) => {
           wallet = "BOOST";
           type = "DEPOSIT";
           historyEntry = { eventType, amount, source: "SYSTEM" };
-        } else if (eventType === "LP_DEPOSIT_FROM_XAMAN") {
+        } else if (eventType === "LP_DEPOSIT_FROM_USDT") {
           if (walletList.includes("LP")) {
             walletStats["LP"].totalCredits += amount;
             walletStats["LP"].history.push({
               eventType,
               amount,
-              source: "XAMAN",
+              source: "USDT",
             });
           }
-          if (walletList.includes("XAMAN")) {
-            walletStats["XAMAN"].totalWithdrawals += amount;
-            walletStats["XAMAN"].history.push({
+          if (walletList.includes("USDT")) {
+            walletStats["USDT"].totalWithdrawals += amount;
+            walletStats["USDT"].history.push({
               eventType,
               amount,
               target: "LP",
@@ -1348,13 +1348,13 @@ const usersReports = async (req, res) => {
           type = "DEPOSIT";
           historyEntry = { eventType, amount, source: walletFrom };
 
-          // 🎯 Mirror deposit to ZERO_RISK when XAMAN is the recipient
-          if (wallet === "XAMAN" && walletList.includes("ZERO_RISK")) {
+          // 🎯 Mirror deposit to ZERO_RISK when USDT is the recipient
+          if (wallet === "USDT" && walletList.includes("ZERO_RISK")) {
             walletStats["ZERO_RISK"].totalCredits += amount;
             walletStats["ZERO_RISK"].history.push({
-              eventType: "MIRRORED_DEPOSIT_FROM_XAMAN",
+              eventType: "MIRRORED_DEPOSIT_FROM_USDT",
               amount: amount.toFixed(6),
-              source: "XAMAN",
+              source: "USDT",
             });
           }
         } else if (eventType === "WITHDRAWAL") {
@@ -1460,6 +1460,7 @@ const CommunityRewardsHistory = async (req, res) => {
       $or: [{ walletFrom: wallet }, { walletTo: wallet }],
     };
     const now = new Date();
+    let chainTxHash = null;
     if (startDate || endDate) {
       match.ts = {};
       if (startDate) {
@@ -1617,7 +1618,7 @@ const getUserChainTotals = async (userId) => {
     {
       $group: {
         _id: null,
-        totalAmount: { $sum: "$amountXRP" },
+        totalAmount: { $sum: "$amount" },
       },
     },
   ]);
@@ -1627,7 +1628,7 @@ const getUserChainTotals = async (userId) => {
     {
       $group: {
         _id: null,
-        totalAmount: { $sum: "$amountXRP" },
+        totalAmount: { $sum: "$amount" },
       },
     },
   ]);
@@ -1772,16 +1773,16 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       transferAmountD128
     );
     console.log(
-      `[addLpFromXaman] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
+      `[addLpFromUsdt] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
     );
   } else {
     console.log(
-      `[addLpFromXaman] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
+      `[addLpFromUsdt] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
     );
   }
 } else {
   console.warn(
-    `[addLpFromXaman] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
+    `[addLpFromUsdt] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
   );
 }
 
@@ -1891,13 +1892,13 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       const uniqueTransactionId = lpDepositLedgerEntry._id.toString();
       //Make Transaction
       if (compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
-        const txResult = await xrpTransactions.debitEcosystem(
+        const txResult = await usdtTransactions.debitEcosystem(
           ecosystemFeeDeduction,
           uniqueTransactionId
         );
         console.log(txResult);
-        xrpTxHash = txResult.hash;
-        EcosystemFeeEntry.refId = xrpTxHash;
+        chainTxHash = txResult.txHash || txResult.hash;
+        EcosystemFeeEntry.refId = chainTxHash;
       }
       EcosystemFeeEntry.save();
     }
@@ -1911,7 +1912,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
 
     res.status(200).json({
       success: true,
-      message: `Successfully transferred ${transferAmountD128} XRP from COMMUNITY_REWARDS to LP.`,
+      message: `Successfully transferred ${transferAmountD128} USDT from COMMUNITY_REWARDS to LP.`,
     });
   } catch (error) {
     console.error("CRITICAL ERROR in addLpFromCOMMUNITY_REWARDS:", error);
@@ -1923,18 +1924,18 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
   }
 };
 
-// Add LP from Xaman wallet
-const addLpFromXaman = async (req, res) => {
-  console.log("[addLpFromXaman] Received request");
+// Add LP from Usdt wallet
+const addLpFromUsdt = async (req, res) => {
+  console.log("[addLpFromUsdt] Received request");
   try {
     const userId = req.user._id;
     const { transferAmount } = req.body;
     console.log(
-      `[addLpFromXaman] UserID: ${userId}, TransferAmount: ${transferAmount}`
+      `[addLpFromUsdt] UserID: ${userId}, TransferAmount: ${transferAmount}`
     );
 
     if (!transferAmount || transferAmount < 9) {
-      console.log("[addLpFromXaman] Error: Invalid transfer amount.");
+      console.log("[addLpFromUsdt] Error: Invalid transfer amount.");
       return res.status(400).json({
         success: false,
         message: "Valid transfer amount is required",
@@ -1943,42 +1944,42 @@ const addLpFromXaman = async (req, res) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      console.log("[addLpFromXaman] Error: User not found.");
+      console.log("[addLpFromUsdt] Error: User not found.");
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
-    console.log(`[addLpFromXaman] Found user: ${user.username}`);
+    console.log(`[addLpFromUsdt] Found user: ${user.username}`);
 
     const transferAmountD128 = ensureDecimal128(transferAmount);
     console.log(
-      `[addLpFromXaman] Parsed transfer amount (Decimal128): ${transferAmountD128.toString()}`
+      `[addLpFromUsdt] Parsed transfer amount (Decimal128): ${transferAmountD128.toString()}`
     );
 
     const ledger = await getOrCreateLedger(userId);
-    console.log("[addLpFromXaman] Fetched or created ledger.");
+    console.log("[addLpFromUsdt] Fetched or created ledger.");
 
-    // Ensure xaman wallet has enough balance
-    const xamanBalanceD128 = ensureDecimal128(
-      ledger.wallets.xaman?.toString() || "0.0"
+    // Ensure usdt wallet has enough balance
+    const usdtBalanceD128 = ensureDecimal128(
+      ledger.wallets.usdt?.toString() || "0.0"
     );
     console.log(
-      `[addLpFromXaman] Current Xaman balance: ${xamanBalanceD128.toString()}`
+      `[addLpFromUsdt] Current Usdt balance: ${usdtBalanceD128.toString()}`
     );
-    if (compareDecimal128(xamanBalanceD128, transferAmountD128) < 0) {
-      console.log("[addLpFromXaman] Error: Insufficient Xaman balance.");
+    if (compareDecimal128(usdtBalanceD128, transferAmountD128) < 0) {
+      console.log("[addLpFromUsdt] Error: Insufficient Usdt balance.");
       return res.status(400).json({
         success: false,
-        message: `Insufficient Xaman balance. Trying to transfer ${transferAmount}, but only ${xamanBalanceD128.toString()} available.`,
+        message: `Insufficient Usdt balance. Trying to transfer ${transferAmount}, but only ${usdtBalanceD128.toString()} available.`,
       });
     }
 
-    console.log("[addLpFromXaman] --- Starting Core Business Logic ---");
+    console.log("[addLpFromUsdt] --- Starting Core Business Logic ---");
 
     // 1. Update user's self LP counter and check if this is the first deposit
     const isFirstDeposit = (user.counters.selfLp || "0.0").toString() === "0.0";
-    console.log(`[addLpFromXaman] Is first deposit? ${isFirstDeposit}`);
+    console.log(`[addLpFromUsdt] Is first deposit? ${isFirstDeposit}`);
     user.counters.selfLp = addDecimal128(
       user.counters.selfLp || "0.0",
       transferAmountD128
@@ -1986,15 +1987,15 @@ const addLpFromXaman = async (req, res) => {
     if (isFirstDeposit) {
       user.firstLpDepositTs = new Date(); // Set first deposit timestamp
       console.log(
-        `[addLpFromXaman] Set firstLpDepositTs for user ${user.username} to ${user.firstLpDepositTs}`
+        `[addLpFromUsdt] Set firstLpDepositTs for user ${user.username} to ${user.firstLpDepositTs}`
       );
     }
 
-    // 2. Perform wallet transfers (Xaman -> LP)
-    const originalXaman = ledger.wallets.xaman;
+    // 2. Perform wallet transfers (Usdt -> LP)
+    const originalUsdt = ledger.wallets.usdt;
     const originalLp = ledger.wallets.lp;
-    ledger.wallets.xaman = subtractDecimal128(
-      ledger.wallets.xaman,
+    ledger.wallets.usdt = subtractDecimal128(
+      ledger.wallets.usdt,
       transferAmountD128
     );
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, transferAmountD128);
@@ -2013,25 +2014,25 @@ const addLpFromXaman = async (req, res) => {
       ledger.limits.lpLimit.cap = newLpCap;
     
       // console.log(
-      //   `[addLpFromXaman] LP limit cap updated: ${oldLpCap?.toString()} -> ${newLpCap.toString()}`
+      //   `[addLpFromUsdt] LP limit cap updated: ${oldLpCap?.toString()} -> ${newLpCap.toString()}`
       // );
     
       // Ensure firstLpDepositTs is set
       if (!user.firstLpDepositTs) {
         user.firstLpDepositTs = new Date();
         // console.log(
-        //   `[addLpFromXaman] firstLpDepositTs initialized for user ${user.username} -> ${user.firstLpDepositTs}`
+        //   `[addLpFromUsdt] firstLpDepositTs initialized for user ${user.username} -> ${user.firstLpDepositTs}`
         // );
       }
     // console.log(
-    //   `[addLpFromXaman] Xaman wallet updated: ${originalXaman} -> ${ledger.wallets.xaman}`
+    //   `[addLpFromUsdt] Usdt wallet updated: ${originalUsdt} -> ${ledger.wallets.usdt}`
     // );
     // console.log(
-    //   `[addLpFromXaman] LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`
+    //   `[addLpFromUsdt] LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`
     // );
 
     // 3. Handle Airdrop activation (Swift -> Airdrop)
-    console.log("[addLpFromXaman] Handling Airdrop activation...");
+    console.log("[addLpFromUsdt] Handling Airdrop activation...");
 
     // This will hold the boost bonus entry if it's created
     let boostBonusEntry = null;
@@ -2058,7 +2059,7 @@ const addLpFromXaman = async (req, res) => {
       }
       if (!promotionFound) {
         console.log(
-          `[addLpFromXaman] Airdrop promotion has ended. Elapsed hours: ${elapsedHours.toFixed(
+          `[addLpFromUsdt] Airdrop promotion has ended. Elapsed hours: ${elapsedHours.toFixed(
             2
           )}`
         );
@@ -2066,13 +2067,13 @@ const addLpFromXaman = async (req, res) => {
       }
     } else {
       console.log(
-        `[addLpFromXaman] Airdrop promotion has not started yet. Starts at ${new Date(
+        `[addLpFromUsdt] Airdrop promotion has not started yet. Starts at ${new Date(
           startTimestamp
         ).toISOString()}`
       );
     }
     console.log(
-      `[addLpFromXaman] Airdrop promotion percentage: ${promotionPercentage}`
+      `[addLpFromUsdt] Airdrop promotion percentage: ${promotionPercentage}`
     );
 
     const swiftBalance =
@@ -2091,7 +2092,7 @@ const addLpFromXaman = async (req, res) => {
     );
 
     console.log(
-      `[addLpFromXaman] Swift balance: ${swiftBalance}, Promotional Amount: ${promotionalAmount}, Final Amount to move from Swift: ${amountToMoveFromSwift}`
+      `[addLpFromUsdt] Swift balance: ${swiftBalance}, Promotional Amount: ${promotionalAmount}, Final Amount to move from Swift: ${amountToMoveFromSwift}`
     );
 
     if (compareDecimal128(amountToMoveFromSwift, "0.0") > 0) {
@@ -2121,13 +2122,13 @@ const addLpFromXaman = async (req, res) => {
       );
 
       console.log(
-        `[addLpFromXaman] Swift wallet updated: ${originalSwift} -> ${ledger.wallets.swift}`
+        `[addLpFromUsdt] Swift wallet updated: ${originalSwift} -> ${ledger.wallets.swift}`
       );
       console.log(
-        `[addLpFromXaman] Airdrop wallet updated: ${originalAirdrop} -> ${ledger.wallets.airdrop}`
+        `[addLpFromUsdt] Airdrop wallet updated: ${originalAirdrop} -> ${ledger.wallets.airdrop}`
       );
       console.log(
-        `[addLpFromXaman] Airdrop limit cap updated: ${originalAirdropCap} -> ${ledger.limits.airdropLimit.cap}`
+        `[addLpFromUsdt] Airdrop limit cap updated: ${originalAirdropCap} -> ${ledger.limits.airdropLimit.cap}`
       );
 
       await createLedgerEntry({
@@ -2138,15 +2139,15 @@ const addLpFromXaman = async (req, res) => {
         walletTo: "AIRDROP",
         narrative: `Airdrop activation for ${amountToMoveFromSwift.toString()} matching LP deposit.${narrativeSuffix}`,
       });
-      console.log("[addLpFromXaman] Created AIRDROP_ACTIVATION ledger entry.");
+      console.log("[addLpFromUsdt] Created AIRDROP_ACTIVATION ledger entry.");
     } else {
       console.log(
-        "[addLpFromXaman] No amount to move from Swift, skipping Airdrop activation."
+        "[addLpFromUsdt] No amount to move from Swift, skipping Airdrop activation."
       );
     }
 
     // 4. Update all relevant limits
-    console.log("[addLpFromXaman] Updating limits...");
+    console.log("[addLpFromUsdt] Updating limits...");
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     const original5xCap = ledger.limits.fiveXLimit?.cap;
 // --- BOOST LIMIT LOGIC ---
@@ -2171,38 +2172,38 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       transferAmountD128
     );
     console.log(
-      `[addLpFromXaman] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
+      `[addLpFromUsdt] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
     );
   } else {
     console.log(
-      `[addLpFromXaman] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
+      `[addLpFromUsdt] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
     );
   }
 } else {
   console.warn(
-    `[addLpFromXaman] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
+    `[addLpFromUsdt] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
   );
 }
 
     ledger.limits.fiveXLimit.cap = multiplyDecimal128(ledger.wallets.lp, "5");
     console.log(
-      `[addLpFromXaman] Boost limit cap updated: ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
+      `[addLpFromUsdt] Boost limit cap updated: ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
     );
     console.log(
-      `[addLpFromXaman] 5x limit cap updated: ${original5xCap} -> ${ledger.limits.fiveXLimit.cap}`
+      `[addLpFromUsdt] 5x limit cap updated: ${original5xCap} -> ${ledger.limits.fiveXLimit.cap}`
     );
 
     // 5. Handle Sponsor Bonus
     if (user.sponsorId) {
       console.log(
-        "[addLpFromXaman] User has a sponsor, processing bonus logic..."
+        "[addLpFromUsdt] User has a sponsor, processing bonus logic..."
       );
-      console.log(`[addLpFromXaman] User has sponsor: ${user.sponsorId}`);
+      console.log(`[addLpFromUsdt] User has sponsor: ${user.sponsorId}`);
       const sponsor = await User.findById(user.sponsorId);
 
       if (!sponsor) {
         console.log(
-          `[addLpFromXaman] Sponsor with ID ${user.sponsorId} could not be found in the database.`
+          `[addLpFromUsdt] Sponsor with ID ${user.sponsorId} could not be found in the database.`
         );
       } else {
         // Fetch sponsor's ledger once to handle retroactive update and bonus calculation.
@@ -2211,7 +2212,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
         // If sponsor has no timestamp, check if they should be retroactively assigned one.
         if (!sponsor.firstLpDepositTs) {
           console.log(
-            `[addLpFromXaman] Sponsor ${sponsor.username} does not have 'firstLpDepositTs' set. Checking LP balance for retroactive update.`
+            `[addLpFromUsdt] Sponsor ${sponsor.username} does not have 'firstLpDepositTs' set. Checking LP balance for retroactive update.`
           );
           const sponsorLpBalance =
             sponsorLedger.wallets.lp ||
@@ -2221,11 +2222,11 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
             sponsor.firstLpDepositTs = new Date();
             await sponsor.save();
             console.log(
-              `[addLpFromXaman] Retroactively set 'firstLpDepositTs' for sponsor ${sponsor.username} due to existing LP balance.`
+              `[addLpFromUsdt] Retroactively set 'firstLpDepositTs' for sponsor ${sponsor.username} due to existing LP balance.`
             );
           } else {
             console.log(
-              `[addLpFromXaman] Sponsor ${sponsor.username} has no LP balance. 'firstLpDepositTs' remains unset.`
+              `[addLpFromUsdt] Sponsor ${sponsor.username} has no LP balance. 'firstLpDepositTs' remains unset.`
             );
           }
         }
@@ -2233,7 +2234,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
         // Now, proceed with bonus logic if the sponsor is eligible (has the timestamp).
         if (sponsor.firstLpDepositTs) {
           console.log(
-            `[addLpFromXaman] Proceeding with bonus check for sponsor ${sponsor.username}. Timestamp: ${sponsor.firstLpDepositTs}`
+            `[addLpFromUsdt] Proceeding with bonus check for sponsor ${sponsor.username}. Timestamp: ${sponsor.firstLpDepositTs}`
           );
           const sponsorFirstLpTime = new Date(
             sponsor.firstLpDepositTs
@@ -2242,14 +2243,14 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
           const hoursDifference =
             (currentUserDepositTime - sponsorFirstLpTime) / (1000 * 60 * 60);
           console.log(
-            `[addLpFromXaman] Hours since sponsor's first deposit: ${hoursDifference}`
+            `[addLpFromUsdt] Hours since sponsor's first deposit: ${hoursDifference}`
           );
 
           let bonusPercentage = 0;
           bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
             console.log(bonusPercentage,"===================bonusPercentage=====================");
           console.log(
-            `[addLpFromXaman] Calculated bonus percentage: ${bonusPercentage}`
+            `[addLpFromUsdt] Calculated bonus percentage: ${bonusPercentage}`
           );
 
           if (bonusPercentage > 0) {
@@ -2258,7 +2259,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
               bonusPercentage.toString()
             );
             console.log(
-              `[addLpFromXaman] Calculated raw bonus amount for sponsor ${
+              `[addLpFromUsdt] Calculated raw bonus amount for sponsor ${
                 sponsor.username
               }: ${bonusAmount.toString()}`
             );
@@ -2301,7 +2302,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
 
                 await sponsorLedger.save(); // Save the sponsor's ledger immediately after modification
                 console.log(
-                  `[addLpFromXaman] Updating sponsor's Boost wallet: ${originalSponsorBoost} -> ${sponsorLedger.wallets.boost}. Ledger saved.`
+                  `[addLpFromUsdt] Updating sponsor's Boost wallet: ${originalSponsorBoost} -> ${sponsorLedger.wallets.boost}. Ledger saved.`
                 );
 
                 // Create the entry and store it
@@ -2317,11 +2318,11 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
                   refId: user._id.toString(), // Temporary refId
                 });
                 console.log(
-                  `[addLpFromXaman] Created BOOST_BONUS ledger entry for sponsor with temp refId.`
+                  `[addLpFromUsdt] Created BOOST_BONUS ledger entry for sponsor with temp refId.`
                 );
               } else {
                 console.log(
-                  `[addLpFromXaman] Sponsor ${sponsor.username} bonus is 0 after capping. No update.`
+                  `[addLpFromUsdt] Sponsor ${sponsor.username} bonus is 0 after capping. No update.`
                 );
               }
             } else {
@@ -2333,41 +2334,41 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
           }
         } else {
           console.log(
-            `[addLpFromXaman] Sponsor ${sponsor.username} is not eligible for a bonus (no LP deposit timestamp).`
+            `[addLpFromUsdt] Sponsor ${sponsor.username} is not eligible for a bonus (no LP deposit timestamp).`
           );
         }
       }
     } else {
-      console.log("[addLpFromXaman] User does not have a sponsor.");
+      console.log("[addLpFromUsdt] User does not have a sponsor.");
     }
 
     // 6. Update Upline Team LP Counters (fire and forget)
-    console.log("[addLpFromXaman] Triggering Upline Team LP Counter update...");
+    console.log("[addLpFromUsdt] Triggering Upline Team LP Counter update...");
     updateUplineTeamLp(user.uhid, transferAmountD128).catch((err) => {
       console.error(
         `[BACKGROUND_ERROR] Failed to update team LP for user ${user.uhid}:`,
         err
       );
     });
-    console.log("[addLpFromXaman] Upline update process initiated.");
+    console.log("[addLpFromUsdt] Upline update process initiated.");
 
     // 7. Save all changes and create the primary ledger entry
-    console.log("[addLpFromXaman] Saving user and ledger...");
+    console.log("[addLpFromUsdt] Saving user and ledger...");
     await user.save();
     await ledger.save();
-    console.log("[addLpFromXaman] User and ledger saved.");
+    console.log("[addLpFromUsdt] User and ledger saved.");
 
     const lpDepositLedgerEntry = await createLedgerEntry({
       userId: userId,
-      eventType: "LP_DEPOSIT_FROM_XAMAN",
+      eventType: "LP_DEPOSIT_FROM_USDT",
       amount: transferAmountD128.toString(),
-      walletFrom: "XAMAN",
+      walletFrom: "USDT",
       walletTo: "LP",
-      narrative: `Transferred ${transferAmount} from Xaman to LP wallet.`,
+      narrative: `Transferred ${transferAmount} from Usdt to LP wallet.`,
     });
 
     console.log(
-      "[addLpFromXaman] Created final LP_DEPOSIT_FROM_XAMAN ledger entry."
+      "[addLpFromUsdt] Created final LP_DEPOSIT_FROM_USDT ledger entry."
     );
 
     // If a boost bonus was created, update it with the correct refId
@@ -2377,17 +2378,17 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
         { $set: { refId: lpDepositLedgerEntry._id.toString() } }
       );
       console.log(
-        `[addLpFromXaman] Updated BOOST_BONUS entry ${boostBonusEntry._id} with refId ${lpDepositLedgerEntry._id}.`
+        `[addLpFromUsdt] Updated BOOST_BONUS entry ${boostBonusEntry._id} with refId ${lpDepositLedgerEntry._id}.`
       );
     }
 
-    console.log("[addLpFromXaman] Request successful.");
+    console.log("[addLpFromUsdt] Request successful.");
     res.status(200).json({
       success: true,
-      message: `Successfully transferred ${transferAmount} XRP from Xaman to LP wallet.`,
+      message: `Successfully transferred ${transferAmount} USDT from Usdt to LP wallet.`,
     });
   } catch (error) {
-    console.error("CRITICAL ERROR in addLpFromXaman:", error);
+    console.error("CRITICAL ERROR in addLpFromUsdt:", error);
     res.status(500).json({
       success: false,
       message: "An unexpected error occurred.",
@@ -2429,13 +2430,13 @@ async function executeTransfer(
     "INTERNAL_TRANSFER",
     amountDecimal,
     fromWalletField.toUpperCase(), // e.g., LP, COMMUNITY_REWARDS
-    toWalletField.toUpperCase(), // e.g., XAMAN
+    toWalletField.toUpperCase(), // e.g., USDT
     `Transfer from ${fromWalletField} to ${toWalletField}`,
     null // refId
   );
 }
 
-const transferLpToXaman = async (req, res) => {
+const transferLpToUsdt = async (req, res) => {
   try {
     const userId = req.user._id;
     const { amount } = req.body;
@@ -2449,22 +2450,22 @@ const transferLpToXaman = async (req, res) => {
 
     const ledger = await getOrCreateLedger(userId);
 
-    await executeTransfer(userId, amount, "lp", "xaman", ledger);
+    await executeTransfer(userId, amount, "lp", "usdt", ledger);
 
     res.status(200).json({
       success: true,
-      message: "Transfer from LP to Xaman successful.",
+      message: "Transfer from LP to Usdt successful.",
     });
   } catch (error) {
-    console.error("Error in transferLpToXaman:", error);
+    console.error("Error in transferLpToUsdt:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Server error during LP to Xaman transfer.",
+      message: error.message || "Server error during LP to Usdt transfer.",
     });
   }
 };
 
-const transferRewardsToXaman = async (req, res) => {
+const transferRewardsToUsdt = async (req, res) => {
   try {
     const userId = req.user._id;
     const { amount } = req.body; // This amount would typically be the full pending rewards
@@ -2479,7 +2480,7 @@ const transferRewardsToXaman = async (req, res) => {
     const ledger = await getOrCreateLedger(userId);
 
     // Note: 'communityRewards' is the field in Ledger.wallets
-    await executeTransfer(userId, amount, "communityRewards", "xaman", ledger);
+    await executeTransfer(userId, amount, "communityRewards", "usdt", ledger);
 
     // Potentially clear pending rewards or update total rewards if necessary.
     // For now, this just moves the balance. The UI/caller might need to ensure
@@ -2487,22 +2488,22 @@ const transferRewardsToXaman = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Transfer from Community Rewards to Xaman successful.",
+      message: "Transfer from Community Rewards to Usdt successful.",
     });
   } catch (error) {
-    console.error("Error in transferRewardsToXaman:", error);
+    console.error("Error in transferRewardsToUsdt:", error);
     res.status(500).json({
       success: false,
       message:
         error.message ||
-        "Server error during Community Rewards to Xaman transfer.",
+        "Server error during Community Rewards to Usdt transfer.",
     });
   }
 };
 
 // team stats controller
 
-const withdrawXRP = async (req, res) => {
+const withdrawUSDT = async (req, res) => {
   try {
     const userId = req.user._id;
     const { amount, walletFrom, destinationAddress } = req.body;
@@ -2530,7 +2531,7 @@ const withdrawXRP = async (req, res) => {
 
     // --- REVISED WITHDRAWAL VALIDATION LOGIC ---
     if (walletFrom === "ZERO_RISK") {
-      const xamanBalance = ledger.wallets.xaman || Decimal.fromString("0.0");
+      const usdtBalance = ledger.wallets.usdt || Decimal.fromString("0.0");
       const lpBalance = ledger.wallets.lp || Decimal.fromString("0.0");
       const rewardsBalance =
         ledger.wallets.communityRewards || Decimal.fromString("0.0");
@@ -2540,7 +2541,7 @@ const withdrawXRP = async (req, res) => {
         ledger.totalRewardsWithdrawal || Decimal.fromString("0.0");
 
       // This is the pool of funds that back the zero risk guarantee
-      const principalAndStaging = addDecimal128(xamanBalance, lpBalance);
+      const principalAndStaging = addDecimal128(usdtBalance, lpBalance);
 
       // Per the new rule, the accessible principal is reduced by any available rewards
       const accessiblePrincipal = subtractDecimal128(
@@ -2567,7 +2568,7 @@ const withdrawXRP = async (req, res) => {
       if (compareDecimal128(amountD128, maxWithdrawableZeroRisk) > 0) {
         // amount > maxWithdrawable
         throw new Error(
-          `Withdrawal amount of ${amount.toString()} XRP exceeds your Zero Risk balance. Maximum available: ${maxWithdrawableZeroRisk.toString()} XRP.`
+          `Withdrawal amount of ${amount.toString()} USDT exceeds your Zero Risk balance. Maximum available: ${maxWithdrawableZeroRisk.toString()} USDT.`
         );
       }
     } else if (walletFrom === "LP") {
@@ -2595,7 +2596,7 @@ const withdrawXRP = async (req, res) => {
       if (compareDecimal128(amountD128, maxWithdrawable) > 0) {
         // amount > maxWithdrawable
         throw new Error(
-          `Withdrawal amount of ${amount.toString()} XRP exceeds your current earning-based limit. Maximum withdrawable: ${maxWithdrawable.toString()} XRP`
+          `Withdrawal amount of ${amount.toString()} USDT exceeds your current earning-based limit. Maximum withdrawable: ${maxWithdrawable.toString()} USDT`
         );
       }
     } else if (walletFrom === "COMMUNITY_REWARDS") {
@@ -2611,8 +2612,11 @@ const withdrawXRP = async (req, res) => {
     }
     // --- END REVISED VALIDATION ---
 
-    // Process XRP transaction
-    const txResult = await xrpTransactions.sendXRP(destinationAddress, amount);
+    // Process USDT transaction
+    const txResult = await usdtTransactions.sendUsdt({
+      destination: destinationAddress,
+      amount: amount.toString(),
+    });
 
     let newBalance;
 
@@ -2622,15 +2626,15 @@ const withdrawXRP = async (req, res) => {
       `[Withdrawal Apply] About to process withdrawal logic for walletFrom: '${walletFrom}'`
     );
     if (walletFrom === "ZERO_RISK") {
-      const amountFromXaman = minDecimal128(
+      const amountFromUsdt = minDecimal128(
         amountD128,
-        ledger.wallets.xaman || Decimal.fromString("0.0")
+        ledger.wallets.usdt || Decimal.fromString("0.0")
       );
-      const amountFromLp = subtractDecimal128(amountD128, amountFromXaman);
+      const amountFromLp = subtractDecimal128(amountD128, amountFromUsdt);
 
-      ledger.wallets.xaman = subtractDecimal128(
-        ledger.wallets.xaman || "0.0",
-        amountFromXaman
+      ledger.wallets.usdt = subtractDecimal128(
+        ledger.wallets.usdt || "0.0",
+        amountFromUsdt
       );
 
       if (compareDecimal128(amountFromLp, "0.0") > 0) {
@@ -2692,7 +2696,7 @@ const withdrawXRP = async (req, res) => {
         // --- End Sponsor Boost Wallet Reduction Logic ---
       }
 
-      newBalance = addDecimal128(ledger.wallets.xaman, ledger.wallets.lp);
+      newBalance = addDecimal128(ledger.wallets.usdt, ledger.wallets.lp);
     } else if (walletFrom === "COMMUNITY_REWARDS") {
       ledger.wallets.communityRewards = subtractDecimal128(
         ledger.wallets.communityRewards || "0.0",
@@ -2729,7 +2733,7 @@ const withdrawXRP = async (req, res) => {
       narrative:
         walletFrom === "COMMUNITY_REWARDS"
           ? `Community Rewards redeemed to ${destinationAddress}`
-          : `XRP withdrawal from ${walletFrom} to ${destinationAddress}`,
+          : `USDT withdrawal from ${walletFrom} to ${destinationAddress}`,
       refId: txResult.hash,
     });
 
@@ -3045,14 +3049,14 @@ const checkPoolRewardEligibility = async (req, res) => {
 
     /* ===========================
        OPTION B: FRESH DEPOSIT
-       (XAMAN ONLY)
+       (USDT ONLY)
     =========================== */
     const depositAgg = await LedgerRow.aggregate([
       {
         $match: {
           userId,
           eventType: "DEPOSIT",
-          walletTo: "XAMAN",
+          walletTo: "USDT",
           ts: { $gte: RANGE_START, $lte: RANGE_END },
         },
       },
@@ -3170,7 +3174,7 @@ const checkPoolRewardEligibility = async (req, res) => {
           $match: {
             userId: { $in: teamUserIds },
             eventType: "DEPOSIT",
-            walletTo: "XAMAN",
+            walletTo: "USDT",
             ts: { $gte: RANGE_START, $lte: RANGE_END },
           },
         },
@@ -3381,11 +3385,11 @@ const checkRedeemEligibility = async (req, res) => {
 module.exports = {
   getLedgerDetails,
   getLedgerHistory,
-  addLpFromXaman,
-  transferLpToXaman,
-  transferRewardsToXaman,
+  addLpFromUsdt,
+  transferLpToUsdt,
+  transferRewardsToUsdt,
   getLedgerEventTypes,
-  withdrawXRP,
+  withdrawUSDT,
   getWithdrawalsHistory,
   walletHistory,
   getLedgerLevelRewards,

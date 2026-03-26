@@ -111,7 +111,7 @@ async function reverseReconcileWithdrawals() {
                 break;
               case 'ZERO_RISK':
               default:
-                ledger.wallets.xaman = subtractDecimal128(ledger.wallets.xaman || '0.0', amt);
+                ledger.wallets.usdt = subtractDecimal128(ledger.wallets.usdt || '0.0', amt);
                 break;
             }
 

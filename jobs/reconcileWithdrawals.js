@@ -1,14 +1,13 @@
-const xrpl = require('xrpl');
-const LedgerRow = require('../models/LedgerRow');
-const xrpTransactions = require('../utils/xrpTransactions');
-const Ledger = require('../models/Ledger');
-const { addDecimal128 } = require('../utils/decimal128Utils');
-const { REFUND_WINDOW_MS } = require('../config/constants/timings');
+const LedgerRow = require("../models/LedgerRow");
+const Ledger = require("../models/Ledger");
+const { addDecimal128 } = require("../utils/decimal128Utils");
+const { REFUND_WINDOW_MS } = require("../config/constants/timings");
+const { BSC_CONFIRMATIONS, getProvider } = require("../utils/bsc");
 
 /**
  * Scan for INITIATED withdrawals and attempt to verify their on-chain status.
- * If the transaction with matching memo is found we mark the row as COMPLETED
- * (and store the tx hash). If nothing is found after X minutes we mark as FAILED
+ * If the transaction hash is confirmed we mark the row as COMPLETED.
+ * If nothing is found after X minutes we mark as FAILED
  * so that a manual refund script can credit the user.
  */
 
@@ -20,30 +19,18 @@ async function reconcileWithdrawals() {
 
   if (!pendingRows.length) return;
 
-  const client = new xrpl.Client(process.env.XRP_LEDGER_SERVER_URL || 'wss://xrplcluster.com');
-  await client.connect();
+  const provider = getProvider();
 
   for (const row of pendingRows) {
     try {
-      const response = await client.request({
-        command: 'account_tx',
-        account: process.env.SYSTEM_WITHDRAWAL_ADDRESS,
-        ledger_index_min: -1500, // recent ledgers only
-        ledger_index_max: -1,
-        binary: false,
-        limit: 200,
-      });
-
-      const match = response.result?.transactions?.find(tx => {
-        const memos = tx.tx?.Memos || [];
-        return memos.some(m => Buffer.from(m.Memo?.MemoData, 'hex').toString('utf8') === row.uniqueTransactionId);
-      });
-
       let succeeded = false;
-      if (match && match.validated && match.meta?.TransactionResult === 'tesSUCCESS') {
-        row.status = 'COMPLETED';
-        row.refId = match.hash;
-        await row.save();
+      if (row.refId) {
+        const receipt = await provider.getTransactionReceipt(row.refId);
+        if (receipt && receipt.status === 1) {
+          const confirmations = (await provider.getBlockNumber()) - receipt.blockNumber + 1;
+          if (confirmations >= BSC_CONFIRMATIONS) {
+            row.status = "COMPLETED";
+            await row.save();
 
         // Re-enable withdrawals for this user
         try {
@@ -56,7 +43,9 @@ async function reconcileWithdrawals() {
           console.error('Failed to clear withdrawalDisabled after completion:', e);
         }
 
-        succeeded = true;
+            succeeded = true;
+          }
+        }
       }
 
       // --------------------------------------------------------------
@@ -78,7 +67,7 @@ async function reconcileWithdrawals() {
                   break;
                 case 'ZERO_RISK':
                 default:
-                  ledger.wallets.xaman = addDecimal128(ledger.wallets.xaman || '0.0', amt);
+                  ledger.wallets.usdt = addDecimal128(ledger.wallets.usdt || '0.0', amt);
                   break;
               }
               ledger.withdrawalDisabled = false; // clear flag upon refund
@@ -99,7 +88,6 @@ async function reconcileWithdrawals() {
     }
   }
 
-  try { await client.disconnect(); } catch (_) {}
 }
 
 module.exports = reconcileWithdrawals; 

@@ -47,7 +47,7 @@ const [depositSummary] = await ChainDeposit.aggregate([
   {
     $group: {
       _id: null,
-      totalAmount: { $sum: "$amountXRP" },
+      totalAmount: { $sum: "$amount" },
     },
   },
 ]);
@@ -58,7 +58,7 @@ const [withdrawalSummary] = await ChainWithdrawal.aggregate([
   {
     $group: {
       _id: null,
-      totalAmount: { $sum: "$amountXRP" },
+      totalAmount: { $sum: "$amount" },
     },
   },
 ]);
@@ -77,7 +77,7 @@ const totalWithdrawals = withdrawalSummary?.totalAmount || 0;
     if (entryType === "DEPOSIT") {
       totalEntries = await ChainDeposit.countDocuments(baseFilter);
       const deposits = await ChainDeposit.find(baseFilter)
-        .select("txHash amountXRP txDate source destination")
+        .select("txHash amount txDate source destination")
         .sort({ txDate: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -87,7 +87,7 @@ const totalWithdrawals = withdrawalSummary?.totalAmount || 0;
     } else if (entryType === "WITHDRAWAL") {
       totalEntries = await ChainWithdrawal.countDocuments(baseFilter);
       const withdrawals = await ChainWithdrawal.find(baseFilter)
-        .select("txHash amountXRP txDate source destination")
+        .select("txHash amount txDate source destination")
         .sort({ txDate: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -98,10 +98,10 @@ const totalWithdrawals = withdrawalSummary?.totalAmount || 0;
       // If no entryType or "all", fetch both and paginate manually (in-memory pagination)
       const [deposits, withdrawals] = await Promise.all([
         ChainDeposit.find(baseFilter)
-          .select("txHash amountXRP txDate source destination")
+          .select("txHash amount txDate source destination")
           .lean(),
         ChainWithdrawal.find(baseFilter)
-          .select("txHash amountXRP txDate source destination")
+          .select("txHash amount txDate source destination")
           .lean(),
       ]);
 

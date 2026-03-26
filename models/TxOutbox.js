@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 /**
- * One row per signed XRPL tx.
+ * One row per signed chain tx.
  *  • Shields against process-crash duplicates
  *  • Lets us probe idempotently with txHashHint
  */

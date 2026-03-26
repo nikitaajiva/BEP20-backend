@@ -2,17 +2,11 @@ const mongoose = require("mongoose");
 
 const depositAddressSchema = new mongoose.Schema(
   {
-    // XRPL wallet address where deposits are received
+    // BEP20 wallet address where deposits are received
     wallet_address: {
       type: String,
       required: true,
       trim: true,
-    },
-
-    // Destination tag used to identify user deposits
-    destination_tag: {
-      type: Number,
-      required: true,
     },
 
     // Mark active address for current system use
@@ -27,14 +21,19 @@ const depositAddressSchema = new mongoose.Schema(
       trim: true,
     },
 
-    txHash: {
+    tx_hash: {
       type: String,
       trim: true,
     },
 
-    amount_xrp: {
+    amount: {
       type: Number,
       default: 0,
+    },
+
+    network: {
+      type: String,
+      default: "BEP20",
     },
   },
   { timestamps: true }

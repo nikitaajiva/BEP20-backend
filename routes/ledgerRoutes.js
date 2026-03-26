@@ -4,9 +4,9 @@ const {
   getLedgerDetails,
   CommunityRewardsHistory,
   getLedgerHistory,
-  addLpFromXaman,
-  transferLpToXaman,
-  transferRewardsToXaman,
+  addLpFromUsdt,
+  transferLpToUsdt,
+  transferRewardsToUsdt,
   getLedgerEventTypes,
   getDailyRewardLogs,
   getTeamStats,
@@ -60,24 +60,24 @@ router.get("/community-rewards", protect, CommunityRewardsHistory);
 // @access  Private
 router.get("/history/event-types", protect, getLedgerEventTypes);
 // @route   POST /api/ledger/autopositioning
-// @desc    Transfer from Xaman wallet to LP wallet and set limits (first time only)
+// @desc    Transfer from USDT wallet to LP wallet and set limits (first time only)
 // @access  Private
 router.post("/autopositioning", protect, blockDuringCron, addLpFromCommuntityRewards);
 
 // @route   POST /api/ledger/add-lp
-// @desc    Transfer from Xaman wallet to LP wallet and set limits (first time only)
+// @desc    Transfer from USDT wallet to LP wallet and set limits (first time only)
 // @access  Private
-router.post("/add-lp", protect,blockDuringCron, addLpFromXaman);
+router.post("/add-lp", protect,blockDuringCron, addLpFromUsdt);
 
-// @route   POST /api/ledger/transfer-lp-to-xaman
-// @desc    Transfer funds from LP wallet to Xaman wallet
+// @route   POST /api/ledger/transfer-lp-to-usdt
+// @desc    Transfer funds from LP wallet to USDT wallet
 // @access  Private
-router.post("/transfer-lp-to-xaman", protect, blockDuringCron, transferLpToXaman);
+router.post("/transfer-lp-to-usdt", protect, blockDuringCron, transferLpToUsdt);
 
-// @route   POST /api/ledger/transfer-rewards-to-xaman
-// @desc    Transfer funds from Community Rewards wallet to Xaman wallet
+// @route   POST /api/ledger/transfer-rewards-to-usdt
+// @desc    Transfer funds from Community Rewards wallet to USDT wallet
 // @access  Private
-router.post("/transfer-rewards-to-xaman", protect, blockDuringCron, transferRewardsToXaman);
+router.post("/transfer-rewards-to-usdt", protect, blockDuringCron, transferRewardsToUsdt);
 
 
 // @route   GET /api/ledger/redeem-eligibility

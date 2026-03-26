@@ -17,7 +17,11 @@ function isTokenExpired() {
 // Fetch new token from API
 async function fetchNewToken() {
   try {
-    const res = await axios.get("https://pay.BEPVault.io/v1/getJwt");
+    const tokenUrl = process.env.SECURE_TOKEN_URL;
+    if (!tokenUrl) {
+      throw new Error("SECURE_TOKEN_URL is not configured");
+    }
+    const res = await axios.get(tokenUrl);
     const { token, expiresAt } = res.data;
 
     cachedToken = { token, expiresAt };
@@ -37,11 +41,6 @@ async function getValidToken() {
   } else {
     // Keep using current one
     process.env.SECURE_TOKEN = cachedToken.token;
-  }
-  // Guard: fetchNewToken may have failed (e.g. network timeout), leaving cachedToken null
-  if (!cachedToken) {
-    console.warn("⚠️  No valid SECURE_TOKEN available (fetch failed). Returning null.");
-    return null;
   }
   return cachedToken.token;
 }

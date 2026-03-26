@@ -7,16 +7,16 @@ const WithdrawalErrorLogSchema = new Schema({
   userId:       { type: Schema.Types.ObjectId, ref: 'User', index: true },
   ledgerRowId:  { type: Schema.Types.ObjectId, ref: 'LedgerRow', index: true },
 
-  uniqueTransactionId: String,  // memo / unique id embedded in XRPL tx
+  uniqueTransactionId: String,  // memo / unique id embedded in chain tx
   walletFrom:           String, // LP | COMMUNITY_REWARDS | ZERO_RISK
-  amount:               Schema.Types.Decimal128, // Amount attempted (in XRP)
-  destinationAddress:   String, // User's XRP address
-  memo:                 String, // Hex/plain memo stored in XRPL payment (same as uniqueTransactionId)
+  amount:               Schema.Types.Decimal128, // Amount attempted (in USDT)
+  destinationAddress:   String, // User's BEP20 address
+  memo:                 String, // Hex/plain memo stored in chain payment (same as uniqueTransactionId)
 
-  // XRPL error/result fields
+  // Chain error/result fields
   errorCode:    String, // e.g. tecNO_DST, tefFAILURE, etc.
   errorMessage: String, // Human-readable message
-  xrpResponse:  Schema.Types.Mixed, // Raw response object (if available)
+  chainResponse:  Schema.Types.Mixed, // Raw response object (if available)
 
   // Node / application error details
   stackTrace:   String,

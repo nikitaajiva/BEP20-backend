@@ -21,16 +21,16 @@ const nodemailer = require("nodemailer");
 //       port: 465,               // Secure port
 //       secure: true,            // true = port 465, false = other ports
 //       auth: {
-//         user: "noreply@BEPVault.io",   // your Namecheap email
+//         user: "noreply@example.com",   // your Namecheap email
 //         pass: "_TaH6+DpPbTp", //"zuzs nbeo thcg jbgq", // your email password
 //       },
 //     });
 
 //     // Setup email data
 //     const mailOptions = {
-//       from: `"BEPVault" <noreply@BEPVault.io>`, // sender info
+//       from: `"USDT Platform" <noreply@example.com>`, // sender info
 //       to,                                       // recipient(s)
-//       bcc: "support@BEPVault.io",
+//       bcc: "support@example.com",
 //       subject,                                  // subject line
 //       text: textBody,                           // plain text body
 //       ...(htmlBody && { html: htmlBody }),      // optional HTML body
@@ -51,8 +51,11 @@ const sendEmail = async (to, subject, textBody, htmlBody = null) => {
     try {
         console.log(`Attempting to send email to: ${to}, Subject: ${subject}`);
         
+        const senderName = process.env.APP_NAME || "USDT Platform";
+        const senderEmail =
+            process.env.APP_SENDER_EMAIL || process.env.APP_SUPPORT_EMAIL || "noreply@example.com";
         const emailData = {
-            sender: 'BEPVault <noreply@BEPVault.io>', // Fallback sender
+            sender: `${senderName} <${senderEmail}>`,
             to: [to],
             subject: subject,
             text_body: textBody,

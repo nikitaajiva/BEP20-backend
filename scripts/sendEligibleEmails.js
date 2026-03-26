@@ -51,7 +51,7 @@ function buildEligibilityEmail(username) {
         "
       >
         <img
-          src="https://BEPVault.com/_next/image?url=%2Fassets%2Fimg%2Flogo.png&w=256&q=75"
+          src="${process.env.APP_LOGO_URL || "https://example.com/assets/images/logo.png"}"
           alt="Logo"
           style="width: 150px; height: auto"
         />

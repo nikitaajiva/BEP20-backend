@@ -12,7 +12,6 @@ const {
     compareDecimal128,
     subtractDecimal128
 } = require('../../utils/decimal128Utils');
-const XrpDeposit = require('../../models/XrpDeposit');
 
 // Add logging function
 const logX1Check = (message) => {
@@ -378,8 +377,8 @@ async function awardXBonus(uplineUser, depositor, depositAmount, rate, triggerin
     logX1Check(`- Tier: ${tier}`);
     logX1Check(`- Rate: ${(rate * 100).toFixed(1)}%`);
     logX1Check(`- Level: ${level}`);
-    logX1Check(`- Deposit Amount: ${depositAmount} XRP`);
-    logX1Check(`- Bonus Amount: ${bonusAmount.toString()} XRP`);
+    logX1Check(`- Deposit Amount: ${depositAmount} USDT`);
+    logX1Check(`- Bonus Amount: ${bonusAmount.toString()} USDT`);
 
     // Store reward in X1Reward collection
     await X1Reward.create({
@@ -421,7 +420,7 @@ async function awardXBonus(uplineUser, depositor, depositAmount, rate, triggerin
         await uplineLedger.save();
     }
 
-    console.log(`[X1Handler] Awarded ${bonusAmount.toString()} XRP to ${uplineUser.username} (${tier} at ${(rate * 100).toFixed(1)}%, Level ${level})`);
+    console.log(`[X1Handler] Awarded ${bonusAmount.toString()} USDT to ${uplineUser.username} (${tier} at ${(rate * 100).toFixed(1)}%, Level ${level})`);
     
     return parseFloat(rate);
 }
@@ -433,7 +432,7 @@ const handleX1 = async (payload) => {
     const { depositorUserId, depositAmount, triggeringEventId } = payload;
 
     try {
-        logX1Check(`Starting X1-X5 bonus processing for deposit: ${depositAmount} XRP`);
+        logX1Check(`Starting X1-X5 bonus processing for deposit: ${depositAmount} USDT`);
         
         // Get the depositor's info
         const depositor = await User.findById(depositorUserId).lean();
@@ -537,7 +536,7 @@ const handleX1 = async (payload) => {
  */
 const handleX1WithStoredRanks = async ({ depositor, qualifiedUplines, depositAmount, triggeringEventId }) => {
     try {
-        logX1Check(`Starting X1-X5 bonus processing for deposit: ${depositAmount} XRP using stored ranks`);
+        logX1Check(`Starting X1-X5 bonus processing for deposit: ${depositAmount} USDT using stored ranks`);
 
         
         

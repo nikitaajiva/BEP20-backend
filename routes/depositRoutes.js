@@ -1,18 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const { recordXrpDeposit, getDepositsHistory, recordDepositAddress } = require('../controllers/depositController');
+const { recordUsdtDeposit, getDepositsHistory, recordDepositAddress, createDepositIntent, verifyDepositIntent } = require('../controllers/depositController');
 const { protect,blockDuringCron } = require('../middleware/authMiddleware'); // Assuming you have auth middleware
 
-// POST /api/deposits/xrp
-// Route for user to record an XRP deposit they made to the system wallet.
-// The controller will verify against XRPL and then queue for outbox processing.
-router.post('/xrp', protect, blockDuringCron,recordXrpDeposit);
+// POST /api/deposits/usdt
+// Route for user to record a USDT deposit they made to the system wallet.
+// The controller will verify against BSC and then queue for outbox processing.
+router.post('/usdt', protect, blockDuringCron, recordUsdtDeposit);
 
 // GET /api/deposits/history
 // Get deposit history for the authenticated user
 router.get('/history', protect, getDepositsHistory);
 
 router.post('/address', protect, recordDepositAddress);
+router.post('/intent', protect, blockDuringCron, createDepositIntent);
+router.get('/verify', protect, blockDuringCron, verifyDepositIntent);
 
 // You can add other deposit-related routes here if needed in the future.
 

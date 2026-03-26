@@ -41,7 +41,7 @@
 //   countryCode: String,
 //   whatsappContact: { type: String, trim: true },
 
-//   // Verification and OTP related fields (from Auth-System, also present in XRP)
+//   // Verification and OTP related fields (from Auth-System, also present in USDT)
 //   isVerified: { type: Boolean, default: false }, // General verification status
 //   otp: String,
 //   otpExpiry: Date,
@@ -66,7 +66,7 @@
 
 //   googleId: String, // For Google Sign-In users
 
-//   // Sponsor, Path, Level, Height (present in both, using XRP structure where applicable)
+//   // Sponsor, Path, Level, Height (present in both, using USDT structure where applicable)
 //   sponsorId: {
 //     type: mongoose.Schema.Types.ObjectId,
 //     ref: "User",
@@ -90,7 +90,7 @@
 //     min: 0,
 //   },
 
-//   // Fields specific to XRP model structure
+//   // Fields specific to USDT model structure
 //   registrationTs: {
 //     type: Date,
 //     default: Date.now,
@@ -101,7 +101,7 @@
 //     min: 0,
 //   },
 
-//   // Counters (from XRP model, includes directReferrals which replaces directDownlines)
+//   // Counters (from USDT model, includes directReferrals which replaces directDownlines)
 //   counters: {
 //     selfLp: {
 //       // LP deposited by the user themselves
@@ -130,15 +130,15 @@
 //     },
 //   },
 
-//   // Balance fields from Auth-System (crucial for xrplDepositController)
-//   balanceXRP: {
-//     // General XRP balance, possibly for other uses or legacy
+//   // Balance fields from Auth-System (crucial for deposit controller)
+//   balanceUSDT: {
+//     // General USDT balance, possibly for other uses or legacy
 //     type: Number,
 //     default: 0,
 //     min: 0,
 //   },
-//   xamanBalance: {
-//     // Balance derived from Xaman deposits (managed by xrplDepositController)
+//   usdtBalance: {
+//     // Balance derived from Usdt deposits (managed by deposit controller)
 //     type: Number,
 //     default: 0,
 //     min: 0,
@@ -148,8 +148,8 @@
 //     default: null,
 //   },
 
-//   xrpAddress: {
-//     // New field for user's XRP address
+//   wallet_address: {
+//     // New field for user's USDT address
 //     type: String,
 //     trim: true,
 //     default: null, // Or an empty string, depending on preference
@@ -208,7 +208,7 @@
 //     type: Number,
 //     default: 0,
 //   },
-//   // Note: Wallets and Limits might be handled by a separate Ledger document as per XRP model's original comment.
+//   // Note: Wallets and Limits might be handled by a separate Ledger document as per USDT model's original comment.
 // });
 
 // // Pre-save middleware to hash password
@@ -318,7 +318,7 @@ const UserSchema = new mongoose.Schema({
   countryCode: String,
   whatsappContact: { type: String, trim: true },
 
-  // Verification and OTP related fields (from Auth-System, also present in XRP)
+  // Verification and OTP related fields (from Auth-System, also present in USDT)
   isVerified: { type: Boolean, default: false }, // General verification status
   otp: String,
   otpExpiry: Date,
@@ -348,7 +348,7 @@ const UserSchema = new mongoose.Schema({
 
   googleId: String, // For Google Sign-In users
 
-  // Sponsor, Path, Level, Height (present in both, using XRP structure where applicable)
+  // Sponsor, Path, Level, Height (present in both, using USDT structure where applicable)
   sponsorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -372,7 +372,7 @@ const UserSchema = new mongoose.Schema({
     min: 0,
   },
 
-  // Fields specific to XRP model structure
+  // Fields specific to USDT model structure
   registrationTs: {
     type: Date,
     default: Date.now,
@@ -383,7 +383,7 @@ const UserSchema = new mongoose.Schema({
     min: 0,
   },
 
-  // Counters (from XRP model, includes directReferrals which replaces directDownlines)
+  // Counters (from USDT model, includes directReferrals which replaces directDownlines)
   counters: {
     selfLp: {
       // LP deposited by the user themselves
@@ -412,15 +412,15 @@ const UserSchema = new mongoose.Schema({
     },
   },
 
-  // Balance fields from Auth-System (crucial for xrplDepositController)
-  balanceXRP: {
-    // General XRP balance, possibly for other uses or legacy
+  // Balance fields from Auth-System (crucial for deposit controller)
+  balanceUSDT: {
+    // General USDT balance, possibly for other uses or legacy
     type: Number,
     default: 0,
     min: 0,
   },
-  xamanBalance: {
-    // Balance derived from Xaman deposits (managed by xrplDepositController)
+  usdtBalance: {
+    // Balance derived from on-chain deposits (managed by deposit controller)
     type: Number,
     default: 0,
     min: 0,
@@ -430,8 +430,8 @@ const UserSchema = new mongoose.Schema({
     default: null,
   },
 
-  xrpAddress: {
-    // New field for user's XRP address
+  wallet_address: {
+    // User's BEP20 wallet address
     type: String,
     trim: true,
     default: null, // Or an empty string, depending on preference
@@ -445,10 +445,6 @@ const UserSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-  },
-  walletAddress: {
-    type: String,
-    trim: true,
   },
   communitySize: {
     // Total number of users in this user's downline (added from Auth system concept)
@@ -494,7 +490,7 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  // Note: Wallets and Limits might be handled by a separate Ledger document as per XRP model's original comment.
+  // Note: Wallets and Limits might be handled by a separate Ledger document as per USDT model's original comment.
 });
 
 // Pre-save middleware to hash password

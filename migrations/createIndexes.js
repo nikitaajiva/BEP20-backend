@@ -2,7 +2,7 @@ require('dotenv').config({ path: '../.env' }); // Adjust path if running from mi
 const mongoose = require('mongoose');
 
 // Import all models
-const User = require('../../xrp/models/User');
+const User = require('../models/User');
 const Ledger = require('../models/Ledger');
 const LedgerRow = require('../models/LedgerRow');
 const Outbox = require('../models/Outbox');

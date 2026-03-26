@@ -9,14 +9,18 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose"); // Added for diagnostic
 const { processReferral } = require("../services/referralService");
-const axios = require('axios');
+const axios = require("axios");
+const { ethers } = require("ethers");
 
 // Define these URLs, possibly from .env or config files
 const LOGO_URL =
-  process.env.APP_LOGO_URL || "https://BEPVault.com/assets/images/logo.png"; // e.g., https://yourdomain.com/assets/logo.png
-const LOGIN_URL = process.env.APP_LOGIN_URL || "https://BEPVault.com/dashboard"; // e.g., https://yourdomain.com/login
-const APP_NAME = process.env.APP_NAME || "BEPVault";
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3001"; // Or your default frontend URL
+  process.env.APP_LOGO_URL || "https://example.com/assets/images/logo.png"; // e.g., https://yourdomain.com/assets/logo.png
+const LOGIN_URL = process.env.APP_LOGIN_URL || "http://localhost:3001/login"; // e.g., https://yourdomain.com/login
+const APP_NAME = process.env.APP_NAME || "USDT Platform";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3001";
+const APP_URL = process.env.APP_URL || FRONTEND_URL;
+const SUPPORT_EMAIL =
+  process.env.APP_SUPPORT_EMAIL || "support@example.com";
 
 const signup = async (req, res) => {
   try {
@@ -137,6 +141,8 @@ const signup = async (req, res) => {
         .replace(/{{username}}/g, username)
         .replace(/{{setPasswordUrl}}/g, setPasswordUrl)
         .replace(/{{appName}}/g, APP_NAME)
+        .replace(/{{supportEmail}}/g, SUPPORT_EMAIL)
+        .replace(/{{appUrl}}/g, APP_URL)
         .replace(/{{currentYear}}/g, new Date().getFullYear().toString());
 
       const textContent = `Welcome to ${APP_NAME}! Please set your password by clicking this link: ${setPasswordUrl}`;
@@ -322,6 +328,8 @@ const login = async (req, res) => {
           .replace(/{{setPasswordUrl}}/g, setPasswordUrl)
           .replace(/{{appName}}/g, APP_NAME)
           .replace(/{{logoUrl}}/g, LOGO_URL)
+          .replace(/{{supportEmail}}/g, SUPPORT_EMAIL)
+          .replace(/{{appUrl}}/g, APP_URL)
           .replace(/{{currentYear}}/g, new Date().getFullYear().toString());
 
         const textContent = `Welcome to ${APP_NAME}! Please set your password by clicking this link: ${setPasswordUrl}`;
@@ -381,9 +389,9 @@ const login = async (req, res) => {
       isOtpVerified: user.isOtpVerified,
       requiresPasswordChange: user.requiresPasswordChange,
       counters: user.counters,
-      balanceXRP: user.balanceXRP,
-      xamanBalance: user.xamanBalance,
-      xrpAddress: user.xrpAddress,
+      balanceUSDT: user.balanceUSDT,
+      usdtBalance: user.usdtBalance,
+      wallet_address: user.wallet_address,
       createdAt: user.createdAt,
     };
 
@@ -393,57 +401,31 @@ const login = async (req, res) => {
     res.status(500).send("Server error during login");
   }
 };
-const xamanlogin = async (req, res) => {
+const walletlogin = async (req, res) => {
   try {
-    const { xamanToken } = req.body;
+    const { wallet_address, signature, message } = req.body;
 
-    if (!xamanToken) {
+    if (!wallet_address || !signature || !message) {
       return res.status(400).json({
         success: false,
-        message: "xamanToken is required",
+        message: "wallet_address, signature, and message are required",
       });
     }
 
-    // ----------------------------------------------------
-    // 1️⃣ Fetch user info from XUMM OAuth (get XRP address)
-    // ----------------------------------------------------
-    let xummResponse;
-    try {
-      xummResponse = await axios.get("https://oauth2.xumm.app/userinfo", {
-        headers: { Authorization: `Bearer ${xamanToken}` },
-      });
-console.log("xummResponseSTATUS:", xummResponse);
-    } catch (err) {
-            console.log("==== XUMM ERROR RESPONSE ====");
-console.log("STATUS:", err.response?.status);
-console.log("DATA:", err.response?.data);
-console.log("HEADERS:", err.response?.headers);
-console.log("RAW:", err.toString());
-      console.error("❌ XUMM UserInfo Error:", err.response?.data || err);
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== wallet_address.toLowerCase()) {
       return res.status(401).json({
         success: false,
-        message: "Invalid or expired Xaman token",
+        message: "Signature verification failed",
       });
     }
 
-    const xrpAddress = xummResponse.data.sub; // <-- THIS IS THE XRP ADDRESS
-
-    if (!xrpAddress) {
-      return res.status(400).json({
-        success: false,
-        message: "Unable to extract XRP address from Xaman token",
-      });
-    }
-
-    // ----------------------------------------------------
-    // 2️⃣ Find user using XRP address
-    // ----------------------------------------------------
-    const user = await User.findOne({ xrpAddress });
+    const user = await User.findOne({ wallet_address });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found for this XRP address",
+        message: "User not found for this wallet address",
       });
     }
 
@@ -475,9 +457,9 @@ console.log("RAW:", err.toString());
       isOtpVerified: user.isOtpVerified,
       requiresPasswordChange: user.requiresPasswordChange,
       counters: user.counters,
-      balanceXRP: user.balanceXRP,
-      xamanBalance: user.xamanBalance,
-      xrpAddress: user.xrpAddress,
+      balanceUSDT: user.balanceUSDT,
+      usdtBalance: user.usdtBalance,
+      wallet_address: user.wallet_address,
       createdAt: user.createdAt,
     };
 
@@ -485,14 +467,14 @@ console.log("RAW:", err.toString());
       success: true,
       token,
       user: userToReturn,
-      loginType: "XAMAN_OAUTH"
+      loginType: "WALLET_SIGNATURE"
     });
 
   } catch (err) {
-    console.error("🔥 Xaman login error:", err);
+    console.error("🔥 Wallet login error:", err);
     res.status(500).json({
       success: false,
-      message: "Server error during Xaman login",
+      message: "Server error during wallet login",
     });
   }
 };
@@ -568,6 +550,8 @@ const forgotPassword = async (req, res) => {
       htmlContent = htmlContent
         .replace(/{{logoUrl}}/g, LOGO_URL)
         .replace(/{{appName}}/g, APP_NAME)
+        .replace(/{{supportEmail}}/g, SUPPORT_EMAIL)
+        .replace(/{{appUrl}}/g, APP_URL)
         .replace(/{{username}}/g, user.username)
         .replace(/{{resetUrl}}/g, resetUrl) // Use resetUrl instead of otp
         .replace(/{{currentYear}}/g, new Date().getFullYear().toString());
@@ -696,7 +680,7 @@ const resetPassword = async (req, res) => {
       _id: user._id,
       username: user.username,
       email: user.email,
-      xrpAddress: user.xrpAddress,
+      wallet_address: user.wallet_address,
     };
 
     res.status(200).json({
@@ -727,21 +711,21 @@ const sendTransactionSuccessEmail = async (userId, txData) => {
       return;
     }
 
-    const { amountXRP, txHash, txDate } = txData;
+    const { amountUSDT, txHash, txDate } = txData;
     const subject = "Transaction Successful";
 
     const formattedDateUTC = new Date(txDate).toUTCString();
 
     const textBody = [
       `Hi ${user.username || "there"},`,
-      `Your XRP transaction has been successfully processed.`,
+      `Your USDT transaction has been successfully processed.`,
       ``,
-      `Amount: ${amountXRP} XRP`,
+      `Amount: ${amountUSDT} USDT`,
       `Transaction Hash: ${txHash}`,
       `Date (UTC): ${formattedDateUTC}`,
       ``,
-      `You can view it on the XRP Explorer:`,
-      `https://livenet.xrpl.org/transactions/${txHash}`,
+      `You can view it on the BSC Explorer:`,
+      `https://bscscan.com/tx/${txHash}`,
       ``,
       `Thank you for using our service!`,
     ].join("\n");
@@ -753,13 +737,13 @@ const sendTransactionSuccessEmail = async (userId, txData) => {
           <h2 style="color:#4cc9f0;text-align:center;margin-bottom:16px;">✅ Transaction Successful</h2>
           <p style="font-size:15px;line-height:1.6;">Hi ${user.username || "there"},</p>
           <p style="font-size:15px;line-height:1.6;">
-            Your <strong>XRP</strong> transaction has been successfully completed on the XRP Ledger.
+            Your <strong>USDT</strong> transaction has been successfully completed on BSC.
           </p>
           
           <table style="width:100%;margin-top:20px;border-collapse:collapse;">
             <tr>
               <td style="padding:8px 0;color:#8b949e;">Amount:</td>
-              <td style="padding:8px 0;color:#fff;font-weight:600;">${amountXRP} XRP</td>
+              <td style="padding:8px 0;color:#fff;font-weight:600;">${amountUSDT} USDT</td>
             </tr>
             <tr>
               <td style="padding:8px 0;color:#8b949e;">Date (UTC):</td>
@@ -772,11 +756,11 @@ const sendTransactionSuccessEmail = async (userId, txData) => {
           </table>
 
           <div style="text-align:center;margin-top:24px;">
-            <a href="https://livenet.xrpl.org/transactions/${txHash}"
+            <a href="https://bscscan.com/tx/${txHash}"
                style="display:inline-block;background:linear-gradient(90deg,#4cc9f0,#4361ee);
                       color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;
                       font-weight:600;box-shadow:0 0 8px rgba(76,201,240,0.4);">
-              🔍 View on XRP Explorer
+              🔍 View on BSC Explorer
             </a>
           </div>
 
@@ -1001,7 +985,7 @@ const resetUserPassword = async (req, res) => {
       _id: user._id,
       username: user.username,
       email: user.email,
-      xrpAddress: user.xrpAddress,
+      wallet_address: user.wallet_address,
     };
 
     res.status(200).json({
@@ -1170,7 +1154,7 @@ module.exports = {
   signup,
   setPasswordFromLink,
   login,
-  xamanlogin,
+  walletlogin,
   logout,
   getMe,
   forgotPassword,

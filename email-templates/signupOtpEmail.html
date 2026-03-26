@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Your Email - BEPVault</title>
+    <title>Verify Your Email - {{appName}}</title>
     <style>
         body {
             margin: 0;
@@ -71,12 +71,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="https://BEPVault.com/assets/img/logo.png" alt="{{appName}} Logo" style="width: 150px; margin-bottom: 20px;">
+            <img src="{{logoUrl}}" alt="{{appName}} Logo" style="width: 150px; margin-bottom: 20px;">
         </div>
         <div class="content">
             <h1>Welcome to {{appName}}!</h1>
             <p>Hi {{username}},</p>
-            <p>Welcome to BEPVault! To complete your registration and activate your account, please use the One-Time Password (OTP) below:</p>
+            <p>Welcome to {{appName}}! To complete your registration and activate your account, please use the One-Time Password (OTP) below:</p>
             
             <div class="otp-code">
                 {{otp}}
@@ -85,11 +85,11 @@
             <p>This OTP is valid for 10 minutes. Please enter it on the verification page in our application.</p>
             <p>If you did not request this email, please ignore it. Your account will not be activated until you verify your email.</p>
 
-            <p>Thanks,<br>The BEPVault Team</p>
+            <p>Thanks,<br>The {{appName}} Team</p>
         </div>
         <div class="footer">
-            <p>&copy; {{currentYear}} BEPVault. All rights reserved.</p>
-            <p>If you have any questions, feel free to <a href="mailto:support@BEPVault.com">contact our support team</a>.</p>
+            <p>&copy; {{currentYear}} {{appName}}. All rights reserved.</p>
+            <p>If you have any questions, feel free to <a href="mailto:{{supportEmail}}">contact our support team</a>.</p>
         </div>
     </div>
 </body>

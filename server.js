@@ -2,7 +2,6 @@ require("dotenv").config(); // Ensure .env is loaded first
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const xrpTransactions = require("./utils/xrpTransactions");
 
 // --- Database Connection ---
 // Assuming db.js is in project-merged/config/db.js and handles the connection
@@ -17,14 +16,14 @@ app.use(
     // Example origins, adjust as per your frontend setup
     origin: [
       "http://localhost:3000",
-      // "http://localhost:3001" //,
+      "http://localhost:3001" //,
       //  process.env.FRONTEND_URL_PROD,
       //  process.env.FRONTEND_URL
     ],
     credentials: true,
   })
 );
-//    process.env.FRONTEND_URL_STAGING || 'https://staging.BEPVault.com',
+//    process.env.FRONTEND_URL_STAGING || 'https://staging.example.com',
 
 app.use(express.json()); // To parse JSON request bodies
 
@@ -97,21 +96,25 @@ app.use((err, req, res, next) => {
 
 if (process.env.NODE_ENV !== "test") {
   mongoose
-    .connect(process.env.MONGODB_URI)
+    .connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    })
     .then(() => {
       server = app.listen(PORT, () => {
         console.log(
-          `Unified Server running in ${process.env.NODE_ENV || "development"
+          `Unified Server running in ${
+            process.env.NODE_ENV || "development"
           } mode on port ${PORT}`
         );
 
         app.locals.db = mongoose.connection.db;
         console.log("MongoDB native db object set to app.locals.db");
 
-        //   depositPoller.start();
-        //  startAutoPositioningCron(); // ✅ NEW: Cron for autopositioning
-        //   reconcilePendingWithdrawals.start(); // Start new pending-withdrawal reconciler
-        //   console.log("Cron jobs scheduled.");
+     //   depositPoller.start();
+      //  startAutoPositioningCron(); // ✅ NEW: Cron for autopositioning
+     //   reconcilePendingWithdrawals.start(); // Start new pending-withdrawal reconciler
+     //   console.log("Cron jobs scheduled.");
 
       });
     });
@@ -141,14 +144,6 @@ const shutdownServices = async () => {
     outboxProcessor.stop();
     console.log("Outbox Processor stopped.");
   }
-  // Close XRPL websocket
-  try {
-    await xrpTransactions.shutdown();
-    console.log("XRPL client disconnected gracefully.");
-  } catch (err) {
-    console.error("Error during XRPL client shutdown:", err);
-  }
-
   try {
     await mongoose.disconnect();
     console.log("MongoDB connection closed gracefully.");

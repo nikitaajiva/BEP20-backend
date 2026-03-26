@@ -3,8 +3,9 @@ const User = require("../models/User");
 const Ledger = require("../models/Ledger");
 const EcosystemFee = require("../models/EcosystemFee");
 const LedgerRow = require("../models/LedgerRow");
-const XrpDeposit = require("../models/XrpDeposit");
-const xrpl = require("xrpl");
+const UsdtDeposit = require("../models/UsdtDeposit");
+const { ethers } = require("ethers");
+const { getProvider, getUsdtContract, normalizeAddress } = require("../utils/bsc");
 const ChainDeposit = require("../models/ChainDeposit");
 const ChainWithdrawal = require("../models/ChainWithdrawal");
 const X1Reward = require("../models/X1Reward");
@@ -91,7 +92,7 @@ exports.getUsers = async (req, res) => {
                 uhid: 1,
                 username: 1,
                 email: 1,
-                xrpAddress: 1,
+                wallet_address: 1,
                 createdAt: 1,
                 sponsorUserName: "$sponsorInfo.username",
               },
@@ -244,13 +245,13 @@ exports.getLedgerRows = async (req, res) => {
           break;
         case "LP":
           initialMatch.$or = [
-            { eventType: "LP_DEPOSIT_FROM_XAMAN" },
+            { eventType: "LP_DEPOSIT_FROM_USDT" },
             { eventType: "WITHDRAWAL", walletFrom: "LP" },
           ];
           break;
-        case "XAMAN":
+        case "USDT":
           initialMatch.$or = [
-            { eventType: "LP_DEPOSIT_FROM_XAMAN" },
+            { eventType: "LP_DEPOSIT_FROM_USDT" },
             { eventType: "WITHDRAWAL", walletTo: "EXTERNAL" },
           ];
           break;
@@ -338,8 +339,8 @@ exports.getLedgerRows = async (req, res) => {
   }
 };
 
-// GET /api/support/xrp-deposits
-exports.getXrpDeposits = async (req, res) => {
+// GET /api/support/usdt-deposits
+exports.getUsdtDeposits = async (req, res) => {
   try {
     const {
       status,
@@ -356,11 +357,11 @@ exports.getXrpDeposits = async (req, res) => {
     if (status) query.status = status;
 
     if (walletAddress) {
-      query.walletAddress = { $regex: walletAddress, $options: "i" };
+      query.wallet_address = { $regex: walletAddress, $options: "i" };
     }
 
     if (transactionId) {
-      query.transactionId = { $regex: transactionId, $options: "i" };
+      query.tx_hash = { $regex: transactionId, $options: "i" };
     }
 
     // 🗓️ Date range filter
@@ -381,7 +382,7 @@ exports.getXrpDeposits = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // 🧮 Total count & sum of amounts
-    const [summary] = await XrpDeposit.aggregate([
+    const [summary] = await UsdtDeposit.aggregate([
       { $match: query },
       {
         $group: {
@@ -396,7 +397,7 @@ exports.getXrpDeposits = async (req, res) => {
     const totalAmount = summary?.totalAmount / 1000000 || 0;
 
     // 📥 Fetch paginated deposits
-    const deposits = await XrpDeposit.find(query)
+    const deposits = await UsdtDeposit.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -428,73 +429,44 @@ exports.getXrpDeposits = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API XrpDeposit Search Error:", error);
+    console.error("API UsdtDeposit Search Error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
 
-// Util to fetch and parse XRP amount from XRPL node
-// Fetch XRP amount from XRPL using txHash
-// Helper to fetch amount from XRPL
-// ✅ Fetch actual delivered amount from XRPL
-// Helper: fetch and parse amount from XRPL
-const fetchAndParseXrpTxAmount = async function (txHash) {
-  const rpcUrl =
-    "https://neat-responsive-energy.xrp-mainnet.quiknode.pro/45f3ff38aac25053f6b316235305d0cefacb68e7";
-
-  const body = {
-    method: "tx",
-    params: [
-      {
-        transaction: txHash,
-        binary: false,
-      },
-    ],
-  };
-
+// Util to fetch and parse USDT transfer from BSC by tx hash
+const fetchAndParseUsdtTxAmount = async function (txHash) {
   try {
-    const response = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const provider = getProvider();
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt || receipt.status !== 1) return null;
 
-    const json = await response.json();
-    const tx = json.result;
-    console.log(tx, "🚀 TX Result");
+    const usdt = getUsdtContract(provider);
+    const decimals = await usdt.decimals();
+    const transferEvent = usdt.interface.getEvent("Transfer");
+    const transferTopic = usdt.interface.getEventTopic(transferEvent);
 
-    if (!tx || !tx.meta) return null;
+    const log = receipt.logs.find(
+      (l) =>
+        normalizeAddress(l.address) === normalizeAddress(usdt.target) &&
+        l.topics[0] === transferTopic
+    );
 
-    const source = tx.Account;
-    const destination = tx.Destination;
+    if (!log) return null;
 
-    const delivered =
-      tx.meta?.delivered_amount ?? tx.meta?.DeliveredAmount ?? tx.Amount;
-
-    if (delivered == null) return null;
-
-    let dropsString;
-    if (typeof delivered === "string") {
-      dropsString = delivered;
-    } else if (typeof delivered === "object") {
-      if (delivered.currency && delivered.currency !== "XRP") return null;
-      if (!delivered.value) return null;
-      dropsString = delivered.value;
-    } else {
-      return null;
-    }
-
-    const dropsNum = Number(dropsString);
-    if (Number.isNaN(dropsNum)) return null;
-
-    const amountXRP = parseFloat((dropsNum / 1_000_000).toFixed(6));
+    const parsed = usdt.interface.parseLog(log);
+    const source = normalizeAddress(parsed.args.from);
+    const destination = normalizeAddress(parsed.args.to);
+    const amount = Number(
+      parseFloat(ethers.formatUnits(parsed.args.value, decimals)).toFixed(6)
+    );
 
     return {
       source,
       destination,
-      amountXRP,
-      raw: tx,
+      amount: bodyAmount,
+      raw: receipt,
     };
   } catch (error) {
     console.error("❌ Error fetching transaction:", error.message);
@@ -502,7 +474,7 @@ const fetchAndParseXrpTxAmount = async function (txHash) {
   }
 };
 
-exports.getXrpTransactionDetails = async (req, res) => {
+exports.getUsdtTransactionDetails = async (req, res) => {
   try {
     const { transactionId } = req.body;
 
@@ -513,21 +485,21 @@ exports.getXrpTransactionDetails = async (req, res) => {
       });
     }
 
-    console.log("📡 Fetching XRPL transaction details for:", transactionId);
+    console.log("📡 Fetching BSC transaction details for:", transactionId);
 
-    const txDetails = await fetchAndParseXrpTxAmount(transactionId);
+    const txDetails = await fetchAndParseUsdtTxAmount(transactionId);
 
     if (!txDetails) {
       return res.status(404).json({
         success: false,
-        message: "Transaction not found or failed to parse from XRPL",
+        message: "Transaction not found or failed to parse from BSC",
       });
     }
 
-    const { source, destination, amountXRP, raw } = txDetails;
+    const { source, destination, amount, raw } = txDetails;
 
-    // 🔍 Find user by xrpAddress (case-insensitive match, if needed)
-    const user = await User.findOne({ xrpAddress: source });
+    // 🔍 Find user by wallet_address (case-insensitive match, if needed)
+    const user = await User.findOne({ wallet_address: source });
 
     return res.status(200).json({
       success: true,
@@ -535,7 +507,7 @@ exports.getXrpTransactionDetails = async (req, res) => {
       data: {
         source,
         destination,
-        amount: amountXRP.toFixed(6),
+        amount: amount.toFixed(6),
         user: user
           ? {
             _id: user._id,
@@ -548,7 +520,7 @@ exports.getXrpTransactionDetails = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error fetching XRPL transaction details:", error.message);
+    console.error("❌ Error fetching BSC transaction details:", error.message);
     return res.status(500).json({
       success: false,
       message: "Internal server error: " + error.message,
@@ -557,27 +529,27 @@ exports.getXrpTransactionDetails = async (req, res) => {
 };
 
 // Main controller
-exports.addFailedXrpDepositsToXaman = async (req, res) => {
+exports.addFailedUsdtDepositsToUsdt = async (req, res) => {
   try {
-    const { _id, walletAddress, transactionId } = req.body;
+    const { _id, wallet_address, tx_hash } = req.body;
 
     console.log("➡️ Request received with:", {
       _id,
-      walletAddress,
-      transactionId,
+      wallet_address,
+      tx_hash,
     });
 
-    if (!_id || !walletAddress || !transactionId) {
+    if (!_id || !wallet_address || !tx_hash) {
       console.warn("⚠️ Missing required fields");
       return res.status(400).json({
         success: false,
-        message: "Required fields: _id, walletAddress, transactionId.",
+        message: "Required fields: _id, wallet_address, tx_hash.",
       });
     }
 
-    const deposit = await XrpDeposit.findOne({
+    const deposit = await UsdtDeposit.findOne({
       _id,
-      walletAddress: walletAddress,
+      wallet_address: wallet_address,
     });
 
     if (!deposit) {
@@ -589,14 +561,14 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
     }
 
     if (
-      deposit.walletAddress !== walletAddress ||
-      deposit.transactionId !== transactionId
+      deposit.wallet_address !== wallet_address ||
+      deposit.tx_hash !== tx_hash
     ) {
       console.warn("❌ Deposit walletAddress or transactionId mismatch");
       return res.status(400).json({
         success: false,
         message:
-          "walletAddress or transactionId does not match the deposit record.",
+          "wallet_address or tx_hash does not match the deposit record.",
       });
     }
 
@@ -611,8 +583,8 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
 
     const existingLedger = await LedgerRow.findOne({
       $or: [
-        { refId: deposit.transactionId },
-        { narrative: { $regex: deposit.transactionId, $options: "i" } },
+        { refId: deposit.tx_hash },
+        { narrative: { $regex: deposit.tx_hash, $options: "i" } },
       ],
     });
 
@@ -625,14 +597,14 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
     }
 
     let amount;
-    console.log("📡 Fetching transaction from XRPL for tx:", transactionId);
+    console.log("📡 Fetching transaction from BSC for tx:", tx_hash);
 
     try {
-      const transactiondata = await fetchAndParseXrpTxAmount(transactionId);
-      console.log("✅ XRPL transaction data received:", transactiondata);
+      const transactiondata = await fetchAndParseUsdtTxAmount(tx_hash);
+      console.log("✅ BSC transaction data received:", transactiondata);
 
-      const fetchedAmount = ensureDecimal128(transactiondata.amountXRP);
-      console.log("✅ Parsed amount from XRPL:", fetchedAmount.toString());
+      const fetchedAmount = ensureDecimal128(transactiondata.amount);
+      console.log("✅ Parsed amount from BSC:", fetchedAmount.toString());
 
       if (!fetchedAmount || parseFloat(fetchedAmount.toString()) <= 0) {
         throw new Error("Fetched amount is invalid or zero");
@@ -640,14 +612,14 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
 
       amount = fetchedAmount;
 
-      deposit.amount = Math.round(parseFloat(amount) * 1000000);
+      deposit.amount = amount.toString();
       await deposit.save();
       console.log("💾 Deposit record updated with amount:", amount.toString());
     } catch (err) {
-      console.error("❌ Error fetching/parsing XRPL amount:", err.message);
+      console.error("❌ Error fetching/parsing BSC amount:", err.message);
       return res.status(500).json({
         success: false,
-        message: "Failed to fetch amount from XRPL: " + err.message,
+        message: "Failed to fetch amount from BSC: " + err.message,
       });
     }
 
@@ -656,18 +628,18 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
       userId: deposit.user,
       eventType: "DEPOSIT",
       walletFrom: "EXTERNAL",
-      walletTo: "XAMAN",
+      walletTo: "USDT",
       amount: ensureDecimal128(amount),
       ratePct: null,
-      narrative: `Xaman wallet deposit. TxHash: ${deposit.transactionId}`,
-      refId: deposit.transactionId,
+      narrative: `Usdt wallet deposit. TxHash: ${deposit.tx_hash}`,
+      refId: deposit.tx_hash,
       legacyRefIdFixed: false,
     });
 
     console.log("🧾 LedgerRow created:", {
       id: ledgerRow._id,
       amount: amount.toString(),
-      refId: deposit.transactionId,
+      refId: deposit.tx_hash,
     });
 
     // Ledger balance update
@@ -677,18 +649,18 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
       ledger = await Ledger.create({
         userId: deposit.user,
         wallets: {
-          xaman: amount,
+          usdt: amount,
         },
       });
       console.log(
-        "🆕 Ledger created with initial XAMAN balance:",
+        "🆕 Ledger created with initial USDT balance:",
         amount.toString()
       );
     } else {
-      const prevBalance = ledger.wallets.xaman?.toString() || "0";
-      ledger.wallets.xaman = ensureDecimal128(
+      const prevBalance = ledger.wallets.usdt?.toString() || "0";
+      ledger.wallets.usdt = ensureDecimal128(
         addDecimal128(
-          ledger.wallets.xaman || Decimal128.fromString("0"),
+          ledger.wallets.usdt || Decimal128.fromString("0"),
           ensureDecimal128(amount)
         )
       );
@@ -707,10 +679,10 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
 
       await ledger.save();
       console.log(
-        "💰 XAMAN balance updated from",
+        "💰 USDT balance updated from",
         prevBalance,
         "to",
-        ledger.wallets.xaman.toString()
+        ledger.wallets.usdt.toString()
       );
     }
 
@@ -721,7 +693,7 @@ exports.addFailedXrpDepositsToXaman = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Deposit verified, marked completed, and added to XAMAN.",
+      message: "Deposit verified, marked completed, and added to USDT.",
       deliveredAmount: amount.toString(),
     });
   } catch (error) {
@@ -1006,7 +978,7 @@ exports.getUsersSummary = async (req, res) => {
       activeOnly = "false",
       username,
       uhid,
-      xrpAddress,
+      wallet_address,
       page = "1",
       limit = "10",
     } = req.query;
@@ -1032,8 +1004,8 @@ exports.getUsersSummary = async (req, res) => {
     if (username)
       userRegexMatch["user.username"] = { $regex: username, $options: "i" };
     if (uhid) userRegexMatch["user.uhid"] = { $regex: uhid, $options: "i" };
-    if (xrpAddress)
-      userRegexMatch["user.xrpAddress"] = { $regex: xrpAddress, $options: "i" };
+    if (wallet_address)
+      userRegexMatch["user.wallet_address"] = { $regex: wallet_address, $options: "i" };
 
     /** ------------------------------------------------------------------
      *  3. Single aggregate pipeline
@@ -1075,15 +1047,15 @@ exports.getUsersSummary = async (req, res) => {
                   {
                     $group: {
                       _id: null,
-                      /* XAMAN deposits (EXTERNAL -> XAMAN) ------------------*/
-                      xamanDeposits: {
+                      /* USDT deposits (EXTERNAL -> USDT) ------------------*/
+                      usdtDeposits: {
                         $sum: {
                           $cond: [
                             {
                               $and: [
                                 { $eq: ["$eventType", "DEPOSIT"] },
                                 { $eq: ["$walletFrom", "EXTERNAL"] },
-                                { $eq: ["$walletTo", "XAMAN"] },
+                                { $eq: ["$walletTo", "USDT"] },
                               ],
                             },
                             "$amount",
@@ -1147,7 +1119,7 @@ exports.getUsersSummary = async (req, res) => {
                   $ifNull: [
                     { $arrayElemAt: ["$totals", 0] },
                     {
-                      xamanDeposits: 0,
+                      usdtDeposits: 0,
                       claims: 0,
                       redeems: 0,
                       withdrawals: 0,
@@ -1159,7 +1131,7 @@ exports.getUsersSummary = async (req, res) => {
             },
 
             /* --------------------------------------------------------
-             * Chain Deposits & Withdrawals (XRPL on-chain)
+             * Chain Deposits & Withdrawals (BSC on-chain)
              * -------------------------------------------------------*/
             {
               $lookup: {
@@ -1167,7 +1139,7 @@ exports.getUsersSummary = async (req, res) => {
                 let: { uid: "$user._id" },
                 pipeline: [
                   { $match: { $expr: { $eq: ["$userId", "$$uid"] } } },
-                  { $group: { _id: null, total: { $sum: "$amountXRP" } } },
+                  { $group: { _id: null, total: { $sum: "$amount" } } },
                 ],
                 as: "chainDep",
               },
@@ -1178,7 +1150,7 @@ exports.getUsersSummary = async (req, res) => {
                 let: { uid: "$user._id" },
                 pipeline: [
                   { $match: { $expr: { $eq: ["$userId", "$$uid"] } } },
-                  { $group: { _id: null, total: { $sum: "$amountXRP" } } },
+                  { $group: { _id: null, total: { $sum: "$amount" } } },
                 ],
                 as: "chainWdl",
               },
@@ -1283,7 +1255,7 @@ exports.getUsersSummary = async (req, res) => {
                 /* ZERO RISK AVAILABLE -----------------------------------*/
                 zeroRisk: "$wallets.zeroRisk", // direct principal
                 lp: "$wallets.lp",
-                xaman: "$wallets.xaman",
+                usdt: "$wallets.usdt",
                 /* COMMUNITY REWARDS WALLET BALANCE ---------------------*/
                 communityRewards: "$wallets.communityRewards",
                 cascadeRewards: "$wallets.cascadeRewards", // new column
@@ -1306,7 +1278,7 @@ exports.getUsersSummary = async (req, res) => {
                 chainDeposits: "$chainDeposits",
                 chainWithdrawals: "$chainWithdrawals",
 
-                xamanDeposits: "$totals.xamanDeposits",
+                usdtDeposits: "$totals.usdtDeposits",
                 claims: "$totals.claims",
                 redeems: "$totals.redeems",
                 autoPositioning: "$totals.autoPositioning",
@@ -1376,12 +1348,12 @@ exports.getUsersSummaryDetail = async (req, res) => {
     let projection;
 
     switch (kind) {
-      case "xamanDeposits":
+      case "usdtDeposits":
         Model = LedgerRow;
         Object.assign(match, {
           eventType: "DEPOSIT",
           walletFrom: "EXTERNAL",
-          walletTo: "XAMAN",
+          walletTo: "USDT",
         });
         projection = { _id: 0, ts: 1, amount: 1, refId: 1, narrative: 1 };
         break;
@@ -1447,7 +1419,7 @@ exports.getUsersSummaryDetail = async (req, res) => {
         projection = {
           _id: 0,
           txDate: 1,
-          amountXRP: 1,
+          amount: 1,
           txHash: 1,
           destination: 1,
         };
@@ -1457,7 +1429,7 @@ exports.getUsersSummaryDetail = async (req, res) => {
         projection = {
           _id: 0,
           txDate: 1,
-          amountXRP: 1,
+          amount: 1,
           txHash: 1,
           destination: 1,
         };
@@ -1542,9 +1514,9 @@ exports.getUsersSummaryDetail = async (req, res) => {
   }
 };
 
-// GET /api/support/xrp-withdrawals
+// GET /api/support/usdt-withdrawals
 
-exports.getXrpWithdrawals = async (req, res) => {
+exports.getUsdtWithdrawals = async (req, res) => {
   try {
     const {
       walletAddress,
@@ -1589,7 +1561,7 @@ exports.getXrpWithdrawals = async (req, res) => {
         $group: {
           _id: null,
           totalItems: { $sum: 1 },
-          totalAmount: { $sum: { $toDouble: "$amountXRP" } },
+          totalAmount: { $sum: { $toDouble: "$amount" } },
         },
       },
     ]);
@@ -1646,7 +1618,7 @@ exports.getXrpWithdrawals = async (req, res) => {
 
       return {
         refId: c.txHash,
-        amount: c.amountXRP,
+        amount: c.amount,
         fromWallet: c.source,
         toAddress: c.destination,
         ts: c.txDate,
@@ -1682,12 +1654,12 @@ exports.getXrpWithdrawals = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API getXrpWithdrawals Error:", error);
+    console.error("API getUsdtWithdrawals Error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// GET /api/support/xrp-withdrawalerror
+// GET /api/support/usdt-withdrawalerror
 
 exports.getWithdrawalErrored = async (req, res) => {
   try {
@@ -1828,9 +1800,9 @@ exports.getWithdrawalErrored = async (req, res) => {
   }
 };
 
-// GET /api/support/xrp-claimed
+// GET /api/support/usdt-claimed
 
-exports.getXrpClaimed = async (req, res) => {
+exports.getUsdtClaimed = async (req, res) => {
   try {
     const {
       status,
@@ -1907,7 +1879,7 @@ exports.getXrpClaimed = async (req, res) => {
     const relatedCWithdrawals = await ChainWithdrawal.find({
       txHash: { $in: txHashes },
     })
-      .select("txHash source destination amountXRP txDate")
+      .select("txHash source destination amount txDate")
       .lean();
 
     // Convert to lookup map
@@ -1928,7 +1900,7 @@ exports.getXrpClaimed = async (req, res) => {
         toAddress: destinationAddress,
         fromWallet: match.source || "Unknown",
         amount: withdrawal.amount?.toString(),
-        claimedXRP: match.amountXRP || null,
+        claimedUSDT: match.amount || null,
         txDate: match.txDate || null,
         username: withdrawal.userId?.username || "Unknown",
         uhid: withdrawal.userId?.uhid || "Unknown",
@@ -1956,15 +1928,15 @@ exports.getXrpClaimed = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API XrpClaimed Search Error:", error);
+    console.error("API UsdtClaimed Search Error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
 
 
-// GET /api/support/xrp-redeemed
-exports.getXrpRedeemed = async (req, res) => {
+// GET /api/support/usdt-redeemed
+exports.getUsdtRedeemed = async (req, res) => {
   try {
     const {
       status,
@@ -2041,7 +2013,7 @@ exports.getXrpRedeemed = async (req, res) => {
     const relatedCWithdrawals = await ChainWithdrawal.find({
       txHash: { $in: txHashes },
     })
-      .select("txHash source destination amountXRP txDate")
+      .select("txHash source destination amount txDate")
       .lean();
 
     // Convert to lookup map
@@ -2062,7 +2034,7 @@ exports.getXrpRedeemed = async (req, res) => {
         toAddress: destinationAddress,
         fromWallet: match.source || "Unknown",
         amount: withdrawal.amount?.toString(),
-        claimedXRP: match.amountXRP || null,
+        claimedUSDT: match.amount || null,
         txDate: match.txDate || null,
         username: withdrawal.userId?.username || "Unknown",
         uhid: withdrawal.userId?.uhid || "Unknown",
@@ -2090,13 +2062,13 @@ exports.getXrpRedeemed = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API XrpRedeemed Search Error:", error);
+    console.error("API UsdtRedeemed Search Error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// GET /api/support/xrp-redeemed
-exports.getXrpAutopositioning = async (req, res) => {
+// GET /api/support/usdt-redeemed
+exports.getUsdtAutopositioning = async (req, res) => {
   try {
     const {
       status,
@@ -2201,12 +2173,12 @@ exports.getXrpAutopositioning = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API XrpAutopositioning Search Error:", error);
+    console.error("API UsdtAutopositioning Search Error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// GET /api/support/xrp-redeemed
+// GET /api/support/usdt-redeemed
 exports.getlppositioning = async (req, res) => {
   try {
     const {
@@ -2221,8 +2193,8 @@ exports.getlppositioning = async (req, res) => {
 
     // Base query
     let query = {
-      walletFrom: "XAMAN",
-      eventType: "LP_DEPOSIT_FROM_XAMAN",
+      walletFrom: "USDT",
+      eventType: "LP_DEPOSIT_FROM_USDT",
       walletTo: "LP",
     };
 
@@ -2313,7 +2285,7 @@ exports.getlppositioning = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API XrpAutopositioning Search Error:", error);
+    console.error("API UsdtAutopositioning Search Error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -4866,7 +4838,7 @@ exports.exportDailyRewardsByType = async (req, res) => {
 
 
 
-exports.getXaman = async (req, res) => {
+exports.getUsdt = async (req, res) => {
   try {
     const { page = 1, limit = 10, search } = req.query;
 
@@ -4874,7 +4846,7 @@ exports.getXaman = async (req, res) => {
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const ledgerQuery = { "wallets.xaman": { $exists: true, $gt: 0 } };
+    const ledgerQuery = { "wallets.usdt": { $exists: true, $gt: 0 } };
 
     // 🔍 Search by username or UHID
     if (search) {
@@ -4893,7 +4865,7 @@ exports.getXaman = async (req, res) => {
           data: [],
           summary: {
             totalRecords: 0,
-            totalXaman: "0.000000",
+            totalUsdt: "0.000000",
           },
           pagination: {
             totalItems: 0,
@@ -4915,17 +4887,17 @@ exports.getXaman = async (req, res) => {
         $group: {
           _id: null,
           totalRecords: { $sum: 1 },
-          totalXaman: { $sum: { $toDouble: "$wallets.xaman" } }
+          totalUsdt: { $sum: { $toDouble: "$wallets.usdt" } }
         },
       },
     ]);
 
     const totalRecords = summaryQuery?.[0]?.totalRecords || 0;
-    const totalXaman = summaryQuery?.[0]?.totalXaman || 0;
+    const totalUsdt = summaryQuery?.[0]?.totalUsdt || 0;
 
     // 🧾 Fetch paginated data
     const ledgers = await Ledger.find(ledgerQuery)
-      .sort({ "wallets.xaman": -1 })
+      .sort({ "wallets.usdt": -1 })
       .skip(skip)
       .limit(limitNumber)
       .populate("userId", "username uhid")
@@ -4937,7 +4909,7 @@ exports.getXaman = async (req, res) => {
       return {
         username: user.username || "Unknown",
         uhid: user.uhid || "Unknown",
-        xaman: Number(ledger.wallets.xaman || 0).toFixed(6),
+        usdt: Number(ledger.wallets.usdt || 0).toFixed(6),
       };
     });
 
@@ -4948,7 +4920,7 @@ exports.getXaman = async (req, res) => {
       data,
       summary: {
         totalRecords,
-        totalXaman: totalXaman.toFixed(6), // fixed
+        totalUsdt: totalUsdt.toFixed(6), // fixed
       },
       pagination: {
         totalItems: totalRecords,
@@ -4961,18 +4933,18 @@ exports.getXaman = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Xaman Report Error:", err);
+    console.error("❌ Usdt Report Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
 
-exports.exportXaman = async (req, res) => {
+exports.exportUsdt = async (req, res) => {
   try {
     const { search } = req.query;
 
-    // Query only users having Xaman wallet balance
-    const ledgerQuery = { "wallets.xaman": { $exists: true, $gt: 0 } };
+    // Query only users having Usdt wallet balance
+    const ledgerQuery = { "wallets.usdt": { $exists: true, $gt: 0 } };
 
     // 🔍 Search by username / UHID
     if (search) {
@@ -4995,12 +4967,12 @@ exports.exportXaman = async (req, res) => {
 
     // Create Excel Sheet
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Xaman Report");
+    const sheet = workbook.addWorksheet("Usdt Report");
 
     sheet.columns = [
       { header: "Username", key: "username", width: 25 },
       { header: "UHID", key: "uhid", width: 20 },
-      { header: "Xaman Balance", key: "xaman", width: 20 },
+      { header: "Usdt Balance", key: "usdt", width: 20 },
     ];
 
     // Add rows
@@ -5010,11 +4982,11 @@ exports.exportXaman = async (req, res) => {
       sheet.addRow({
         username: user.username || "Unknown",
         uhid: user.uhid || "Unknown",
-        xaman: Number(ledger.wallets.xaman || 0).toFixed(6),
+        usdt: Number(ledger.wallets.usdt || 0).toFixed(6),
       });
     });
 
-    const fileName = `Xaman_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
+    const fileName = `Usdt_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
 
     // Send Excel File to Client
     res.setHeader(
@@ -5030,9 +5002,9 @@ exports.exportXaman = async (req, res) => {
     res.status(200).end();
 
   } catch (err) {
-    console.error("Export Xaman Error:", err);
+    console.error("Export Usdt Error:", err);
     res.status(500).json({
-      message: "Failed to export Xaman data",
+      message: "Failed to export Usdt data",
       error: err.message,
     });
   }
@@ -5144,17 +5116,17 @@ const getOnChainDepositWithdrawalRows = async () => {
     latestWithdrawals
   ] = await Promise.all([
     ChainDeposit.aggregate([
-      { $group: { _id: "$userId", total: { $sum: "$amountXRP" } } }
+      { $group: { _id: "$userId", total: { $sum: "$amount" } } }
     ]),
     ChainWithdrawal.aggregate([
-      { $group: { _id: "$userId", total: { $sum: "$amountXRP" } } }
+      { $group: { _id: "$userId", total: { $sum: "$amount" } } }
     ]),
     ChainDeposit.aggregate([
       { $sort: { txDate: -1 } },
       {
         $group: {
           _id: "$userId",
-          latestAmount: { $first: "$amountXRP" },
+          latestAmount: { $first: "$amount" },
           latestDate: { $first: "$txDate" }
         }
       }
@@ -5164,7 +5136,7 @@ const getOnChainDepositWithdrawalRows = async () => {
       {
         $group: {
           _id: "$userId",
-          latestAmount: { $first: "$amountXRP" },
+          latestAmount: { $first: "$amount" },
           latestDate: { $first: "$txDate" }
         }
       }
@@ -5452,21 +5424,21 @@ exports.exportAirdroprewards = async (req, res) => {
 //           totalBoosterWallet: { $sum: "$wallets.boost" },
 //           totalLPWallet: { $sum: "$wallets.lp" },
 //           totalZeroRiskWallet: { $sum: "$wallets.zeroRisk" },
-//           totalXamanWallet: { $sum: "$wallets.xaman" },
+//           totalUsdtWallet: { $sum: "$wallets.usdt" },
 //           // Community Rewards wallet total
 //           totalCommunityRewardsWallet: { $sum: "$wallets.communityRewards" },
 //         },
 //       },
 //     ]);
-//     // Count distinct users whose xaman > 0.0
-//     const [{ userCountxaman = 0 } = {}] = await Ledger.aggregate([
+//     // Count distinct users whose usdt > 0.0
+//     const [{ userCountusdt = 0 } = {}] = await Ledger.aggregate([
 //       {
 //         $match: {
-//           "wallets.xaman": { $gt: mongoose.Types.Decimal128.fromString("0.0") },
+//           "wallets.usdt": { $gt: mongoose.Types.Decimal128.fromString("0.0") },
 //         },
 //       },
 //       { $group: { _id: "$userId" } },
-//       { $count: "userCountxaman" },
+//       { $count: "userCountusdt" },
 //     ]);
 
 //     // Count distinct users whose zeroRisk > 0.0
@@ -5529,12 +5501,12 @@ exports.exportAirdroprewards = async (req, res) => {
 //      * On-chain deposits & withdrawals totals
 //      * ------------------------------------------------------------*/
 //     const [{ total: onChainDeposits = 0 } = {}] = await ChainDeposit.aggregate([
-//       { $group: { _id: null, total: { $sum: "$amountXRP" } } },
+//       { $group: { _id: null, total: { $sum: "$amount" } } },
 //     ]);
 
 //     const [{ total: onChainWithdrawals = 0 } = {}] =
 //       await ChainWithdrawal.aggregate([
-//         { $group: { _id: null, total: { $sum: "$amountXRP" } } },
+//         { $group: { _id: null, total: { $sum: "$amount" } } },
 //       ]);
 
 //     /* --------------------------------------------------------------
@@ -5801,7 +5773,7 @@ exports.exportAirdroprewards = async (req, res) => {
 //       },
 //       {
 //         $facet: {
-//           totalAmount: [{ $group: { _id: null, total: { $sum: "$amountXRP" } } }],
+//           totalAmount: [{ $group: { _id: null, total: { $sum: "$amount" } } }],
 //           txCount: [{ $count: "count" }],
 //           userCount: [
 //             { $group: { _id: "$userId" } },
@@ -5824,7 +5796,7 @@ exports.exportAirdroprewards = async (req, res) => {
 //       },
 //       {
 //         $facet: {
-//           totalAmount: [{ $group: { _id: null, total: { $sum: "$amountXRP" } } }],
+//           totalAmount: [{ $group: { _id: null, total: { $sum: "$amount" } } }],
 //           txCount: [{ $count: "count" }],
 //           userCount: [
 //             { $group: { _id: "$userId" } },
@@ -5884,7 +5856,7 @@ exports.exportAirdroprewards = async (req, res) => {
 //           ts: { $gte: startOfToday, $lte: endOfToday },
 //           $or: [
 //             { eventType: "AUTOPOSITIONING" },
-//             { walletFrom: "XAMAN", walletTo: "LP" }
+//             { walletFrom: "USDT", walletTo: "LP" }
 //           ]
 //         }
 //       },
@@ -5896,14 +5868,14 @@ exports.exportAirdroprewards = async (req, res) => {
 //       }
 //     ]);
 
-//     // Separate totals for XAMAN → LP and AUTOPOSITIONING
+//     // Separate totals for USDT → LP and AUTOPOSITIONING
 //     const lpPositioningTodayAggAll = await LedgerRow.aggregate([
 //       {
 //         $match: {
 //           ts: { $gte: startOfToday, $lte: endOfToday },
 //           $or: [
 //             { eventType: "AUTOPOSITIONING" },
-//             { walletFrom: "XAMAN", walletTo: "LP" }
+//             { walletFrom: "USDT", walletTo: "LP" }
 //           ]
 //         }
 //       },
@@ -5919,22 +5891,22 @@ exports.exportAirdroprewards = async (req, res) => {
 //       }
 //     ]);
 
-//     let xamanToLpToday = mongoose.Types.Decimal128.fromString("0.0");
+//     let usdtToLpToday = mongoose.Types.Decimal128.fromString("0.0");
 //     let autoPositioningToday = mongoose.Types.Decimal128.fromString("0.0");
 
 //     lpPositioningTodayAggAll.forEach((row) => {
 //       if (row._id.eventType === "AUTOPOSITIONING") {
 //         autoPositioningToday = row.total;
 //       } else if (
-//         row._id.walletFrom === "XAMAN" &&
+//         row._id.walletFrom === "USDT" &&
 //         row._id.walletTo === "LP"
 //       ) {
-//         xamanToLpToday = row.total;
+//         usdtToLpToday = row.total;
 //       }
 //     });
 
 //     const LPPositioningToday = {
-//       XamanToLP: xamanToLpToday.toString(),
+//       UsdtToLP: usdtToLpToday.toString(),
 //       AutoPositioning: autoPositioningToday.toString()
 //     };
 
@@ -6021,8 +5993,8 @@ exports.exportAirdroprewards = async (req, res) => {
 //       totalZeroRisk: ledgerTotals
 //         ? ledgerTotals.totalZeroRiskWallet.toString()
 //         : "0.0",
-//       totalXaman: ledgerTotals
-//         ? ledgerTotals.totalXamanWallet.toString()
+//       totalUsdt: ledgerTotals
+//         ? ledgerTotals.totalUsdtWallet.toString()
 //         : "0.0",
 //       totalCommunityRewards: ledgerTotals
 //         ? ledgerTotals.totalCommunityRewardsWallet.toString()
@@ -6037,7 +6009,7 @@ exports.exportAirdroprewards = async (req, res) => {
 //       distributedAirdropRewards: distributedAirdropRewards.toString(),
 //       distributedBoosterRewards: distributedBoosterRewards.toString(),
 //       lastDistributionDate: dailyRewards.date,
-//       usersWithXamanGtZero: userCountxaman,
+//       usersWithUsdtGtZero: userCountusdt,
 //       UserWithAutopositioning: autopositioningCount,
 //       userCountcommunityRewards: userCountcommunityRewards,
 //       userCountzeroRisk: userCountzeroRisk,
@@ -6092,7 +6064,7 @@ exports.getSystemReport = async (req, res) => {
      * ======================= */
     const [
       ledgerTotalsArr,
-      userCountxaman,
+      userCountusdt,
       userCountzeroRisk,
       userCountcommunityRewards,
       autopositioningCount,
@@ -6128,14 +6100,14 @@ exports.getSystemReport = async (req, res) => {
             totalBoosterWallet: { $sum: "$wallets.boost" },
             totalLPWallet: { $sum: "$wallets.lp" },
             totalZeroRiskWallet: { $sum: "$wallets.zeroRisk" },
-            totalXamanWallet: { $sum: "$wallets.xaman" },
+            totalUsdtWallet: { $sum: "$wallets.usdt" },
             totalCommunityRewardsWallet: { $sum: "$wallets.communityRewards" }
           }
         }
       ]),
 
       /* User counts */
-      Ledger.distinct("userId", { "wallets.xaman": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
+      Ledger.distinct("userId", { "wallets.usdt": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
       Ledger.distinct("userId", { "wallets.zeroRisk": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
       Ledger.distinct("userId", { "wallets.communityRewards": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
 
@@ -6182,8 +6154,8 @@ exports.getSystemReport = async (req, res) => {
       ]),
 
       /* On-chain lifetime totals */
-      ChainDeposit.aggregate([{ $group: { _id: null, total: { $sum: "$amountXRP" } } }]),
-      ChainWithdrawal.aggregate([{ $group: { _id: null, total: { $sum: "$amountXRP" } } }]),
+      ChainDeposit.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
+      ChainWithdrawal.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
 
       /* Ecosystem fee lifetime */
       EcosystemFee.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
@@ -6224,7 +6196,7 @@ exports.getSystemReport = async (req, res) => {
       autopositioningWalletAgg?.[0]?.totalAmount || Decimal128.fromString("0");
 
     const depositsAgg = await ChainDeposit.aggregate([
-      { $group: { _id: "$userId", total: { $sum: "$amountXRP" } } }
+      { $group: { _id: "$userId", total: { $sum: "$amount" } } }
     ]);
 
     const depositMap = Object.fromEntries(
@@ -6232,7 +6204,7 @@ exports.getSystemReport = async (req, res) => {
     );
 
     const withdrawalsAgg = await ChainWithdrawal.aggregate([
-      { $group: { _id: "$userId", total: { $sum: "$amountXRP" } } }
+      { $group: { _id: "$userId", total: { $sum: "$amount" } } }
     ]);
 
     const withdrawalMap = Object.fromEntries(
@@ -6378,7 +6350,7 @@ exports.getSystemReport = async (req, res) => {
       totalBooster: ledgerTotals.totalBoosterWallet?.toString() || "0.0",
       totalLP: ledgerTotals.totalLPWallet?.toString() || "0.0",
       totalZeroRisk: ledgerTotals.totalZeroRiskWallet?.toString() || "0.0",
-      totalXaman: ledgerTotals.totalXamanWallet?.toString() || "0.0",
+      totalUsdt: ledgerTotals.totalUsdtWallet?.toString() || "0.0",
       totalCommunityRewards: ledgerTotals.totalCommunityRewardsWallet?.toString() || "0.0",
 
       totalAutopositioning: totalAutopositioning.toString(),
@@ -6393,7 +6365,7 @@ exports.getSystemReport = async (req, res) => {
 
       lastDistributionDate: distDate,
 
-      usersWithXamanGtZero: userCountxaman,
+      usersWithUsdtGtZero: userCountusdt,
       UserWithAutopositioning: autopositioningCount,
       userCountcommunityRewards,
       userCountzeroRisk,
@@ -6443,13 +6415,13 @@ exports.getEcofeeReport = async (req, res) => {
       transactionId,
       source: bodySource,
       destination: bodyDestination,
-      amount,
+      amount: bodyAmount,
     } = req.body;
 
-    // If you resolve XRPL tx elsewhere, plug values here; otherwise use body fallbacks
+    // If you resolve BSC tx elsewhere, plug values here; otherwise use body fallbacks
     const source = bodySource || null;
     const destination = bodyDestination || null;
-    const amountXRP = typeof amount === "number" ? amount : null; // optional
+    const amount = typeof bodyAmount === "number" ? bodyAmount : null; // optional
     const raw = req.body.fullTransaction || null; // optional
 
     // ---- EcosystemFee report (grand total + rows with username) ----
@@ -6501,11 +6473,11 @@ exports.getEcofeeReport = async (req, res) => {
       grandTotal[0]?.totalEcosystemFee?.toString?.() || "0";
     const totalCount = grandTotal[0]?.count || 0;
 
-    // 🔍 User by XRP address (only if we have a source address)
+    // 🔍 User by wallet address (only if we have a source address)
     let user = null;
     if (source) {
       // exact match; if you need case-insensitive, switch to regex (and consider an index)
-      user = await User.findOne({ xrpAddress: source }).select(
+      user = await User.findOne({ wallet_address: source }).select(
         "_id email username uhid"
       );
     }
@@ -6514,12 +6486,12 @@ exports.getEcofeeReport = async (req, res) => {
       success: true,
       message: "Ecosystem fee report fetched successfully",
       data: {
-        // XRPL-ish fields (may be null if not provided)
+        // BSC-ish fields (may be null if not provided)
         transactionId: transactionId || null,
         source,
         destination,
         amount:
-          typeof amountXRP === "number" ? amountXRP.toFixed(6) : amountXRP,
+          typeof amount === "number" ? amount.toFixed(6) : amount,
         user, // null if not found or no source provided
         fullTransaction: raw,
 
@@ -6547,14 +6519,14 @@ exports.getEcofeeReport = async (req, res) => {
  * GET autopositioning report
  * Filters (all optional): start, end, userId, walletSide ("FROM" | "TO" | "ANY")
  * Pagination: page (1-based), pageSize
- * XRPL-ish passthroughs: transactionId, source, destination, amount, fullTransaction
+ * BSC-ish passthroughs: transactionId, source, destination, amount, fullTransaction
  */
 exports.getAutopositioningReport = async (req, res) => {
   try {
     const {
       source: bodySource,
       destination: bodyDestination,
-      amount,
+      amount: bodyAmount,
       fullTransaction,
       start,
       end,
@@ -6567,7 +6539,7 @@ exports.getAutopositioningReport = async (req, res) => {
 
     const source = bodySource || null;
     const destination = bodyDestination || null;
-    const amountXRP = typeof amount === "number" ? amount : null;
+    const amountFilter = typeof bodyAmount === "number" ? bodyAmount : null;
     const raw = fullTransaction || null;
 
     // ---- Build match ----
@@ -6649,10 +6621,10 @@ exports.getAutopositioningReport = async (req, res) => {
     const totalAmount = facet.grandTotal?.[0]?.totalAmount?.toString?.() ?? "0";
     const totalCount = facet.grandTotal?.[0]?.count ?? 0;
 
-    // Optional: resolve user by XRP address if provided
+    // Optional: resolve user by wallet address if provided
     let user = null;
     if (source) {
-      user = await User.findOne({ xrpAddress: source }).select(
+      user = await User.findOne({ wallet_address: source }).select(
         "_id email username uhid"
       );
     }
@@ -6664,7 +6636,9 @@ exports.getAutopositioningReport = async (req, res) => {
         source,
         destination,
         amount:
-          typeof amountXRP === "number" ? amountXRP.toFixed(6) : amountXRP,
+          typeof amountFilter === "number"
+            ? amountFilter.toFixed(6)
+            : amountFilter,
         user, // null if not found or not provided
         fullTransaction: raw,
 
@@ -6687,7 +6661,7 @@ exports.getAutopositioningReport = async (req, res) => {
 };
 
 /**
- * GET XAMAN wallet report
+ * GET USDT wallet report
  * Body (all optional unless noted):
  * - start, end: ISO date strings
  * - userId: ObjectId|string
@@ -6696,7 +6670,7 @@ exports.getAutopositioningReport = async (req, res) => {
  * - page, pageSize, sortDir             (default 1, 50, -1)
  * - transactionId, source, destination, amount, fullTransaction (passthrough)
  */
-exports.getXamanReport = async (req, res) => {
+exports.getUsdtReport = async (req, res) => {
   try {
     const {
       // filters
@@ -6704,7 +6678,7 @@ exports.getXamanReport = async (req, res) => {
       end,
       userId,
       direction = "ANY", // "FROM" | "TO" | "ANY"
-      eventTypes, // e.g., ["XAMAN_DEPOSIT", "XAMAN_WITHDRAWAL"]
+      eventTypes, // e.g., ["USDT_DEPOSIT", "USDT_WITHDRAWAL"]
 
       // paging/sort
       page = 1,
@@ -6723,14 +6697,14 @@ exports.getXamanReport = async (req, res) => {
       match.userId = new mongoose.Types.ObjectId(String(userId));
     }
 
-    // Wallet side for XAMAN
+    // Wallet side for USDT
     if (direction === "FROM") {
-      match.walletFrom = "XAMAN";
+      match.walletFrom = "USDT";
     } else if (direction === "TO") {
-      match.walletTo = "XAMAN";
+      match.walletTo = "USDT";
     } else {
-      // ANY: include rows where either side is XAMAN
-      match.$or = [{ walletFrom: "XAMAN" }, { walletTo: "XAMAN" }];
+      // ANY: include rows where either side is USDT
+      match.$or = [{ walletFrom: "USDT" }, { walletTo: "USDT" }];
     }
 
     // Optional event type filter
@@ -6807,9 +6781,9 @@ exports.getXamanReport = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "XAMAN report fetched successfully",
+      message: "USDT report fetched successfully",
       data: {
-        xaman: {
+        usdt: {
           total: totalAmount,
           count: totalCount,
           page: _page,
@@ -6819,7 +6793,7 @@ exports.getXamanReport = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error in getXamanReport:", error);
+    console.error("❌ Error in getUsdtReport:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error: " + (error?.message || "Unknown error"),
@@ -6828,7 +6802,7 @@ exports.getXamanReport = async (req, res) => {
 };
 
 /**
- * GET users and their XAMAN balances (from Ledger.wallets.xaman)
+ * GET users and their USDT balances (from Ledger.wallets.usdt)
  *
  * Body/Query (all optional):
  *  - minBalance: string|number (default "0")  // use "0" for > 0, set "-inf" to include zeros
@@ -6839,10 +6813,10 @@ exports.getXamanReport = async (req, res) => {
  * Response:
  *  {
  *    totalUsers, totalAmount, page, pageSize,
- *    rows: [{ userId, username, uhid, xrpAddress, amountStr }]
+ *    rows: [{ userId, username, uhid, wallet_address, amountStr }]
  *  }
  */
-exports.getUsersXamanBalancesFromLedger = async (req, res) => {
+exports.getUsersUsdtBalancesFromLedger = async (req, res) => {
   try {
     const {
       minBalance = "0", // strictly greater than 0 by default
@@ -6855,7 +6829,7 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
     const _pageSize = Math.max(1, Math.min(500, Number(pageSize) || 100));
     const skip = (_page - 1) * _pageSize;
 
-    // 1) Normalize wallets.xaman to Decimal128
+    // 1) Normalize wallets.usdt to Decimal128
     // 2) Filter by > minBalance
     // 3) Join users to get username
     // 4) Sort, paginate, totals
@@ -6864,9 +6838,9 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
     const agg = await Ledger.aggregate([
       {
         $addFields: {
-          xamanBalanceDecimal: {
+          usdtBalanceDecimal: {
             $convert: {
-              input: "$wallets.xaman",
+              input: "$wallets.usdt",
               to: "decimal",
               onError: { $toDecimal: "0" },
               onNull: { $toDecimal: "0" },
@@ -6876,7 +6850,7 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
       },
       {
         $match: {
-          xamanBalanceDecimal: { $gt: minBalD128 }, // strictly greater than minBalance
+          usdtBalanceDecimal: { $gt: minBalD128 }, // strictly greater than minBalance
         },
       },
       {
@@ -6894,8 +6868,8 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
           userId: 1,
           username: "$user.username",
           uhid: "$user.uhid",
-          xrpAddress: "$user.xrpAddress",
-          amount: "$xamanBalanceDecimal", // Decimal128
+          wallet_address: "$user.wallet_address",
+          amount: "$usdtBalanceDecimal", // Decimal128
         },
       },
       { $sort: { amount: Number(sortDir) === 1 ? 1 : -1 } },
@@ -6928,13 +6902,13 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
       userId: r.userId,
       username: r.username || "(unknown)",
       uhid: r.uhid || "",
-      xrpAddress: r.xrpAddress || "",
+      wallet_address: r.wallet_address || "",
       amountStr: fmt2(r.amount),
     }));
 
     return res.status(200).json({
       success: true,
-      message: "Users with XAMAN balances fetched successfully",
+      message: "Users with USDT balances fetched successfully",
       data: {
         minBalance: String(minBalance),
         totalUsers,
@@ -6945,7 +6919,7 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Error in getUsersXamanBalancesFromLedger:", err);
+    console.error("❌ Error in getUsersUsdtBalancesFromLedger:", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error: " + (err?.message || "Unknown error"),
@@ -6955,7 +6929,7 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
 
 
 /**
- * GET users and their X1Rewards balances (from Ledger.wallets.xaman)
+ * GET users and their X1Rewards balances (from Ledger.wallets.usdt)
  *
  * Body/Query (all optional):
  *  - minBalance: string|number (default "0")  // use "0" for > 0, set "-inf" to include zeros
@@ -6966,7 +6940,7 @@ exports.getUsersXamanBalancesFromLedger = async (req, res) => {
  * Response:
  *  {
  *    totalUsers, totalAmount, page, pageSize,
- *    rows: [{ userId, username, uhid, xrpAddress, amountStr }]
+ *    rows: [{ userId, username, uhid, wallet_address, amountStr }]
  *  }
  */
 exports.getUserX1Rewards = async (req, res) => {
@@ -7099,7 +7073,7 @@ exports.getUserX1Rewards = async (req, res) => {
 };
 
 /**
- * GET users and their XAMAN balances (from Ledger.wallets.xaman)
+ * GET users and their USDT balances (from Ledger.wallets.usdt)
  *
  * Body/Query (all optional):
  *  - minBalance: string|number (default "0")  // use "0" for > 0, set "-inf" to include zeros
@@ -7110,7 +7084,7 @@ exports.getUserX1Rewards = async (req, res) => {
  * Response:
  *  {
  *    totalUsers, totalAmount, page, pageSize,
- *    rows: [{ userId, username, uhid, xrpAddress, amountStr }]
+ *    rows: [{ userId, username, uhid, wallet_address, amountStr }]
  *  }
  */
 exports.getUsersx1reawards = async (req, res) => {
@@ -7173,7 +7147,7 @@ exports.getUsersx1reawards = async (req, res) => {
           userId: "$_id",
           username: "$user.username",
           uhid: "$user.uhid",
-          xrpAddress: "$user.xrpAddress",
+          wallet_address: "$user.wallet_address",
           xRank: 1,
           totalEarnings: 1,
           xRankOrder: 1,
@@ -7212,7 +7186,7 @@ exports.getUsersx1reawards = async (req, res) => {
       userId: r.userId,
       username: r.username || "(unknown)",
       uhid: r.uhid || "",
-      xrpAddress: r.xrpAddress || "",
+      wallet_address: r.wallet_address || "",
       xRank: r.xRank || "None",
       totalEarnings: fmt2(r.totalEarnings),
     }));
@@ -7258,7 +7232,7 @@ exports.getUsersx1reawards = async (req, res) => {
  * Response:
  *  {
  *    totalUsers, grandTotal, grandCount, page, pageSize,
- *    rows: [{ userId, username, uhid, xrpAddress, totalAmountStr, count, lastTs }]
+ *    rows: [{ userId, username, uhid, wallet_address, totalAmountStr, count, lastTs }]
  *  }
  */
 exports.getUsersAutopositioningTotals = async (req, res) => {
@@ -7338,7 +7312,7 @@ exports.getUsersAutopositioningTotals = async (req, res) => {
           userId: "$_id",
           username: "$user.username",
           uhid: "$user.uhid",
-          xrpAddress: "$user.xrpAddress",
+          wallet_address: "$user.wallet_address",
           totalAmount: 1, // Decimal128
           count: 1,
           lastTs: 1,
@@ -7373,7 +7347,7 @@ exports.getUsersAutopositioningTotals = async (req, res) => {
       userId: r.userId,
       username: r.username || "(unknown)",
       uhid: r.uhid || "",
-      xrpAddress: r.xrpAddress || "",
+      wallet_address: r.wallet_address || "",
       totalAmountStr: r.totalAmount?.toString?.() ?? "0",
       count: r.count,
       lastTs: r.lastTs,
@@ -7621,4 +7595,3 @@ exports.deleteAdjustment = async (req, res) => {
     });
   }
 };
-

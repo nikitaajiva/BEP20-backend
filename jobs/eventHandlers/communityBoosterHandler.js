@@ -134,7 +134,7 @@ const handleCommunityBooster = async (payload) => {
                             rate: bonusRateD128,
                             level,
                             tier: parseInt(tierVolume),
-                            narrative: `Community Booster Bonus (Level ${level} at ${tierConfig.baseRate * 100}%) from ${depositor.username}'s deposit of ${depositAmount} XRP`
+                            narrative: `Community Booster Bonus (Level ${level} at ${tierConfig.baseRate * 100}%) from ${depositor.username}'s deposit of ${depositAmount} USDT`
                         });
 
                         // Update upline's ledger
@@ -155,7 +155,7 @@ const handleCommunityBooster = async (payload) => {
                             await uplineLedger.save();
                         }
 
-                        console.log(`[CommunityBooster] Awarded ${bonusAmount.toString()} XRP to ${uplineUser.username} (Level ${level})`);
+                        console.log(`[CommunityBooster] Awarded ${bonusAmount.toString()} USDT to ${uplineUser.username} (Level ${level})`);
                     }
                 }
             }

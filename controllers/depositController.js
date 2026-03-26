@@ -1,32 +1,19 @@
-const User = require('../models/User');
-const XrpDeposit = require('../models/XrpDeposit');
-const Outbox = require('../models/Outbox'); // Added for outbox event queuing
-const xrpl = require('xrpl');
-const mongoose = require('mongoose');
-const { addDecimal128 } = require('../utils/decimal128Utils');
-const { processXrpTransaction } = require('../services/depositService');
-const fetch = require("node-fetch");
+const User = require("../models/User");
+const UsdtDeposit = require("../models/UsdtDeposit");
+const { processUsdtTransaction, verifyUsdtDepositIntent } = require("../services/depositService");
 const DepositAddress = require("../models/DepositAddress");
-
-
-const XRP_LEDGER_SERVER = process.env.XRP_LEDGER_SERVER_URL || 'wss://neat-responsive-energy.xrp-mainnet.quiknode.pro/45f3ff38aac25053f6b316235305d0cefacb68e7';
-const SYSTEM_DEPOSIT_WALLET = process.env.SYSTEM_DEPOSIT_WALLET_ADDRESS;
-
-// Helper function to connect to XRPL
-async function getXrplClient() {
-  const client = new xrpl.Client(XRP_LEDGER_SERVER);
-  await client.connect();
-  return client;
-}
+const UsdtDepositIntent = require("../models/UsdtDepositIntent");
+const { normalizeAddress } = require("../utils/bsc");
+const { v4: uuidv4 } = require("uuid");
 
 // Get deposits history for authenticated user
 exports.getDepositsHistory = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    const deposits = await XrpDeposit.find({ user: userId })
+    const deposits = await UsdtDeposit.find({ user: userId })
       .sort({ createdAt: -1 })
-      .select('transactionId amount status walletAddress timestamp')
+      .select('tx_hash amount status wallet_address timestamp')
       .lean();
 
     res.json({
@@ -46,33 +33,68 @@ exports.getDepositsHistory = async (req, res) => {
   }
 };
 
-exports.recordXrpDeposit = async (req, res) => {
+exports.recordUsdtDeposit = async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ success: false, message: 'User not authenticated.' });
   }
   
-  const { xrpAddress, transactionId } = req.body;
+  const { tx_hash, referenceId } = req.body;
 
-  if (!xrpAddress || !transactionId) {
-    return res.status(400).json({ success: false, message: 'Missing xrpAddress or transactionId.' });
+  if (!tx_hash) {
+    return res.status(400).json({ success: false, message: 'Missing tx_hash.' });
   }
 
   try {
-    const result = await processXrpTransaction(transactionId, xrpAddress);
+    if (!referenceId) {
+      return res.status(400).json({
+        success: false,
+        message: "referenceId is required to verify deposits.",
+      });
+    }
+
+    const intent = await UsdtDepositIntent.findOne({
+      referenceId,
+      user: req.user._id,
+    });
+
+    if (!intent) {
+      return res.status(404).json({
+        success: false,
+        message: "Deposit intent not found for this referenceId.",
+      });
+    }
+
+    const result = await processUsdtTransaction(tx_hash, {
+      intent,
+      userId: req.user._id,
+    });
 
     if (result.success) {
+      intent.status = "completed";
+      intent.tx_hash = tx_hash;
+      intent.completedAt = new Date();
+      intent.processingError = null;
+      await intent.save();
+
       return res.status(200).json({
         success: true,
         message: result.message,
         deposit: result.deposit,
-        xamanWalletBalance: result.xamanWalletBalance,
-        zeroRiskLimitIncreased: result.xamanWalletBalance // Assuming this is correct based on original logic
+        usdtWalletBalance: result.usdtWalletBalance,
+        zeroRiskLimitIncreased: result.usdtWalletBalance
       });
     }
 
     // Handle specific, non-successful but non-error cases
     switch (result.status) {
       case 'duplicate':
+        if (intent) {
+          intent.status = "completed";
+          intent.tx_hash = tx_hash;
+          intent.completedAt = intent.completedAt || new Date();
+          intent.processingError = null;
+          await intent.save();
+        }
         return res.status(409).json({ success: false, message: result.message });
       case 'no_user':
         return res.status(404).json({ success: false, message: result.message });
@@ -83,11 +105,16 @@ exports.recordXrpDeposit = async (req, res) => {
       case 'amount_error':
         return res.status(400).json({ success: false, message: result.message });
       default:
+        if (intent && result.status !== "duplicate") {
+          intent.status = "failed";
+          intent.processingError = result.message;
+          await intent.save();
+        }
         // For 'error' status or any other unhandled case
         return res.status(500).json({ success: false, message: result.message || 'An unexpected server error occurred.' });
     }
   } catch (error) {
-    console.error('Unhandled error in recordXrpDeposit controller:', error);
+    console.error('Unhandled error in recordUsdtDeposit controller:', error);
     res.status(500).json({ success: false, message: 'Server error processing deposit.', error: error.message });
   }
 }; 
@@ -98,48 +125,20 @@ exports.recordXrpDeposit = async (req, res) => {
 // ======================================================================
 exports.recordDepositAddress = async (req, res) => {
   try {
-    // 1️⃣ Call the secure BEPVault allocation endpoint
-    const allocationRes = await fetch("https://pay.BEPVault.io/v1/deposits/allocate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // you can include identifying body if required by securepayments API
-      body: JSON.stringify({ requestedBy: req.user?._id || "system" }),
-    });
-
-    if (!allocationRes.ok) {
-      return res.status(allocationRes.status).json({
-        success: false,
-        message: `Failed to get deposit address from BEPVault (${allocationRes.status})`,
-      });
-    }
-
-    const data = await allocationRes.json();
-    if (!data.classic || data.destination_tag === undefined) {
+    const walletAddress = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
+    if (!walletAddress) {
       return res.status(400).json({
         success: false,
-        message: "Invalid response format from BEPVault allocate API",
+        message: "BSC_SYSTEM_DEPOSIT_ADDRESS must be set.",
       });
     }
-
-    // 2️⃣ Deactivate old ones
-  //  await DepositAddress.updateMany({ isActive: true }, { $set: { isActive: false } });
-
-    // 3️⃣ Save new one to DB
-    const newAddress = await DepositAddress.create({
-      wallet_address: data.classic,
-      destination_tag: data.destination_tag,
-      isActive: true,
-    });
-
-    console.log("✅ Stored new deposit address:", newAddress);
 
     // 4️⃣ Respond to frontend with live values
     return res.status(200).json({
       success: true,
-      message: "New system deposit address allocated successfully.",
+      message: "System deposit address resolved successfully.",
       deposit_address: {
-        wallet_address: newAddress.wallet_address,
-        destination_tag: newAddress.destination_tag,
+        wallet_address: walletAddress,
       },
     });
   } catch (error) {
@@ -147,6 +146,114 @@ exports.recordDepositAddress = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while recording deposit address.",
+      error: error.message,
+    });
+  }
+};
+
+// ======================================================================
+// 📥 POST /api/deposits/intent
+// Create a pending QR deposit intent (no wallet extension flow)
+// ======================================================================
+exports.createDepositIntent = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "User not authenticated." });
+    }
+
+    const amount = Number(req.body.amount);
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid amount." });
+    }
+
+    const providedWallet = req.body.wallet_address || req.user.wallet_address;
+    if (!providedWallet) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet address not available. Please connect your wallet once or add it to your profile.",
+      });
+    }
+
+    let normalizedWallet;
+    try {
+      normalizedWallet = normalizeAddress(providedWallet);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: "Invalid wallet address." });
+    }
+
+    const depositAddress = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
+    if (!depositAddress) {
+      return res.status(500).json({
+        success: false,
+        message: "System deposit address is not configured.",
+      });
+    }
+
+    let normalizedDeposit;
+    try {
+      normalizedDeposit = normalizeAddress(depositAddress);
+    } catch (error) {
+      return res.status(500).json({ success: false, message: "Invalid system deposit address." });
+    }
+
+    const ttlMs = Number(process.env.BSC_DEPOSIT_INTENT_TTL_MS || "15000");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlMs);
+
+    const intent = await UsdtDepositIntent.create({
+      user: req.user._id,
+      wallet_address: normalizedWallet,
+      deposit_address: normalizedDeposit,
+      amount: amount.toString(),
+      referenceId: uuidv4(),
+      status: "pending",
+      expiresAt,
+      network: "BEP20",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Deposit intent created.",
+      referenceId: intent.referenceId,
+      deposit_address: intent.deposit_address,
+      wallet_address: intent.wallet_address,
+      amount: intent.amount,
+      expiresAt: intent.expiresAt,
+      network: intent.network,
+    });
+  } catch (error) {
+    console.error("Error creating deposit intent:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while creating deposit intent.",
+      error: error.message,
+    });
+  }
+};
+
+// ======================================================================
+// 🔍 GET /api/deposits/verify?referenceId=...
+// Verify a QR deposit intent on-chain
+// ======================================================================
+exports.verifyDepositIntent = async (req, res) => {
+  try {
+    const { referenceId } = req.query;
+    if (!referenceId) {
+      return res.status(400).json({ success: false, message: "referenceId is required." });
+    }
+
+    const intent = await UsdtDepositIntent.findOne({
+      referenceId,
+      user: req.user._id,
+    });
+
+    const result = await verifyUsdtDepositIntent(intent);
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error) {
+    console.error("Error verifying deposit intent:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while verifying deposit intent.",
       error: error.message,
     });
   }

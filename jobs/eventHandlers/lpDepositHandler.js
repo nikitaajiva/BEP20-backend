@@ -78,10 +78,10 @@ exports.handleLpDeposit = async (payload, session, event) => {
     const ledger = await getOrCreateLedger(userId, session);
     const depositAmountD128 = Decimal128.fromString(amount.toString());
 
-    // Enforce a minimum deposit amount of 9 XRP.
+    // Enforce a minimum deposit amount of 9 USDT.
     const minimumLpDeposit = Decimal128.fromString("9.0");
     if (depositAmountD128.toFloat() < minimumLpDeposit.toFloat()) {
-        const errorMessage = `LP Deposit amount of ${amount} XRP is less than the minimum required 9 XRP.`;
+        const errorMessage = `LP Deposit amount of ${amount} USDT is less than the minimum required 9 USDT.`;
         console.error(`Validation failed for user ${userId}: ${errorMessage}`);
         // Throwing an error will halt processing and rely on the transaction to be rolled back.
         throw new Error(errorMessage);
@@ -149,7 +149,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     // This block is for the old, time-since-registration airdrop.
     // It is separate from the new sponsor boost bonus.
     if (isFirstDeposit) {
-        console.log(`Processing first-time deposit bonuses for ${depositAmountD128.toString()} XRP`);
+        console.log(`Processing first-time deposit bonuses for ${depositAmountD128.toString()} USDT`);
         
         const timeSinceRegistrationMs = new Date(depositTimestamp).getTime() - user.registrationTs.getTime();
         const hoursSinceRegistration = timeSinceRegistrationMs / (1000 * 60 * 60);
@@ -166,7 +166,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
         const actualMatchedAirdrop = Decimal128.min(companyAirdropAvailable, maxAirdropFromDepositPercentage);
 
         if (actualMatchedAirdrop.toFloat() > 0) {
-            console.log(`Airdrop activation for user ${userId}: ${actualMatchedAirdrop.toString()} XRP matched.`);
+            console.log(`Airdrop activation for user ${userId}: ${actualMatchedAirdrop.toString()} USDT matched.`);
             // This is the initial airdrop for first deposit, should go to airdrop wallet not LP
             ledger.wallets.airdrop = addDecimal128(ledger.wallets.airdrop, actualMatchedAirdrop);
             
@@ -200,7 +200,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     const bonusPercentage = getAirdropBonusPercentage(depositTimestamp);
     if (bonusPercentage > 0) {
         const bonusAmountD128 = depositAmountD128.multiply(Decimal128.fromString(bonusPercentage.toString()));
-        console.log(`Airdrop promotion: User ${userId} qualifies for a ${bonusPercentage * 100}% bonus of ${bonusAmountD128.toString()} XRP.`);
+        console.log(`Airdrop promotion: User ${userId} qualifies for a ${bonusPercentage * 100}% bonus of ${bonusAmountD128.toString()} USDT.`);
 
         const swiftBalance = ledger.wallets.swift;
         if (swiftBalance.toFloat() >= bonusAmountD128.toFloat()) {

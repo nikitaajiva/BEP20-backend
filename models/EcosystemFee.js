@@ -22,7 +22,7 @@ const EcosystemFeeSchema = new Schema(
     walletFrom: {
       type: String,
       required: true,
-      enum: ["SWIFT", "LP", "BOOST", "COMMUNITY_REWARDS", "XAMAN", "ZERO_RISK"]
+      enum: ["SWIFT", "LP", "BOOST", "COMMUNITY_REWARDS", "USDT", "ZERO_RISK"]
     },
     eventType: {
       type: String,

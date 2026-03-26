@@ -28,7 +28,7 @@ const LedgerRowSchema = new mongoose.Schema(
         "WITHDRAWAL", // User withdrawal from LP or Community-Rewards
         "REWARDS_REDEEMED", // User redeems from Community Rewards wallet
         "INTERNAL_TRANSFER",
-        "LP_DEPOSIT_FROM_XAMAN", // User moves funds from their Xaman wallet to their LP wallet
+        "LP_DEPOSIT_FROM_USDT", // User moves funds from their USDT wallet to their LP wallet
         "LP_DEPOSIT_FROM_REWARDS",
         "MOCK_SWIFT_CREDIT", // e.g. Swift to LP, or potentially other internal movements
         "SWIFT_TRANSFER_IN", // Swift transfer received from another user

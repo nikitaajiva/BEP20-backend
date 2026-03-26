@@ -2,7 +2,7 @@ const Level = require("../models/Level.js");
 const UserInfo = require("../models/UserInfo.js");
 const User = require("../models/User.js");
 const Ledger = require("../models/Ledger.js");
-const UserSignUp = require("../models/UserSignUp.js");
+// const UserSignUp = require("../models/UserSignUp.js");
 const { Decimal128 } = require("mongoose").Types;
 
 async function fetchAndMergeReferralData(

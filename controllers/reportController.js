@@ -32,13 +32,13 @@ exports.generateUserReport = async (req, res) => {
     // --- Aggregations (same logic from your script) ---
     const depositsAgg = await ChainDeposit.aggregate([
       { $match: { userId: { $in: userIds } } },
-      { $group: { _id: "$userId", total: { $sum: "$amountXRP" } } },
+      { $group: { _id: "$userId", total: { $sum: "$amount" } } },
     ]);
     const depositMap = Object.fromEntries(depositsAgg.map((d) => [d._id.toString(), d.total]));
 
     const withdrawalsAgg = await ChainWithdrawal.aggregate([
       { $match: { userId: { $in: userIds } } },
-      { $group: { _id: "$userId", total: { $sum: "$amountXRP" } } },
+      { $group: { _id: "$userId", total: { $sum: "$amount" } } },
     ]);
     const withdrawalMap = Object.fromEntries(withdrawalsAgg.map((w) => [w._id.toString(), w.total]));
 
@@ -110,7 +110,7 @@ exports.generateUserReport = async (req, res) => {
       const sponsor = user.sponsorId ? sponsorMap[user.sponsorId.toString()] || "N/A" : "N/A";
 
       const lpBalance = parseFloat(ledger?.wallets?.lp?.toString() || "0.0");
-      const xamanBalance = parseFloat(ledger?.wallets?.xaman?.toString() || "0.0");
+      const usdtBalance = parseFloat(ledger?.wallets?.usdt?.toString() || "0.0");
       const zeroRiskBalance = parseFloat(ledger?.wallets?.zeroRisk?.toString() || "0.0");
       const currentBalance = parseFloat(ledger?.wallets?.communityRewards?.toString() || "0.0");
       const totalRewardsWithdrawal = parseFloat(ledger?.totalRewardsWithdrawal || 0);
@@ -124,10 +124,10 @@ exports.generateUserReport = async (req, res) => {
         Username: user.username || "N/A",
         Email: user.email || "N/A",
         Sponsor: sponsor,
-        XRPAddress: user.xrpAddress || "N/A",
+        USDTAddress: user.wallet_address || "N/A",
         OnChainDeposits: deposits,
         OnChainWithdrawals: withdrawals,
-        XAMANBalance: xamanBalance,
+        USDTBalance: usdtBalance,
         ZeroRiskBalance: zeroRiskBalance,
         LPBalance: lpBalance,
         TotalRewards: totalRewards,

@@ -1,5 +1,5 @@
 /**
- * Manual XRP Send Test
+ * Manual USDT (BEP20) Send Test
  *
  * Usage:
  *   node scripts/sendXrpManualTest.js
@@ -9,68 +9,53 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const connectDB = require("../config/db");
 // utils/transactions.js
-const axios = require("axios");
-// const { getValidToken } = require("../config/tokenManager");
-const XrpTxLog = require("../models/XrpTxLog");
-const getValidToken  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0ZXIiLCJpYXQiOjE3NjgzNjIyNjEsImV4cCI6MTc2ODQ0ODY2MX0.av0OYtCUtMKHTxw2koJ53tN8H_PcOa0zArzmJvv08tU";
+const TokenTxLog = require("../models/TokenTxLog");
+const { sendUsdt } = require("../utils/usdtTransactions");
 
 /**
- * 🪙 Send XRP using the Secure Payments API
+ * 🪙 Send USDT on BSC using the hot wallet signer
  *
  * @param {Object} payload - The withdrawal details
  * @param {string} payload.idempotency_key - Unique key for deduplication
  * @param {string} payload.withdrawal_id - Internal ID for your record
- * @param {string|number} payload.amount_xrp - Amount in XRP (as string or number)
- * @param {string} payload.destination - XRP wallet address (destination)
+ * @param {string|number} payload.amount_usdt - Amount in USDT (as string or number)
+ * @param {string} payload.destination - BSC wallet address (destination)
  *
  * @returns {Promise<Object>} - API response (success or error)
  */
 
-async function sendXrp(payload) {
-  const token = getValidToken;// await getValidToken();
-
+async function sendUsdtManual(payload) {
   try {
-    const response = await axios.post(
-      "https://pay.BEPVault.io/v1/withdrawals",
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 15000,
-      }
-    );
+    const result = await sendUsdt({
+      destination: payload.destination,
+      amount: payload.amount_usdt,
+      memo: payload.idempotency_key,
+    });
 
-    if (!response.data || response.data.success === false) {
-      throw new Error(
-        response.data?.message || "XRPL withdrawal rejected"
-      );
-    }
-
-    await XrpTxLog.create({
+    await TokenTxLog.create({
       withdrawal_id: payload.withdrawal_id,
       idempotency_key: payload.idempotency_key,
       destination: payload.destination,
-      amount_xrp: payload.amount_xrp,
-      response: response.data,
+      amount: payload.amount_usdt,
+      currency: "USDT",
+      network: "BEP20",
+      tx_hash: result.txHash,
+      response: result,
     });
 
-    return {
-      txHash: response.data?.quicknode?.tx_json?.hash || null,
-      raw: response.data,
-    };
-
+    return result;
   } catch (err) {
-    await XrpTxLog.create({
+    await TokenTxLog.create({
       withdrawal_id: payload.withdrawal_id,
       idempotency_key: payload.idempotency_key,
       destination: payload.destination,
-      amount_xrp: payload.amount_xrp,
-      response: err.response?.data || err.message,
+      amount: payload.amount_usdt,
+      currency: "USDT",
+      network: "BEP20",
+      response: err.message,
     });
 
-    throw err; // ⛔ IMPORTANT
+    throw err;
   }
 }
 
@@ -87,26 +72,25 @@ async function run() {
     // DUMMY / MANUAL PAYLOAD
     // -----------------------------
     const payload = {
-      withdrawal_id:"69670be3aqw03f55c0d507816365", // ✅ must be ObjectId
+      withdrawal_id: "69670be3aqw03f55c0d507816365",
       idempotency_key: "733b0674-b6f7-4c81-va46-ad49c691698579",
-      destination: "rwDzgMGFS9cr4dy6TZFkP5qoBLsc5QLGNd", // test XRPL address
-      amount_xrp: "1", 
-      wtype:"ipfs"
+      destination: "0x0000000000000000000000000000000000000000",
+      amount_usdt: "1",
     };
 
     console.log("📦 Payload being sent:");
     console.log(payload);
 
     // -----------------------------
-    // SEND XRP
+    // SEND USDT
     // -----------------------------
-    const result = await sendXrp(payload);
+    const result = await sendUsdtManual(payload);
 
-    console.log("🎉 XRP SENT SUCCESSFULLY");
+    console.log("🎉 USDT SENT SUCCESSFULLY");
     console.dir(result, { depth: null });
 
   } catch (err) {
-    console.error("❌ XRP SEND FAILED");
+    console.error("❌ USDT SEND FAILED");
 
     // FULL ERROR VISIBILITY
     console.error("Message:", err.message);

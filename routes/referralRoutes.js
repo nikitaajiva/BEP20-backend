@@ -6,7 +6,7 @@ const { protect } = require('../middleware/authMiddleware');
 const { TIER_REWARDS } = require('../utils/rewardsUtils');
 
 // @route   GET /api/referrals/direct-children
-// @desc    Get authenticated user's direct children with XRP reward contribution
+// @desc    Get authenticated user's direct children with USDT reward contribution
 // @access  Private
 router.get('/direct-children', protect, async (req, res) => {
   try {
@@ -17,7 +17,7 @@ router.get('/direct-children', protect, async (req, res) => {
 
     const childrenWithRewards = children.map(child => ({
       ...child,
-      xrpRewardContribution: 5
+      usdtRewardContribution: 5
     }));
 
     res.json({
@@ -70,12 +70,12 @@ router.get('/tiered-children', protect, async (req, res) => {
     };
 
     const tieredChildren = await User.find(query)
-      .select('_id username email level country countryCode whatsappContact balanceXRP directDownlines communitySize height')
+      .select('_id username email level country countryCode whatsappContact balanceUSDT directDownlines communitySize height')
       .lean();
 
     const childrenWithRewards = tieredChildren.map(child => ({
       ...child,
-      xrpRewardContribution: TIER_REWARDS[requestedTier] !== undefined ? TIER_REWARDS[requestedTier] : 0
+      usdtRewardContribution: TIER_REWARDS[requestedTier] !== undefined ? TIER_REWARDS[requestedTier] : 0
     }));
 
     res.json({

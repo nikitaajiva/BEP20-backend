@@ -56,7 +56,7 @@ const LedgerSchema = new Schema({
       type: Schema.Types.Decimal128,
       default: '0.0'
     },
-    xaman: { // New wallet to hold deposits from Xaman
+    usdt: { // New wallet to hold on-chain deposits
       type: Schema.Types.Decimal128,
       default: '0.0'
     },
@@ -169,7 +169,7 @@ const LedgerSchema = new Schema({
     lastChecked: Date,
 
     // --- Fine-grained breakdown to guarantee perfect reversal ---
-    amountFromXaman: Number,
+    amountFromUsdt: Number,
     amountFromLp: Number,
     amountFromRewards: Number,
     zeroRisk: Number,

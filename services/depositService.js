@@ -1,237 +1,359 @@
-const User = require('../models/User');
-const XrpDeposit = require('../models/XrpDeposit');
-const LedgerRow = require('../models/LedgerRow');
-const Ledger = require('../models/Ledger');
-const xrpl = require('xrpl');
-const mongoose = require('mongoose');
-const { addDecimal128 } = require('../utils/decimal128Utils');
-const { getOrCreateLedger, createLedgerEntry } = require('../jobs/helpers/ledgerHelpers');
+const { ethers } = require("ethers");
+const User = require("../models/User");
+const UsdtDeposit = require("../models/UsdtDeposit");
+const LedgerRow = require("../models/LedgerRow");
+const mongoose = require("mongoose");
+const { addDecimal128 } = require("../utils/decimal128Utils");
+const { getOrCreateLedger, createLedgerEntry } = require("../jobs/helpers/ledgerHelpers");
+const {
+  BSC_CONFIRMATIONS,
+  assertMainnet,
+  getProvider,
+  getUsdtContract,
+  normalizeAddress,
+} = require("../utils/bsc");
 
-const XRP_LEDGER_SERVER = process.env.XRP_LEDGER_SERVER_URL || 'wss://neat-responsive-energy.xrp-mainnet.quiknode.pro/45f3ff38aac25053f6b316235305d0cefacb68e7';
-const SYSTEM_DEPOSIT_WALLET = process.env.SYSTEM_DEPOSIT_WALLET_ADDRESS;
+function getSystemDepositAddress() {
+  const primary = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
+  if (!primary) {
+    throw new Error("BSC_SYSTEM_DEPOSIT_ADDRESS is not configured.");
+  }
+  return normalizeAddress(primary);
+}
 
-async function getXrplClient() {
-    const client = new xrpl.Client(XRP_LEDGER_SERVER);
-    await client.connect();
-    return client;
+async function getConfirmations(provider, blockNumber) {
+  const latestBlock = await provider.getBlockNumber();
+  return latestBlock - blockNumber + 1;
 }
 
 /**
- * Processes a single XRP transaction by its ID.
- * This is the core logic that can be used by both the real-time endpoint and the poller.
- * @param {string} transactionId - The transaction hash.
- * @param {string} userWalletAddress - The expected destination wallet address from the user's profile.
- * @returns {object} An object indicating the result of the processing.
+ * Processes a single USDT transaction by its hash.
+ * @param {string} txHash - Transaction hash.
+ * @param {object} options - Mapping and validation options.
+ * @returns {object} Result of processing.
  */
-async function processXrpTransaction(transactionId, userWalletAddress) {
-  // ✅ Static array of valid system deposit addresses
-  const SYSTEM_DEPOSIT_ADDRESSES = [
-"rwksm3hWyt2Ehm8RpoPSv7JAm6NqdMUpAg",
-"rPhPjbCybVNBN1aJHoh3eNzAQq7csE8aoW",
-"rEkcGq5nn78GapTCEyCa4UXkP1wMrbgFnN",
-"rfR7jnw1DvLAVsqkr8SrhAy1Dbfmr6L1V2",
-"r9519ztUDzZUTgZWdsMoNW5EBCJbga2pg6",
-"rhDtxdRJYveUMnhmq1oe3Yt7oVDLYki2Gx",
-"rPurkW6k23SEHPi7SDMcM5MyGE2oWf4jhG",
-"rHwnssBeUo8G5AusLJn9aSK32L1oSddiym",
-"r9519ztUDzZUTgZWdsMoNW5EBCJbga2pg6",
-"rh2FJDvJE2c7Jh7d5sq1UbFHfKbvvqQpqx",
-"rn8c19jkS2e3yUk8BnXUfNVbvEyTfF6iKa",
-
-    "rWw76Jfpb1vJYdVmE1xtwihNvnThhfYox",
-    "rskHodMnSoRgrXis54bJcitKeQRVQowDQH",
-    "rGPty1yQisw4z5soKZauz1Dc3xzeoyoMe3",
-    "r9TedDFitbyGzxP38yeT5c4CLxLvTPew5",
-    "rLxMPwZHCcuNZ9jTTJy9S8uq7Q6uHs97Bj",
-    "rPaMYNQ4FFwfERQGDGuHddEbET62dNcmS7",
-    "rJRvvbvW4s5mMHvr9Uvby3RK3kNtCLeZMf",
-    "rMS5A2QSqsnnUMxMRsoRdw6VufZuj8c9s",
-    "rpSHvD5r68QiSgw4fe8YQo2umDhdSHDvrR",
-    "rhum8ge6s7HEzD6aruhXQVcu7RiiUTcyq6",
-      "rLxpFXRRZNHcRstwPuVKc2bKF1xwygJXHi",
-  "rMYmdQ3TYnYcVAgbGgY9hXNaNFHdtZyNLy",
-  "rExcJsPHdvBLYxrdDQbdycBAUSX5hkKoQL",
-  "rspn86WVaiukD2K34E2emi7bQyHWMFKqNk",
-  "rPDXV2m9HA7hqi8PqhFoGn4JfTeUAvHbL3",
-  "rMcPmaHy6vRYxrxCRcg8G4JLout6C93HK3",
-  "rKHFUy7FE3pSajAcrMj7L6LEvCriNGgnUj",
-  "rZf2cv2TRes2jmeE1v8QhZZf7yBsTmYmY",
-  "rE9qrrPgkZgTroMVwmXHFatyMszdw4xK4G",
-  "rDkv6ZSjuyf3ec91qdSDQhomkwhwZTajGf",
-  ];
-
-  // 🧠 Optional fallback: add .env address if needed
-  if (process.env.SYSTEM_DEPOSIT_WALLET_ADDRESS && 
-      !SYSTEM_DEPOSIT_ADDRESSES.includes(process.env.SYSTEM_DEPOSIT_WALLET_ADDRESS)) {
-    SYSTEM_DEPOSIT_ADDRESSES.push(process.env.SYSTEM_DEPOSIT_WALLET_ADDRESS);
+async function processUsdtTransaction(txHash, options = {}) {
+  const { userId, intent } = options;
+  if (!userId && !intent?.user) {
+    return { success: false, status: "no_user", message: "User mapping is required." };
   }
 
-  // 🔒 Prevent duplicate transactions
-  const existingLedgerRow = await LedgerRow.findOne({ refId: transactionId, eventType: 'DEPOSIT' });
+  let expectedAmount = options.expectedAmount;
+  let expectedFrom = options.expectedFrom;
+  let expectedTo = options.expectedTo;
+  let resolvedUserId = userId;
+
+  if (intent) {
+    if (resolvedUserId && String(intent.user) !== String(resolvedUserId)) {
+      return { success: false, status: "no_user", message: "Deposit intent user mismatch." };
+    }
+    resolvedUserId = intent.user;
+    expectedAmount = intent.amount;
+    expectedFrom = intent.wallet_address;
+    expectedTo = intent.deposit_address;
+  }
+
+  let systemAddress;
+  try {
+    systemAddress = getSystemDepositAddress();
+  } catch (error) {
+    return { success: false, status: "config_error", message: error.message };
+  }
+  const expectedToNormalized = expectedTo ? normalizeAddress(expectedTo) : systemAddress;
+  if (expectedToNormalized !== systemAddress) {
+    return {
+      success: false,
+      status: "config_error",
+      message: "Deposit address mismatch with configured system wallet.",
+    };
+  }
+
+  const existingLedgerRow = await LedgerRow.findOne({ refId: txHash, eventType: "DEPOSIT" });
   if (existingLedgerRow) {
     return {
       success: false,
-      status: 'duplicate',
-      message: `Transaction ID ${transactionId} has already been recorded in the ledger.`
+      status: "duplicate",
+      message: `Transaction ID ${txHash} has already been recorded in the ledger.`,
     };
   }
 
-  const existingDeposit = await XrpDeposit.findOne({ transactionId });
+  const existingDeposit = await UsdtDeposit.findOne({ tx_hash: txHash });
   if (existingDeposit) {
     return {
       success: false,
-      status: 'duplicate',
-      message: `Transaction ID ${transactionId} already recorded (status: ${existingDeposit.status}).`
+      status: "duplicate",
+      message: `Transaction ID ${txHash} already recorded (status: ${existingDeposit.status}).`,
     };
   }
 
-  const user = await User.findOne({ xrpAddress: userWalletAddress });
+  const user = await User.findById(resolvedUserId);
   if (!user) {
     return {
       success: false,
-      status: 'no_user',
-      message: `No user found with the XRP address: ${userWalletAddress}`
+      status: "no_user",
+      message: "User not found for this deposit request.",
     };
   }
 
   const authenticatedUserId = user._id;
-  let client;
   let newDeposit;
 
   try {
-    newDeposit = new XrpDeposit({
+    const provider = getProvider();
+    await assertMainnet(provider);
+
+    const usdt = getUsdtContract(provider);
+    const decimals = await usdt.decimals();
+    if (Number(decimals) !== 18) {
+      return {
+        success: false,
+        status: "validation_failed",
+        message: `Unexpected USDT decimals: ${decimals}`,
+      };
+    }
+
+    const transferEvent = usdt.interface.getEvent("Transfer");
+    const transferTopic = transferEvent.topicHash;
+
+    newDeposit = new UsdtDeposit({
       user: authenticatedUserId,
-      walletAddress: userWalletAddress,
-      transactionId,
-      amount: '0',
-      status: 'pending_verification',
-      ledgerTimestamp: new Date()
+      wallet_address: "",
+      tx_hash: txHash,
+      amount: "0",
+      status: "pending_verification",
+      ledgerTimestamp: new Date(),
+      network: "BEP20",
     });
     await newDeposit.save();
 
-    client = await getXrplClient();
-    const response = await client.request({
-      command: 'tx',
-      transaction: transactionId,
-      binary: false
-    });
-
-    const txData = response.result;
-    if (!txData) {
-      const errorMessage = `Could not find transaction data in XRPL response for tx: ${transactionId}`;
-      console.error(`[DEPOSIT_VALIDATION_FAIL] ${errorMessage}`, response);
-      newDeposit.status = 'failed';
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt || receipt.status !== 1) {
+      const errorMessage = "Transaction not found or failed";
+      newDeposit.status = "failed";
       newDeposit.processingError = errorMessage;
       await newDeposit.save();
-      return { success: false, status: 'validation_failed', message: errorMessage };
+      return { success: false, status: "validation_failed", message: errorMessage };
     }
 
-    if (!txData.validated || txData.meta?.TransactionResult !== 'tesSUCCESS') {
-      newDeposit.status = 'failed';
-      newDeposit.processingError = `Transaction not successful or not validated. Result: ${txData.meta?.TransactionResult || 'N/A'}`;
+    const confirmations = await getConfirmations(provider, receipt.blockNumber);
+    if (confirmations < BSC_CONFIRMATIONS) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = `Transaction requires ${BSC_CONFIRMATIONS} confirmations. Current: ${confirmations}`;
       await newDeposit.save();
-      return { success: false, status: 'validation_failed', message: newDeposit.processingError };
+      return { success: false, status: "validation_failed", message: newDeposit.processingError };
     }
 
-    if (!txData.tx_json) {
-      newDeposit.status = 'failed';
-      newDeposit.processingError = 'Transaction data (tx_json) is missing in XRPL response.';
+    const transferLogs = receipt.logs.filter((log) => {
+      return normalizeAddress(log.address) === normalizeAddress(usdt.target) && log.topics[0] === transferTopic;
+    });
+
+    if (!transferLogs.length) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "No USDT Transfer event found in transaction logs";
       await newDeposit.save();
-      return { success: false, status: 'validation_failed', message: newDeposit.processingError };
+      return { success: false, status: "validation_failed", message: newDeposit.processingError };
     }
 
-    // ✅ 🔍 Check transaction type + destination among static addresses
-    const txDest = txData.tx_json.Destination;
-    const txType = txData.tx_json.TransactionType;
-    const txSender = txData.tx_json.Account;
+    const expectedFromNormalized = expectedFrom ? normalizeAddress(expectedFrom) : null;
+    const expectedValue = expectedAmount
+      ? ethers.parseUnits(expectedAmount.toString(), decimals)
+      : null;
 
-    const isSystemDeposit = SYSTEM_DEPOSIT_ADDRESSES.some(
-      addr => addr.trim().toLowerCase() === txDest.trim().toLowerCase()
-    );
+    let matchedLog;
+    let parsed;
+    for (const log of transferLogs) {
+      const candidate = usdt.interface.parseLog(log);
+      const from = normalizeAddress(candidate.args.from);
+      const to = normalizeAddress(candidate.args.to);
+      const value = candidate.args.value;
 
-    if (txType !== 'Payment' || !isSystemDeposit || txSender !== userWalletAddress) {
-      newDeposit.status = 'failed';
-      newDeposit.processingError = `Transaction validation failed. Type: ${txType}, Dest: ${txDest}, Sender: ${txSender}`;
+      if (to !== systemAddress) continue;
+      if (expectedFromNormalized && from !== expectedFromNormalized) continue;
+      if (expectedValue && value !== expectedValue) continue;
+
+      matchedLog = log;
+      parsed = candidate;
+      break;
+    }
+
+    if (!matchedLog) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transfer validation failed against expected parameters.";
       await newDeposit.save();
-      return { success: false, status: 'validation_failed', message: newDeposit.processingError };
+      return { success: false, status: "validation_failed", message: newDeposit.processingError };
     }
 
-    // ✅ Validate amount
-    if (!txData.meta || typeof txData.meta.delivered_amount !== 'string') {
-      newDeposit.status = 'failed';
-      const errorDetail = txData.meta
-        ? `unexpected type for delivered_amount: ${typeof txData.meta.delivered_amount}`
-        : 'meta object missing or malformed.';
-      newDeposit.processingError = `Invalid or missing delivered_amount. Details: ${errorDetail}`;
-      await newDeposit.save();
-      return { success: false, status: 'amount_error', message: newDeposit.processingError };
-    }
+    const from = normalizeAddress(parsed.args.from);
+    const to = normalizeAddress(parsed.args.to);
+    const value = parsed.args.value;
 
-    const amountInDrops = txData.meta.delivered_amount;
-    const amountXRP = parseFloat(amountInDrops) / 1000000;
-    const ledgerTimestamp = txData.date ? new Date(xrpl.rippleTimeToISOTime(txData.date)) : new Date();
+    const amount = ethers.formatUnits(value, decimals);
+    const ledgerTimestamp = receipt.blockNumber ? new Date() : new Date();
 
-    // ✅ Save deposit
-    newDeposit.amount = amountInDrops;
-    newDeposit.status = 'completed';
+    newDeposit.amount = amount.toString();
+    newDeposit.status = "completed";
     newDeposit.ledgerTimestamp = ledgerTimestamp;
-    if (txData.tx_json.DestinationTag !== undefined) {
-      newDeposit.destinationTag = txData.tx_json.DestinationTag;
-    }
     newDeposit.processingError = null;
+    newDeposit.wallet_address = from;
+    newDeposit.token_contract = normalizeAddress(usdt.target);
+    newDeposit.decimals = decimals;
 
-    // ✅ Update user + ledger balances
-    if (!user.xrpAddress) user.xrpAddress = userWalletAddress;
-    user.xamanBalance = (user.xamanBalance || 0) + amountXRP;
+    user.usdtBalance = (user.usdtBalance || 0) + Number(amount);
     await user.save();
 
     const ledger = await getOrCreateLedger(authenticatedUserId);
-    const depositAmountD128 = mongoose.Types.Decimal128.fromString(amountXRP.toString());
+    const depositAmountD128 = mongoose.Types.Decimal128.fromString(amount.toString());
 
-    console.log(`[DEPOSIT_DEBUG] User: ${authenticatedUserId}`);
-    console.log(`[DEPOSIT_DEBUG] Before Update: ${ledger.wallets.xaman.toString()}`);
-    console.log(`[DEPOSIT_DEBUG] Amount to add: ${depositAmountD128.toString()}`);
-
-    ledger.wallets.xaman = addDecimal128(ledger.wallets.xaman, depositAmountD128);
+    ledger.wallets.usdt = addDecimal128(ledger.wallets.usdt, depositAmountD128);
     ledger.wallets.zeroRisk = addDecimal128(ledger.wallets.zeroRisk, depositAmountD128);
     ledger.wallets.zeroRiskIpfs = addDecimal128(ledger.wallets.zeroRiskIpfs, depositAmountD128);
-    ledger.markModified('wallets');
+    ledger.markModified("wallets");
     await ledger.save();
     await newDeposit.save();
 
     await createLedgerEntry({
       userId: authenticatedUserId,
-      eventType: 'DEPOSIT',
+      eventType: "DEPOSIT",
       amount: depositAmountD128.toString(),
-      walletFrom: 'EXTERNAL',
-      walletTo: 'XAMAN',
-      narrative: `Xaman wallet deposit. TxHash: ${transactionId}`,
-      refId: transactionId
+      walletFrom: "EXTERNAL",
+      walletTo: "USDT",
+      narrative: `USDT wallet deposit. TxHash: ${txHash}`,
+      refId: txHash,
     });
 
     return {
       success: true,
-      status: 'completed',
-      message: 'XRP deposit recorded and added to Xaman wallet.',
+      status: "completed",
+      message: "USDT deposit recorded and added to USDT wallet.",
       deposit: newDeposit,
-      xamanWalletBalance: amountXRP,
+      usdtWalletBalance: amount,
     };
-
   } catch (error) {
-    console.error(`Error processing XRP transaction ${transactionId}:`, error);
+    console.error(`Error processing USDT transaction ${txHash}:`, error);
     if (newDeposit && newDeposit._id) {
-      await XrpDeposit.updateOne(
+      await UsdtDeposit.updateOne(
         { _id: newDeposit._id },
-        { status: 'failed', processingError: error.message || 'Unexpected error.' }
+        { status: "failed", processingError: error.message || "Unexpected error." }
       );
     }
-    return { success: false, status: 'error', message: 'Server error processing deposit.', error: error.message };
-  } finally {
-    if (client && client.isConnected()) await client.disconnect();
+    return { success: false, status: "error", message: "Server error processing deposit.", error: error.message };
   }
 }
 
 module.exports = {
-    processXrpTransaction,
-    getXrplClient
-}; 
+  processUsdtTransaction,
+  verifyUsdtDepositIntent,
+};
+
+async function verifyUsdtDepositIntent(intent) {
+  if (!intent) {
+    return { success: false, status: "not_found", message: "Deposit intent not found." };
+  }
+
+  if (intent.status === "completed") {
+    return {
+      success: true,
+      status: "completed",
+      message: "Deposit already completed.",
+      txHash: intent.tx_hash,
+    };
+  }
+
+  const now = new Date();
+  if (now > intent.expiresAt) {
+    if (intent.status !== "expired") {
+      intent.status = "expired";
+      await intent.save();
+    }
+    return { success: false, status: "expired", message: "Deposit intent expired." };
+  }
+
+  const systemAddress = getSystemDepositAddress();
+  const depositAddress = normalizeAddress(intent.deposit_address);
+  if (depositAddress !== systemAddress) {
+    return { success: false, status: "config_error", message: "Deposit address mismatch." };
+  }
+
+  const provider = getProvider();
+  await assertMainnet(provider);
+  const usdt = getUsdtContract(provider);
+  const decimals = await usdt.decimals();
+  if (Number(decimals) !== 18) {
+    return {
+      success: false,
+      status: "validation_failed",
+      message: `Unexpected USDT decimals: ${decimals}`,
+    };
+  }
+  const transferEvent = usdt.interface.getEvent("Transfer");
+  const transferTopic = transferEvent.topicHash;
+  const toAddress = depositAddress;
+  const fromAddress = intent.wallet_address ? normalizeAddress(intent.wallet_address) : null;
+  const toTopic = ethers.zeroPadValue(toAddress, 32);
+  const fromTopic = fromAddress ? ethers.zeroPadValue(fromAddress, 32) : null;
+
+  const latestBlock = await provider.getBlockNumber();
+  const lookback = Number(process.env.BSC_INTENT_LOOKBACK_BLOCKS || "3000");
+  const fromBlock = Math.max(latestBlock - lookback, 0);
+
+  const logs = await provider.getLogs({
+    address: normalizeAddress(usdt.target),
+    fromBlock,
+    toBlock: latestBlock,
+    topics: fromTopic ? [transferTopic, fromTopic, toTopic] : [transferTopic, null, toTopic],
+  });
+
+  if (!logs.length) {
+    return { success: false, status: "pending", message: "No matching transfer found yet." };
+  }
+
+  const expectedValue = ethers.parseUnits(intent.amount.toString(), decimals);
+
+  for (const log of logs) {
+    const parsed = usdt.interface.parseLog(log);
+    const value = parsed.args.value;
+
+    if (value !== expectedValue) {
+      continue;
+    }
+
+    const receipt = await provider.getTransactionReceipt(log.transactionHash);
+    if (!receipt || receipt.status !== 1) {
+      continue;
+    }
+
+    const confirmations = await getConfirmations(provider, receipt.blockNumber);
+    if (confirmations < BSC_CONFIRMATIONS) {
+      return {
+        success: false,
+        status: "pending_confirmations",
+        message: `Waiting for confirmations (${confirmations}/${BSC_CONFIRMATIONS}).`,
+      };
+    }
+
+    const result = await processUsdtTransaction(log.transactionHash, {
+      intent,
+      userId: intent.user,
+    });
+    if (result.success || result.status === "duplicate") {
+      intent.status = "completed";
+      intent.tx_hash = log.transactionHash;
+      intent.completedAt = new Date();
+      intent.processingError = null;
+      await intent.save();
+      return {
+        success: true,
+        status: "completed",
+        message: result.message || "Deposit completed.",
+        txHash: log.transactionHash,
+      };
+    }
+
+    intent.status = "failed";
+    intent.processingError = result.message || "Failed to process deposit.";
+    await intent.save();
+    return { success: false, status: "failed", message: intent.processingError };
+  }
+
+  return { success: false, status: "pending", message: "No matching amount found yet." };
+}

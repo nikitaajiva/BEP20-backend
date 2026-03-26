@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to BEPVault - Set Your Password</title>
+    <title>Welcome to {{appName}} - Set Your Password</title>
     <style>
         body {
             margin: 0;
@@ -93,12 +93,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="https://BEPVault.com/assets/img/logo.png" alt="{{appName}} Logo" style="width: 150px; margin-bottom: 20px;">
+            <img src="{{logoUrl}}" alt="{{appName}} Logo" style="width: 150px; margin-bottom: 20px;">
         </div>
         <div class="content">
             <h1>Welcome to {{appName}}!</h1>
             <p>Hi {{username}},</p>
-            <p>Thank you for joining BEPVault! We're excited to have you on board. To get started with your account, you'll need to set up your password.</p>
+            <p>Thank you for joining {{appName}}! We're excited to have you on board. To get started with your account, you'll need to set up your password.</p>
             
             <div class="button-container">
                 <a href="{{setPasswordUrl}}" class="button">Set Your Password</a>
@@ -107,23 +107,23 @@
             <p>This link will expire in 24 hours for security reasons. If you need a new link, you can request one by attempting to log in again.</p>
 
             <div class="security-note">
-                <p><strong>Security Note:</strong> This link is unique to your account and should not be shared with anyone. BEPVault will never ask for your password or send you links to reset your password unless you request it.</p>
+                <p><strong>Security Note:</strong> This link is unique to your account and should not be shared with anyone. {{appName}} will never ask for your password or send you links to reset your password unless you request it.</p>
             </div>
 
             <p>Once you've set your password, you'll have full access to:</p>
             <ul>
-                <li>Your XRP wallet and transactions</li>
+                <li>Your wallet and transactions</li>
                 <li>Referral program and rewards</li>
                 <li>Account settings and security features</li>
             </ul>
 
             <p>If you have any questions or need assistance, our support team is here to help.</p>
 
-            <p>Best regards,<br>The BEPVault Team</p>
+            <p>Best regards,<br>The {{appName}} Team</p>
         </div>
         <div class="footer">
-            <p>&copy; {{currentYear}} BEPVault. All rights reserved.</p>
-            <p>If you have any questions, feel free to <a href="mailto:support@BEPVault.com">contact our support team</a>.</p>
+            <p>&copy; {{currentYear}} {{appName}}. All rights reserved.</p>
+            <p>If you have any questions, feel free to <a href="mailto:{{supportEmail}}">contact our support team</a>.</p>
         </div>
     </div>
 </body>

@@ -1,15 +1,15 @@
 const mongoose = require("mongoose");
-const { Schema, Types } = mongoose;
+const { Schema } = mongoose;
 
-const XrpTxLogSchema = new Schema({
+const TokenTxLogSchema = new Schema({
   withdrawal_id: { type: mongoose.Schema.Types.ObjectId, required: true },
   idempotency_key: String,
   destination: String,
-  amount_xrp: Number,
-  response: Object, // entire API response
+  amount: Number,
+  response: Object,
   error: String,
   createdAt: { type: Date, default: Date.now },
 });
 
-
-module.exports = mongoose.models.XrpTxLog || mongoose.model("XrpTxLog", XrpTxLogSchema);
+module.exports =
+  mongoose.models.TokenTxLog || mongoose.model("TokenTxLog", TokenTxLogSchema);

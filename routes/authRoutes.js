@@ -21,7 +21,7 @@ const {
   logout,
   impersonateUser,
   sendEmailVerification,
-  xamanlogin,
+  walletlogin,
 
   verifyEmail,
 } = require("../controllers/authController");
@@ -46,10 +46,10 @@ router.post("/set-password/:token", setPasswordFromLink);
 // @access  Public
 router.post("/login", login);
 
-// @route   POST /api/auth/xamanlogin
+// @route   POST /api/auth/walletlogin
 // @desc    Authenticate user & get token
 // @access  Public
-router.post("/xamanlogin", xamanlogin);
+router.post("/walletlogin", walletlogin);
 
 
 

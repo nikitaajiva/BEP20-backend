@@ -56,18 +56,18 @@ const updateNotificationSettings = async (req, res) => {
  */
 // const updateWalletAddress = async (req, res) => {
 //     try {
-//         // The field from the frontend will be 'xrpAddress'
-//         const { xrpAddress } = req.body;
-//         console.log('xrpAddress', xrpAddress);
+//         // The field from the frontend will be 'wallet_address'
+//         const { wallet_address } = req.body;
+//         console.log('wallet_address', wallet_address);
 //         const userId = req.user._id;
 
-//         if (!xrpAddress || typeof xrpAddress !== 'string') {
+//         if (!wallet_address || typeof wallet_address !== 'string') {
 //             return res.status(400).json({ message: 'Invalid wallet address provided.' });
 //         }
 
 //         // Check if this wallet address is already used by ANOTHER user
 //         const existingUserWithWallet = await User.findOne({ 
-//             xrpAddress: xrpAddress, 
+//             wallet_address: wallet_address, 
 //             _id: { $ne: userId } 
 //         });
 
@@ -83,12 +83,12 @@ const updateNotificationSettings = async (req, res) => {
 //         }
 
 //         // Save the address to the correct field
-//         user.xrpAddress = xrpAddress;
+//         user.wallet_address = wallet_address;
 //         await user.save();
 
 //         res.status(200).json({
 //             message: 'Wallet address updated successfully.',
-//             xrpAddress: user.xrpAddress,
+//             wallet_address: user.wallet_address,
 //         });
 
 //     } catch (error) {
@@ -100,18 +100,18 @@ const updateNotificationSettings = async (req, res) => {
 
 const updateWalletAddress = async (req, res) => {
   try {
-    const { xrpAddress } = req.body;
+    const { wallet_address } = req.body;
     const userId = req.user._id;
 
-    if (!xrpAddress || typeof xrpAddress !== "string") {
+    if (!wallet_address || typeof wallet_address !== "string") {
       return res.status(400).json({ message: "Invalid wallet address provided." });
     }
 
-    const newAddress = xrpAddress.trim();
+    const newAddress = wallet_address.trim();
 
     // 🔍 Check if another user already uses this address
     const existingUserWithWallet = await User.findOne({
-      xrpAddress: newAddress,
+      wallet_address: newAddress,
       _id: { $ne: userId },
     });
 
@@ -128,13 +128,13 @@ const updateWalletAddress = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    const currentAddress = user.xrpAddress ? user.xrpAddress.trim() : "";
+    const currentAddress = user.wallet_address ? user.wallet_address.trim() : "";
 
     // ✅ If already same, return success
     if (currentAddress === newAddress) {
       return res.status(200).json({
         message: "Wallet address already set to this value.",
-        xrpAddress: user.xrpAddress,
+        wallet_address: user.wallet_address,
       });
     }
 
@@ -143,17 +143,17 @@ const updateWalletAddress = async (req, res) => {
       return res.status(403).json({
         message:
           "You cannot change your wallet address. It has already been set to a different value.",
-        currentAddress: user.xrpAddress,
+        currentAddress: user.wallet_address,
       });
     }
 
     // ✅ Safe to set if blank/null
-    user.xrpAddress = newAddress;
+    user.wallet_address = newAddress;
     await user.save();
 
     res.status(200).json({
       message: "Wallet address updated successfully.",
-      xrpAddress: user.xrpAddress,
+      wallet_address: user.wallet_address,
     });
   } catch (error) {
     console.error("Error updating wallet address:", error);
@@ -193,7 +193,7 @@ const updateUserProfile = async (req, res) => {
             country: updatedUser.country,
             countryCode: updatedUser.countryCode,
             whatsappContact: updatedUser.whatsappContact,
-            xrpAddress: updatedUser.xrpAddress,
+            wallet_address: updatedUser.wallet_address,
             notificationSettings: updatedUser.notificationSettings,
             // Include other fields as needed, but avoid sensitive ones
         };

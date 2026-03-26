@@ -1,10 +1,9 @@
 require('dotenv').config();
 const Ledger = require("../models/Ledger");
 const LedgerRow = require("../models/LedgerRow");
-const xrpTransactions = require("../utils/xrpTransactions");
-const { sendXrp } = require("../utils/transactions");
+const { sendUsdt } = require("../utils/usdtTransactions");
 const mongoose = require("mongoose");
-const xrpl = require("xrpl");
+const { ethers } = require("ethers");
 const Decimal = mongoose.Types.Decimal128;
 const User = require("../models/User");
 const {
@@ -31,48 +30,6 @@ const { sendTransactionSuccessEmail } = require("../controllers/authController")
 
 
 const { Decimal128 } = mongoose.Types;
-const { spawn } = require('child_process');
-const path = require('path');
-const trackChainScript = path.join(__dirname, '../scripts/trackChainTx.js');
-
-function callTrackChainTx(xrpAddress) {
-  try {
-    if (!xrpAddress) {
-      console.log(`⚠️ No XRP address provided for trackChainTx`);
-      return;
-    }
-    
-
-    
-    const child = spawn('node', [trackChainScript, xrpAddress], { 
-      stdio: 'ignore',
-      detached: true 
-    });
-    
-    // Handle process events
-    child.on('error', (error) => {
-      console.log(`⚠️ trackChainTx spawn error for ${xrpAddress}:`, error.message);
-    });
-    
-    child.on('exit', (code) => {
-      if (code === 0) {
-        console.log(`✅ trackChainTx completed successfully for ${xrpAddress}`);
-      } else {
-        console.log(`⚠️ trackChainTx exited with code ${code} for ${xrpAddress}`);
-      }
-    });
-    
-    console.log(`🔄 trackChainTx started for user: ${xrpAddress}`);
-    return child;
-  } catch (error) {
-    console.log(`❌ trackChainTx function error for ${xrpAddress}:`, error.message);
-  }
-}
-const runInBackground = (fn) => {
-  setImmediate(() => {
-    try { fn(); } catch (_) {}
-  });
-};
 /* Get Onchain deposits and Withdrawals Starts Here */
 const getUserChainTotals = async (userId) => {
   const baseFilter = { userId };
@@ -82,7 +39,7 @@ const getUserChainTotals = async (userId) => {
     {
       $group: {
         _id: null,
-        totalAmount: { $sum: "$amountXRP" },
+        totalAmount: { $sum: "$amount" },
       },
     },
   ]);
@@ -92,7 +49,7 @@ const getUserChainTotals = async (userId) => {
     {
       $group: {
         _id: null,
-        totalAmount: { $sum: "$amountXRP" },
+        totalAmount: { $sum: "$amount" },
       },
     },
   ]);
@@ -130,7 +87,7 @@ const getTotalEcosystemFeeByUser = async (userId) => {
 };
 /* Get Total Economy fees paide by user Ends Here */
 
-const withdrawXRP = async (req, res) => {
+const withdrawUSDT = async (req, res) => {
   try {
     const { amount, walletFrom = "LP", uniqueTransactionId } = req.body;
    const userId = req.user._id;
@@ -142,18 +99,8 @@ const withdrawXRP = async (req, res) => {
     let ecosystemFee = false;
     let ecosystemFeeDeduction = Decimal128.fromString("0.0");
 
-    // Call trackChainTx immediately at the start for any withdrawal attempt
-    let user; // Declare user variable here
-    try {
-      user = await User.findById(userId);
-      if (user && user.xrpAddress) {
-        runInBackground(() => callTrackChainTx(user.xrpAddress));
-
-        console.log(`🔄 trackChainTx started immediately for user: ${user.xrpAddress}`);
-      }
-    } catch (trackError) {
-      console.log(`⚠️ trackChainTx early call failed:`, trackError.message);
-    }
+    let user;
+    user = await User.findById(userId);
 
     let ledgerRow; // Track INITIATED row for status updates
     let zeroRiskledgerEntry = null;
@@ -185,7 +132,7 @@ const withdrawXRP = async (req, res) => {
         success: true,
         message: "Transaction already processed",
         isDuplicate: true,
-        transactionHash: existingLedgerRow.refId, // This would be the XRP transaction hash
+        transactionHash: existingLedgerRow.refId, // This would be the chain transaction hash
       });
     }
 
@@ -193,23 +140,23 @@ const withdrawXRP = async (req, res) => {
     if (!user) {
       user = await User.findById(userId);
     }
-    if (!user || !user.xrpAddress) {
+    if (!user || !user.wallet_address) {
       throw new Error(
-        "No destination XRP address is configured for your account. Please update your profile."
+        "No destination wallet address is configured for your account. Please update your profile."
       );
     }
-    const destinationAddress = user.xrpAddress;
+    const destinationAddress = user.wallet_address;
 
     if (!amount || amount <= 0) {
       throw new Error("Invalid withdrawal amount");
     }
 
-    if (!xrpl.isValidAddress(destinationAddress)) {
+    if (!ethers.isAddress(destinationAddress)) {
       console.error(
-        `Invalid XRP address found in user profile for userId: ${userId}`
+        `Invalid BEP20 address found in user profile for userId: ${userId}`
       );
       throw new Error(
-        "Your configured XRP address is invalid. Please contact support."
+        "Your configured BEP20 address is invalid. Please contact support."
       );
     }
 
@@ -317,16 +264,16 @@ if (!locked) {
     
 
     // ------------------------------------------------------------------
-    // Guard against sub-drop “dust” withdrawals ( < 0.000001 XRP )
+    // Guard against sub-drop “dust” withdrawals ( < 0.000001 USDT )
     // ------------------------------------------------------------------
     if (compareDecimal128(amountD128, Decimal.fromString("0.000001")) < 0) {
-      throw new Error("Withdrawal amount too small. Minimum is 0.000001 XRP.");
+      throw new Error("Withdrawal amount too small. Minimum is 0.000001 USDT.");
     }
 
     // --- REVISED WITHDRAWAL VALIDATION LOGIC ---
 
     if (walletFrom === "ZERO_RISK") {
-      const xamanBalance = ledger.wallets.xaman || Decimal.fromString("0.0");
+      const usdtBalance = ledger.wallets.usdt || Decimal.fromString("0.0");
       const lpBalance = ledger.wallets.lp || Decimal.fromString("0.0");
       const rewardsBalance =
         ledger.wallets.communityRewards || Decimal.fromString("0.0");
@@ -335,7 +282,7 @@ if (!locked) {
         ledger.totalRewardsWithdrawal || Decimal.fromString("0.0");
 
       // This is the pool of funds that back the zero risk guarantee
-      const principalAndStaging = addDecimal128(xamanBalance, lpBalance);
+      const principalAndStaging = addDecimal128(usdtBalance, lpBalance);
 
       // Per the new rule, the accessible principal is reduced by any available rewards
       const accessiblePrincipal = subtractDecimal128(
@@ -370,7 +317,7 @@ if (!locked) {
           message:
             "Withdrawal amount exceeds your Zero Risk balance. Maximum available: " +
             maxWithdrawableZeroRisk.toString() +
-            " XRP.",
+            " USDT.",
         });
       }
     } else if (walletFrom === "LP") {
@@ -398,7 +345,7 @@ if (!locked) {
       if (compareDecimal128(amountD128, maxWithdrawable) > 0) {
         // amount > maxWithdrawable
         throw new Error(
-          `Withdrawal amount of ${amount.toString()} XRP exceeds your current earning-based limit. Maximum withdrawable: ${maxWithdrawable.toString()} XRP`
+          `Withdrawal amount of ${amount.toString()} USDT exceeds your current earning-based limit. Maximum withdrawable: ${maxWithdrawable.toString()} USDT`
         );
       }
     } else if (walletFrom === "COMMUNITY_REWARDS") {
@@ -445,7 +392,6 @@ if (!locked) {
       throw dupErr;
     }
 
-    let xrpTxHash;
     let newBalance; // will hold post-deduction balance for response
     // Prepare container for pendingWithdrawal so we can populate it per-branch
     let pendingData = {};
@@ -454,19 +400,19 @@ if (!locked) {
       // 1) Immediately deduct the amount from the relevant wallets
       // ------------------------------------------------------------
       console.log(
-        `[Withdrawal Apply] About to process withdrawal logic for walletFrom: '${walletFrom}' BEFORE XRPL submission`
+        `[Withdrawal Apply] About to process withdrawal logic for walletFrom: '${walletFrom}' BEFORE chain submission`
       );
 
       if (walletFrom === "ZERO_RISK") {
-        const amountFromXaman = minDecimal128(
+        const amountFromUsdt = minDecimal128(
           amountD128,
-          ledger.wallets.xaman || Decimal.fromString("0.0")
+          ledger.wallets.usdt || Decimal.fromString("0.0")
         );
-        const amountFromLp = subtractDecimal128(amountD128, amountFromXaman);
+        const amountFromLp = subtractDecimal128(amountD128, amountFromUsdt);
 
-        ledger.wallets.xaman = subtractDecimal128(
-          ledger.wallets.xaman || "0.0",
-          amountFromXaman
+        ledger.wallets.usdt = subtractDecimal128(
+          ledger.wallets.usdt || "0.0",
+          amountFromUsdt
         );
 
         // Reduce Zero-Risk principal by the full withdrawal amount
@@ -585,7 +531,7 @@ if (!locked) {
           uniqueTransactionId,
           walletFrom,
           timestamp: new Date(),
-          amountFromXaman: parseFloat(amountFromXaman.toString()),
+          amountFromUsdt: parseFloat(amountFromUsdt.toString()),
           amountFromLp: parseFloat(amountFromLp.toString()),
           amountFromRewards: 0,
           zeroRisk: parseFloat(amountD128.toString()),
@@ -593,10 +539,10 @@ if (!locked) {
           sponsorBoost: parseFloat(sponsorBoostReduction.toString()),
         };
 
-        newBalance = addDecimal128(ledger.wallets.xaman, ledger.wallets.lp);
+        newBalance = addDecimal128(ledger.wallets.usdt, ledger.wallets.lp);
       } else if (walletFrom === "LP") {
         // -------------------------------------------------------------
-        // Pure LP withdrawal (used when Xaman balance is insufficient)
+        // Pure LP withdrawal (used when USDT balance is insufficient)
         // -------------------------------------------------------------
         ledger.wallets.lp = subtractDecimal128(
           ledger.wallets.lp || "0.0",
@@ -678,7 +624,7 @@ if (!locked) {
           uniqueTransactionId,
           walletFrom,
           timestamp: new Date(),
-          amountFromXaman: 0,
+          amountFromUsdt: 0,
           amountFromLp: parseFloat(amountD128.toString()),
           amountFromRewards: 0,
           zeroRisk: parseFloat(amountD128.toString()),
@@ -797,7 +743,7 @@ if (!locked) {
           uniqueTransactionId,
           walletFrom,
           timestamp: new Date(),
-          amountFromXaman: 0,
+          amountFromUsdt: 0,
           amountFromLp: 0,
           amountFromRewards: parseFloat(amountD128.toString()),
           zeroRisk: parseFloat(amountD128.toString()),
@@ -810,9 +756,9 @@ if (!locked) {
       const lpBalanceFor5x = ledger.wallets.lp || Decimal.fromString("0.0");
       ledger.limits.fiveXLimit.cap = multiplyDecimal128(lpBalanceFor5x, "5.0");
 
-      // Clamp xaman & lp negatives (precision-safety)
-      if (compareDecimal128(ledger.wallets.xaman, "0.0") < 0) {
-        ledger.wallets.xaman = Decimal.fromString("0.0");
+      // Clamp usdt & lp negatives (precision-safety)
+      if (compareDecimal128(ledger.wallets.usdt, "0.0") < 0) {
+        ledger.wallets.usdt = Decimal.fromString("0.0");
       }
       if (compareDecimal128(ledger.wallets.lp, "0.0") < 0) {
         ledger.wallets.lp = Decimal.fromString("0.0");
@@ -822,11 +768,11 @@ if (!locked) {
       ledger.pendingWithdrawal = pendingData;
       ledger.withdrawalDisabled = true;
 
-      // Persist the deduction BEFORE attempting XRPL payment
+      // Persist the deduction BEFORE attempting chain payment
       await ledger.save();
 
 // ------------------------------------------------------------
-// 🌿 (NEW) Pre-create Ecosystem Fee entry BEFORE XRPL send
+// 🌿 (NEW) Pre-create Ecosystem Fee entry BEFORE chain send
 // ------------------------------------------------------------
 let EcosystemFeeEntry = null;
 console.log("ecosystemFeeDeduction (outer) ===== ", ecosystemFeeDeduction);
@@ -852,48 +798,47 @@ if (ecosystemFee === true && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0
 }
 
 // ------------------------------------------------------------
-// 2) Submit payment to XRPL (main withdrawal)
+// 2) Submit payment on BSC (main withdrawal)
 // ------------------------------------------------------------
 const fixedAmount = Number(parseFloat(amountD128).toFixed(6));
-let xrpTxHash = null;
+let chainTxHash = null;
 
 try {
     // 🌿 CASE: ecosystem fee consumed the full amount
     if (compareDecimal128(amountD128, "0.0") <= 0) {
         console.warn(
-          `🌿 Withdrawal amount (${amountD128.toString()}) is zero after ecosystem fee. Skipping XRPL send.`
+          `🌿 Withdrawal amount (${amountD128.toString()}) is zero after ecosystem fee. Skipping chain send.`
         );
-        xrpTxHash = ""; // traceable placeholder
+        chainTxHash = ""; // traceable placeholder
     } 
     else 
     {
-        // 🌿 NORMAL CASE: SEND XRP
-        const txResult = await sendXrp({
+        // 🌿 NORMAL CASE: SEND USDT
+        const txResult = await sendUsdt({
             idempotency_key: uniqueTransactionId,
             withdrawal_id: ledgerRow._id,
-            amount_xrp: fixedAmount,
+            amount: fixedAmount,
             destination: destinationAddress,
         });
 
-      //  xrpTxHash = txResult?.quicknode?.tx_json?.hash;
-        xrpTxHash = txResult.txHash;
-        // ❌ Missing hash = XRPL failed → force error
-        if (!xrpTxHash || typeof xrpTxHash !== "string" || xrpTxHash.trim() === "") {
-            throw new Error("XRPL transfer failed — no transaction hash returned.");
+        chainTxHash = txResult.txHash;
+        // ❌ Missing hash = chain failed → force error
+        if (!chainTxHash || typeof chainTxHash !== "string" || chainTxHash.trim() === "") {
+            throw new Error("USDT transfer failed — no transaction hash returned.");
         }
 
         // Send email only on success
         sendTransactionSuccessEmail(ledgerRow.userId, {
-            amountXRP: fixedAmount,
-            txHash: xrpTxHash,
+            amountUSDT: fixedAmount,
+            txHash: chainTxHash,
             txDate: new Date().toISOString(),
         });
 
-        console.log(`✅ XRPL transfer succeeded: ${xrpTxHash}`);
+        console.log(`✅ USDT transfer succeeded: ${chainTxHash}`);
     }
 
-} catch (xrplError) {
-    console.error("❌ XRPL SEND FAILED:", xrplError);
+} catch (chainError) {
+    console.error("❌ CHAIN SEND FAILED:", chainError);
 
     // LOG ERROR (ALWAYS)
     await WithdrawalErrorLog.create({
@@ -904,15 +849,15 @@ try {
       amount: amountD128,
       destinationAddress,
       memo: uniqueTransactionId,
-      errorCode: xrplError?.code || xrplError?.name,
-      errorMessage: xrplError?.message,
-      xrpResponse: xrplError,
+      errorCode: chainError?.code || chainError?.name,
+      errorMessage: chainError?.message,
+      chainResponse: chainError,
       createdAt: new Date(),
     });
 
     // Mark main ledgerRow as FAILED
     ledgerRow.status = "FAILED";
-    ledgerRow.narrative = xrplError.message;
+    ledgerRow.narrative = chainError.message;
     await ledgerRow.save();
 
     // Keep user blocked until auto-reconciler fixes it
@@ -927,9 +872,9 @@ try {
 }
 
 
-// ✅ Mark main withdrawal as COMPLETED regardless of whether XRPL was skipped
+// ✅ Mark main withdrawal as COMPLETED regardless of whether chain send was skipped
 ledgerRow.status = "COMPLETED";
-ledgerRow.refId = xrpTxHash;
+ledgerRow.refId = chainTxHash;
 await ledgerRow.save();
 
 
@@ -940,30 +885,11 @@ await ledgerRow.save();
       ledger.withdrawalDisabled = false;
       await ledger.save();
 
-      // Call trackChainTx for success case (additional call)
-      try {
-        // Run after 2 minutes (120000 ms)
-        setTimeout(() => {
-          console.log("⏰ Running trackChainTx after 2 minutes...");
-          callTrackChainTx(xrpAddress);
-        }, 2 * 60 * 1000);
-
-        // Run again after 5 minutes (300000 ms)
-        setTimeout(() => {
-          console.log("⏰ Running trackChainTx after 5 minutes...");
-          callTrackChainTx(xrpAddress);
-        }, 5 * 60 * 1000);
-        callTrackChainTx(user.xrpAddress);
-        console.log(`🔄 trackChainTx success case called for user: ${user.xrpAddress}`);
-      } catch (trackError) {
-        console.log(`⚠️ trackChainTx success call failed:`, trackError.message);
-      }
-
       // Successful response
       return res.status(200).json({
         success: true,
         message: "Claim successful",
-        transactionHash: xrpTxHash,
+        transactionHash: chainTxHash,
         uniqueTransactionId,
         withdrawnFrom: walletFrom,
         newBalance: parseFloat(newBalance.toString()),
@@ -1005,7 +931,7 @@ await ledgerRow.save();
             error?.code ||
             error?.name,
           errorMessage: error?.message,
-          xrpResponse: error?.result || error,
+          chainResponse: error?.result || error,
           stackTrace: error?.stack,
         });
       } catch (logErr) {
@@ -1028,10 +954,7 @@ await ledgerRow.save();
         console.error("Failed to set withdrawalDisabled flag:", e);
       }
 
-      console.error("Withdrawal XRP send failed:", error);
-      
-      // Call trackChainTx for error case
-      callTrackChainTx(user.xrpAddress);
+      console.error("Withdrawal USDT send failed:", error);
       
       return res.status(400).json({
         success: false,
@@ -1040,10 +963,7 @@ await ledgerRow.save();
       });
     }
   } catch (error) {
-    console.error("Error in withdrawXRP:", error);
-    
-    // Call trackChainTx for outer error case
-    callTrackChainTx(req.user?.xrpAddress);
+    console.error("Error in withdrawUSDT:", error);
     
     res.status(400).json({
       success: false,
@@ -1065,7 +985,7 @@ const getWithdrawalsHistory = async (req, res) => {
     })
       .sort({ ts: -1 })
       .select(
-        "ts amount walletFrom narrative refId uniqueTransactionId transactionId"
+        "ts amount walletFrom narrative refId uniqueTransactionId transactionId status"
       )
       .lean();
 
@@ -1075,7 +995,7 @@ const getWithdrawalsHistory = async (req, res) => {
         uniqueTransactionId:
           withdrawal.uniqueTransactionId || withdrawal.transactionId, // Fall back to old field if needed
         transactionId: withdrawal.transactionId, // Keep old field
-        xrpTransactionHash: withdrawal.refId, // XRP transaction hash
+        txHash: withdrawal.refId, // chain transaction hash
         amount: parseFloat(withdrawal.amount).toFixed(6),
         walletFrom: withdrawal.walletFrom,
         narrative: withdrawal.narrative,
@@ -1235,10 +1155,10 @@ const redeemhk = async (req, res) => {
     // 🔥 ON-CHAIN STYLE WITHDRAWAL LOG (cWithdrawals)
     // -----------------------------
     // const doc = {
-    //  // txHash: lrows._id, // no xrpl hash
+    // txHash: lrows._id,
     //   userId: user._id,
     //   uhid: user.uhid,
-    //   amountXRP: remaining,
+    //   amount: remaining,
     //   source: "REWARDS_WALLET",
     //   destination: "MACAU_HK_EVENT",
     //   txDate: new Date(),
@@ -1346,7 +1266,7 @@ const getTodayEventRewards = async (req, res) => {
 };
 
 module.exports = {
-  withdrawXRP,
+  withdrawUSDT,
   getWithdrawalsHistory,
   getWithdrawalDisabled,
   redeemhk,

@@ -49,7 +49,7 @@ exports.applyTestLimits = async (req, res) => {
             narrative: `Test API: Airdrop matched from test deposit (100%)`,
             refId: `test-${Date.now()}` // Mocked refId
         });
-        console.log(`[Temp API] Airdrop activation for user ${userId}: ${actualMatchedAirdrop.toString()} XRP matched to LP.`);
+        console.log(`[Temp API] Airdrop activation for user ${userId}: ${actualMatchedAirdrop.toString()} USDT matched to LP.`);
     }
 
     // Simulate Deposit itself

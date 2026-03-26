@@ -5,27 +5,27 @@ const {
   getUsers,
   getLedger,
   getLedgerRows,
-  getXrpDeposits,
-  getXrpClaimed,
-  getXrpRedeemed,
+  getUsdtDeposits,
+  getUsdtClaimed,
+  getUsdtRedeemed,
   getlppositioning,
-  getXrpAutopositioning,
+  getUsdtAutopositioning,
   grantManualBonus,
   grantManualAirdrop,
   updateLedger,
   deleteUser,
   getUsersSummary,
   getUsersSummaryDetail,
-  getXrpWithdrawals,
+  getUsdtWithdrawals,
   getSystemReport,
   getEcofeeReport,
-  getXamanReport,
-  getUsersXamanBalancesFromLedger,
+  getUsdtReport,
+  getUsersUsdtBalancesFromLedger,
   getAutopositioningReport,
-  addFailedXrpDepositsToXaman,
+  addFailedUsdtDepositsToUsdt,
   getUsersAutopositioningTotals,
   getUsersEcosystemFeeTotals,
-  getXrpTransactionDetails,
+  getUsdtTransactionDetails,
   getUsersx1reawards,
   getpositivelp,
   exportPositiveLP,
@@ -37,8 +37,8 @@ const {
   export5xrewards,
   getBooster,
   exportBoosterrewards,
-  getXaman,
-  exportXaman,
+  getUsdt,
+  exportUsdt,
   getAutopositioningWallet,
   getOnChainWithdrawalsGreaterThanDeposits,
   getOnChainDepositsGreaterThanWithdrawals,
@@ -63,16 +63,16 @@ router.use(isSupportOrAdmin);
 router.get("/users", getUsers);
 router.get("/ledger", getLedger);
 router.get("/ledger-rows", getLedgerRows);
-router.get("/xrp-deposits", getXrpDeposits);
+router.get("/usdt-deposits", getUsdtDeposits);
 router.post("/manual-bonus", grantManualBonus);
 router.post("/manual-airdrop", grantManualAirdrop);
 router.put("/ledger", updateLedger);
 router.delete("/users/:userId", deleteUser);
 router.get("/users-summary", getUsersSummary);
 router.get("/users-summary/detail", getUsersSummaryDetail);
-router.get("/xrp-withdrawals", getXrpWithdrawals);
-router.get("/xrp-claimed", getXrpClaimed);
-router.get("/xrp-redeemed", getXrpRedeemed);
+router.get("/usdt-withdrawals", getUsdtWithdrawals);
+router.get("/usdt-claimed", getUsdtClaimed);
+router.get("/usdt-redeemed", getUsdtRedeemed);
 router.get("/positivelp", getpositivelp);
 router.get("/positivelp/export", exportPositiveLP);
 router.get("/activeLp", getActiveLp);
@@ -83,8 +83,8 @@ router.get("/daily-rewards", getDailyRewardsReport);
 router.get("/daily-rewards/export", exportDailyRewards);
 router.get("/daily-rewards/:type/export", exportDailyRewardsByType);
 router.get("/daily-rewards/:type", getDailyRewardsByType);
-router.get("/xaman", getXaman);
-router.get("/xaman/export", exportXaman);
+router.get("/usdt", getUsdt);
+router.get("/usdt/export", exportUsdt);
 router.get("/autopositioning-wallets", getAutopositioningWallet);
 router.get("/withdrawals-greater", getOnChainWithdrawalsGreaterThanDeposits);
 router.get("/deposits-greater", getOnChainDepositsGreaterThanWithdrawals);
@@ -92,9 +92,9 @@ router.get("/airdrop", getAirdrop);
 router.get("/airdrop/export", exportAirdroprewards);
 router.get("/5xrewards", get5xrewards);
 router.get("/5xrewards/export", export5xrewards);
-router.get("/xrp-autopositioning", getXrpAutopositioning);
+router.get("/usdt-autopositioning", getUsdtAutopositioning);
 router.get("/lp-positioning", getlppositioning);
-router.get("/xrp-withdrawalerror", getWithdrawalErrored);
+router.get("/usdt-withdrawalerror", getWithdrawalErrored);
 
 router.get("/system-report", getSystemReport);
 
@@ -104,18 +104,18 @@ router.get(
   getUsersAutopositioningTotals
 );
 
-router.get("/system-report-xaman", getXamanReport);
-router.get("/system-report-xaman-users", getUsersXamanBalancesFromLedger);
+router.get("/system-report-usdt", getUsdtReport);
+router.get("/system-report-usdt-users", getUsersUsdtBalancesFromLedger);
 router.get("/system-report-x1reawards", getUsersx1reawards);
 router.get("/system-report-x1reawards-users", getUserX1Rewards);
 
 router.get("/system-report-ecofee", getEcofeeReport);
 router.get("/system-report-ecofee-users", getUsersEcosystemFeeTotals);
 
-router.post("/xrp-deposits/transaction", getXrpTransactionDetails);
+router.post("/usdt-deposits/transaction", getUsdtTransactionDetails);
 
-// Add failed XRP deposits to Xaman wallet & ledger
-router.post("/xrp-deposits/add-to-xaman", addFailedXrpDepositsToXaman);
+// Add failed USDT deposits to USDT wallet & ledger
+router.post("/usdt-deposits/add-to-usdt", addFailedUsdtDepositsToUsdt);
 
 // Settings (single document)
 router.get("/settings", getAdjustment);
