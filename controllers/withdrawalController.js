@@ -151,6 +151,9 @@ const withdrawUSDT = async (req, res) => {
       throw new Error("Invalid withdrawal amount");
     }
 
+    let amountD128 = Decimal.fromString(amount.toString());
+    let amountWithdraw = amountD128;
+
     if (!ethers.isAddress(destinationAddress)) {
       console.error(
         `Invalid BEP20 address found in user profile for userId: ${userId}`
@@ -258,10 +261,6 @@ if (!locked) {
       };
     if (!ledger.totalRewardsWithdrawal)
       ledger.totalRewardsWithdrawal = Decimal.fromString("0.0");
-
-    let amountD128 = Decimal.fromString(amount.toString());
-    let amountWithdraw = amountD128;
-    
 
     // ------------------------------------------------------------------
     // Guard against sub-drop “dust” withdrawals ( < 0.000001 USDT )

@@ -10,7 +10,6 @@ const UsdtDepositIntentSchema = new mongoose.Schema(
     wallet_address: {
       type: String,
       trim: true,
-      required: true,
     },
     deposit_address: {
       type: String,
@@ -21,11 +20,25 @@ const UsdtDepositIntentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    token_contract: {
+      type: String,
+      trim: true,
+    },
+    decimals: {
+      type: Number,
+    },
+    chainId: {
+      type: Number,
+    },
     referenceId: {
       type: String,
       required: true,
       unique: true,
       index: true,
+    },
+    allowAnySender: {
+      type: Boolean,
+      default: true,
     },
     tx_hash: {
       type: String,
