@@ -64,6 +64,22 @@ exports.recordUsdtDeposit = async (req, res) => {
       });
     }
 
+    if (intent.status === "completed") {
+      return res.status(409).json({
+        success: false,
+        message: "Deposit intent already completed.",
+      });
+    }
+
+    if (intent.expiresAt && new Date() > intent.expiresAt) {
+      intent.status = "expired";
+      await intent.save();
+      return res.status(400).json({
+        success: false,
+        message: "Deposit intent expired. Please create a new intent.",
+      });
+    }
+
     const result = await processUsdtTransaction(tx_hash, {
       intent,
       userId: req.user._id,
@@ -88,14 +104,25 @@ exports.recordUsdtDeposit = async (req, res) => {
     // Handle specific, non-successful but non-error cases
     switch (result.status) {
       case 'duplicate':
-        if (intent) {
+        if (intent && intent.tx_hash === tx_hash) {
           intent.status = "completed";
           intent.tx_hash = tx_hash;
           intent.completedAt = intent.completedAt || new Date();
           intent.processingError = null;
           await intent.save();
+        } else if (intent) {
+          intent.status = "failed";
+          intent.processingError = "Transaction hash already used.";
+          await intent.save();
         }
         return res.status(409).json({ success: false, message: result.message });
+      case 'pending_confirmations':
+        if (intent) {
+          intent.status = "pending";
+          intent.processingError = result.message;
+          await intent.save();
+        }
+        return res.status(202).json({ success: false, message: result.message });
       case 'no_user':
         return res.status(404).json({ success: false, message: result.message });
       case 'validation_failed':
@@ -166,19 +193,14 @@ exports.createDepositIntent = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid amount." });
     }
 
-    const providedWallet = req.body.wallet_address || req.user.wallet_address;
-    if (!providedWallet) {
-      return res.status(400).json({
-        success: false,
-        message: "Wallet address not available. Please connect your wallet once or add it to your profile.",
-      });
-    }
-
-    let normalizedWallet;
-    try {
-      normalizedWallet = normalizeAddress(providedWallet);
-    } catch (error) {
-      return res.status(400).json({ success: false, message: "Invalid wallet address." });
+    const providedWallet = req.body.wallet_address || req.user.wallet_address || "";
+    let normalizedWallet = "";
+    if (providedWallet) {
+      try {
+        normalizedWallet = normalizeAddress(providedWallet);
+      } catch (error) {
+        return res.status(400).json({ success: false, message: "Invalid wallet address." });
+      }
     }
 
     const depositAddress = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
@@ -188,6 +210,17 @@ exports.createDepositIntent = async (req, res) => {
         message: "System deposit address is not configured.",
       });
     }
+
+    const tokenContract = process.env.USDT_CONTRACT_ADDRESS_MAINNET;
+    if (!tokenContract) {
+      return res.status(500).json({
+        success: false,
+        message: "USDT contract address is not configured.",
+      });
+    }
+
+    const tokenDecimals = Number(process.env.BSC_USDT_DECIMALS || "18");
+    const chainId = Number(process.env.BSC_CHAIN_ID || "56");
 
     let normalizedDeposit;
     try {
@@ -209,6 +242,10 @@ exports.createDepositIntent = async (req, res) => {
       status: "pending",
       expiresAt,
       network: "BEP20",
+      allowAnySender: true,
+      token_contract: normalizeAddress(tokenContract),
+      decimals: tokenDecimals,
+      chainId,
     });
 
     return res.status(200).json({
@@ -220,6 +257,9 @@ exports.createDepositIntent = async (req, res) => {
       amount: intent.amount,
       expiresAt: intent.expiresAt,
       network: intent.network,
+      tokenContract: intent.token_contract,
+      decimals: intent.decimals,
+      chainId: intent.chainId,
     });
   } catch (error) {
     console.error("Error creating deposit intent:", error);

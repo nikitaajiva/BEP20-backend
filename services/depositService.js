@@ -13,6 +13,9 @@ const {
   normalizeAddress,
 } = require("../utils/bsc");
 
+const TRANSFER_SELECTOR = "0xa9059cbb";
+const SUPPORTED_USDT_DECIMALS = new Set([6, 18]);
+
 function getSystemDepositAddress() {
   const primary = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
   if (!primary) {
@@ -49,7 +52,9 @@ async function processUsdtTransaction(txHash, options = {}) {
     }
     resolvedUserId = intent.user;
     expectedAmount = intent.amount;
-    expectedFrom = intent.wallet_address;
+    if (intent.wallet_address && !intent.allowAnySender) {
+      expectedFrom = intent.wallet_address;
+    }
     expectedTo = intent.deposit_address;
   }
 
@@ -103,8 +108,8 @@ async function processUsdtTransaction(txHash, options = {}) {
     await assertMainnet(provider);
 
     const usdt = getUsdtContract(provider);
-    const decimals = await usdt.decimals();
-    if (Number(decimals) !== 18) {
+    const decimals = Number(await usdt.decimals());
+    if (!SUPPORTED_USDT_DECIMALS.has(decimals)) {
       return {
         success: false,
         status: "validation_failed",
@@ -126,6 +131,28 @@ async function processUsdtTransaction(txHash, options = {}) {
     });
     await newDeposit.save();
 
+    const tx = await provider.getTransaction(txHash);
+    if (!tx || !tx.to) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transaction not found.";
+      await newDeposit.save();
+      return { success: false, status: "validation_failed", message: newDeposit.processingError };
+    }
+
+    if (normalizeAddress(tx.to) !== normalizeAddress(usdt.target)) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transaction target is not the USDT contract.";
+      await newDeposit.save();
+      return { success: false, status: "validation_failed", message: newDeposit.processingError };
+    }
+
+    if (!tx.data || !tx.data.startsWith(TRANSFER_SELECTOR)) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transaction is not a USDT transfer.";
+      await newDeposit.save();
+      return { success: false, status: "invalid_type", message: newDeposit.processingError };
+    }
+
     const receipt = await provider.getTransactionReceipt(txHash);
     if (!receipt || receipt.status !== 1) {
       const errorMessage = "Transaction not found or failed";
@@ -137,10 +164,10 @@ async function processUsdtTransaction(txHash, options = {}) {
 
     const confirmations = await getConfirmations(provider, receipt.blockNumber);
     if (confirmations < BSC_CONFIRMATIONS) {
-      newDeposit.status = "failed";
-      newDeposit.processingError = `Transaction requires ${BSC_CONFIRMATIONS} confirmations. Current: ${confirmations}`;
+      newDeposit.status = "pending_verification";
+      newDeposit.processingError = `Waiting for confirmations (${confirmations}/${BSC_CONFIRMATIONS}).`;
       await newDeposit.save();
-      return { success: false, status: "validation_failed", message: newDeposit.processingError };
+      return { success: false, status: "pending_confirmations", message: newDeposit.processingError };
     }
 
     const transferLogs = receipt.logs.filter((log) => {
@@ -154,10 +181,10 @@ async function processUsdtTransaction(txHash, options = {}) {
       return { success: false, status: "validation_failed", message: newDeposit.processingError };
     }
 
-    const expectedFromNormalized = expectedFrom ? normalizeAddress(expectedFrom) : null;
-    const expectedValue = expectedAmount
-      ? ethers.parseUnits(expectedAmount.toString(), decimals)
-      : null;
+  const expectedFromNormalized = expectedFrom ? normalizeAddress(expectedFrom) : null;
+  const expectedValue = expectedAmount
+    ? ethers.parseUnits(expectedAmount.toString(), decimals)
+    : null;
 
     let matchedLog;
     let parsed;
@@ -186,6 +213,13 @@ async function processUsdtTransaction(txHash, options = {}) {
     const from = normalizeAddress(parsed.args.from);
     const to = normalizeAddress(parsed.args.to);
     const value = parsed.args.value;
+
+    if (expectedFromNormalized && normalizeAddress(tx.from) !== expectedFromNormalized) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Sender wallet mismatch.";
+      await newDeposit.save();
+      return { success: false, status: "sender_mismatch", message: newDeposit.processingError };
+    }
 
     const amount = ethers.formatUnits(value, decimals);
     const ledgerTimestamp = receipt.blockNumber ? new Date() : new Date();
@@ -277,8 +311,8 @@ async function verifyUsdtDepositIntent(intent) {
   const provider = getProvider();
   await assertMainnet(provider);
   const usdt = getUsdtContract(provider);
-  const decimals = await usdt.decimals();
-  if (Number(decimals) !== 18) {
+  const decimals = Number(await usdt.decimals());
+  if (!SUPPORTED_USDT_DECIMALS.has(decimals)) {
     return {
       success: false,
       status: "validation_failed",
@@ -288,7 +322,10 @@ async function verifyUsdtDepositIntent(intent) {
   const transferEvent = usdt.interface.getEvent("Transfer");
   const transferTopic = transferEvent.topicHash;
   const toAddress = depositAddress;
-  const fromAddress = intent.wallet_address ? normalizeAddress(intent.wallet_address) : null;
+  const fromAddress =
+    intent.wallet_address && !intent.allowAnySender
+      ? normalizeAddress(intent.wallet_address)
+      : null;
   const toTopic = ethers.zeroPadValue(toAddress, 32);
   const fromTopic = fromAddress ? ethers.zeroPadValue(fromAddress, 32) : null;
 
@@ -296,12 +333,21 @@ async function verifyUsdtDepositIntent(intent) {
   const lookback = Number(process.env.BSC_INTENT_LOOKBACK_BLOCKS || "3000");
   const fromBlock = Math.max(latestBlock - lookback, 0);
 
-  const logs = await provider.getLogs({
-    address: normalizeAddress(usdt.target),
-    fromBlock,
-    toBlock: latestBlock,
-    topics: fromTopic ? [transferTopic, fromTopic, toTopic] : [transferTopic, null, toTopic],
-  });
+  let logs = [];
+  try {
+    logs = await provider.getLogs({
+      address: normalizeAddress(usdt.target),
+      fromBlock,
+      toBlock: latestBlock,
+      topics: fromTopic ? [transferTopic, fromTopic, toTopic] : [transferTopic, null, toTopic],
+    });
+  } catch (error) {
+    const message = error?.shortMessage || error?.message || "";
+    if (message.includes("rate limit") || message.includes("-32005")) {
+      return { success: false, status: "pending", message: "RPC rate limited. Retrying shortly." };
+    }
+    throw error;
+  }
 
   if (!logs.length) {
     return { success: false, status: "pending", message: "No matching transfer found yet." };
@@ -315,6 +361,13 @@ async function verifyUsdtDepositIntent(intent) {
 
     if (value !== expectedValue) {
       continue;
+    }
+
+    if (intent.createdAt) {
+      const block = await provider.getBlock(log.blockNumber);
+      if (!block || block.timestamp * 1000 < new Date(intent.createdAt).getTime()) {
+        continue;
+      }
     }
 
     const receipt = await provider.getTransactionReceipt(log.transactionHash);
@@ -335,7 +388,7 @@ async function verifyUsdtDepositIntent(intent) {
       intent,
       userId: intent.user,
     });
-    if (result.success || result.status === "duplicate") {
+    if (result.success || (result.status === "duplicate" && intent.tx_hash === log.transactionHash)) {
       intent.status = "completed";
       intent.tx_hash = log.transactionHash;
       intent.completedAt = new Date();
@@ -350,7 +403,10 @@ async function verifyUsdtDepositIntent(intent) {
     }
 
     intent.status = "failed";
-    intent.processingError = result.message || "Failed to process deposit.";
+    intent.processingError =
+      result.status === "duplicate"
+        ? "Transaction hash already used for another deposit."
+        : result.message || "Failed to process deposit.";
     await intent.save();
     return { success: false, status: "failed", message: intent.processingError };
   }
