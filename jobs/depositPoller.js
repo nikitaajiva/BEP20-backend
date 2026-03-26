@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const { verifyUsdtDepositIntent } = require("../services/depositService");
+const { verifyDepositIntent } = require("../services/depositService");
 const PollerState = require("../models/PollerState");
 const UsdtDepositIntent = require("../models/UsdtDepositIntent");
 
@@ -13,7 +13,7 @@ async function pollUsdtDeposits() {
         return;
     }
     isPolling = true;
-    console.log("Starting USDT deposit poller cycle...");
+    console.log("Starting deposit poller cycle...");
 
     try {
         let pollerState = await PollerState.findById(POLLER_STATE_KEY);
@@ -29,7 +29,7 @@ async function pollUsdtDeposits() {
         }
 
         for (const intent of pendingIntents) {
-          const result = await verifyUsdtDepositIntent(intent);
+          const result = await verifyDepositIntent(intent);
           if (result.success) {
             console.log(`[POLLER_SUCCESS] Deposit completed for intent ${intent.referenceId}`);
           }
@@ -42,17 +42,17 @@ async function pollUsdtDeposits() {
         );
 
     } catch (error) {
-        console.error("Error during USDT deposit polling:", error);
+        console.error("Error during deposit polling:", error);
     } finally {
         isPolling = false;
-        console.log("USDT deposit poller cycle finished.");
+        console.log("Deposit poller cycle finished.");
     }
 }
 
 // Schedule the poller to run every 2 minutes.
 // The cron string '*/2 * * * *' means "at every 2nd minute".
 function start() {
-    console.log("USDT Deposit Poller scheduled to run every 2 minutes.");
+    console.log("Deposit poller scheduled to run every 2 minutes.");
     cron.schedule("* * * * *", pollUsdtDeposits);
 }
 

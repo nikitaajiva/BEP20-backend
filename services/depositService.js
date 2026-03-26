@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const User = require("../models/User");
 const UsdtDeposit = require("../models/UsdtDeposit");
+const BnbDeposit = require("../models/BnbDeposit");
 const LedgerRow = require("../models/LedgerRow");
 const mongoose = require("mongoose");
 const { addDecimal128 } = require("../utils/decimal128Utils");
@@ -15,6 +16,7 @@ const {
 
 const TRANSFER_SELECTOR = "0xa9059cbb";
 const SUPPORTED_USDT_DECIMALS = new Set([6, 18]);
+const BNB_DECIMALS = 18;
 
 function getSystemDepositAddress() {
   const primary = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
@@ -22,6 +24,10 @@ function getSystemDepositAddress() {
     throw new Error("BSC_SYSTEM_DEPOSIT_ADDRESS is not configured.");
   }
   return normalizeAddress(primary);
+}
+
+function normalizeAssetType(value) {
+  return `${value || "BNB"}`.toUpperCase();
 }
 
 async function getConfirmations(provider, blockNumber) {
@@ -276,7 +282,10 @@ async function processUsdtTransaction(txHash, options = {}) {
 
 module.exports = {
   processUsdtTransaction,
+  processBnbTransaction,
+  verifyDepositIntent,
   verifyUsdtDepositIntent,
+  verifyBnbDepositIntent,
 };
 
 async function verifyUsdtDepositIntent(intent) {
@@ -412,4 +421,335 @@ async function verifyUsdtDepositIntent(intent) {
   }
 
   return { success: false, status: "pending", message: "No matching amount found yet." };
+}
+
+async function processBnbTransaction(txHash, options = {}) {
+  const { userId, intent } = options;
+  if (!userId && !intent?.user) {
+    return { success: false, status: "no_user", message: "User mapping is required." };
+  }
+
+  let expectedAmount = options.expectedAmount;
+  let expectedFrom = options.expectedFrom;
+  let expectedTo = options.expectedTo;
+  let resolvedUserId = userId;
+
+  if (intent) {
+    if (resolvedUserId && String(intent.user) !== String(resolvedUserId)) {
+      return { success: false, status: "no_user", message: "Deposit intent user mismatch." };
+    }
+    resolvedUserId = intent.user;
+    expectedAmount = intent.amount;
+    if (intent.wallet_address && !intent.allowAnySender) {
+      expectedFrom = intent.wallet_address;
+    }
+    expectedTo = intent.deposit_address;
+  }
+
+  let systemAddress;
+  try {
+    systemAddress = getSystemDepositAddress();
+  } catch (error) {
+    return { success: false, status: "config_error", message: error.message };
+  }
+  const expectedToNormalized = expectedTo ? normalizeAddress(expectedTo) : systemAddress;
+  if (expectedToNormalized !== systemAddress) {
+    return {
+      success: false,
+      status: "config_error",
+      message: "Deposit address mismatch with configured system wallet.",
+    };
+  }
+
+  const existingDeposit = await BnbDeposit.findOne({ tx_hash: txHash });
+  if (existingDeposit) {
+    return {
+      success: false,
+      status: "duplicate",
+      message: `Transaction ID ${txHash} already recorded (status: ${existingDeposit.status}).`,
+    };
+  }
+
+  const user = await User.findById(resolvedUserId);
+  if (!user) {
+    return {
+      success: false,
+      status: "no_user",
+      message: "User not found for this deposit request.",
+    };
+  }
+
+  let newDeposit;
+
+  try {
+    const provider = getProvider();
+    await assertMainnet(provider);
+
+    newDeposit = new BnbDeposit({
+      user: user._id,
+      wallet_address: "",
+      tx_hash: txHash,
+      amount: "0",
+      status: "pending_verification",
+      ledgerTimestamp: new Date(),
+      network: "BSC",
+      decimals: BNB_DECIMALS,
+    });
+    await newDeposit.save();
+
+    const tx = await provider.getTransaction(txHash);
+    if (!tx || !tx.to) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transaction not found.";
+      await newDeposit.save();
+      return { success: false, status: "validation_failed", message: newDeposit.processingError };
+    }
+
+    if (normalizeAddress(tx.to) !== systemAddress) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transaction destination is not the system wallet.";
+      await newDeposit.save();
+      return { success: false, status: "wrong_destination", message: newDeposit.processingError };
+    }
+
+    if (tx.data && tx.data !== "0x") {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transaction is not a native transfer.";
+      await newDeposit.save();
+      return { success: false, status: "invalid_type", message: newDeposit.processingError };
+    }
+
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt || receipt.status !== 1) {
+      const errorMessage = "Transaction not found or failed";
+      newDeposit.status = "failed";
+      newDeposit.processingError = errorMessage;
+      await newDeposit.save();
+      return { success: false, status: "validation_failed", message: errorMessage };
+    }
+
+    const confirmations = await getConfirmations(provider, receipt.blockNumber);
+    if (confirmations < BSC_CONFIRMATIONS) {
+      newDeposit.status = "pending_verification";
+      newDeposit.processingError = `Waiting for confirmations (${confirmations}/${BSC_CONFIRMATIONS}).`;
+      await newDeposit.save();
+      return { success: false, status: "pending_confirmations", message: newDeposit.processingError };
+    }
+
+    const expectedFromNormalized = expectedFrom ? normalizeAddress(expectedFrom) : null;
+    const expectedValue = expectedAmount
+      ? ethers.parseUnits(expectedAmount.toString(), BNB_DECIMALS)
+      : null;
+
+    if (expectedFromNormalized && normalizeAddress(tx.from) !== expectedFromNormalized) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Sender wallet mismatch.";
+      await newDeposit.save();
+      return { success: false, status: "sender_mismatch", message: newDeposit.processingError };
+    }
+
+    if (expectedValue && tx.value !== expectedValue) {
+      newDeposit.status = "failed";
+      newDeposit.processingError = "Transfer amount mismatch.";
+      await newDeposit.save();
+      return { success: false, status: "amount_error", message: newDeposit.processingError };
+    }
+
+    const amount = ethers.formatUnits(tx.value, BNB_DECIMALS);
+    newDeposit.amount = amount.toString();
+    newDeposit.status = "completed";
+    newDeposit.processingError = null;
+    newDeposit.wallet_address = normalizeAddress(tx.from);
+    newDeposit.ledgerTimestamp = receipt.blockNumber ? new Date() : new Date();
+    newDeposit.tx_metadata = {
+      from: normalizeAddress(tx.from),
+      to: normalizeAddress(tx.to),
+      value: tx.value?.toString(),
+      nonce: tx.nonce,
+      gasPrice: tx.gasPrice?.toString(),
+      gasLimit: tx.gasLimit?.toString(),
+      blockNumber: receipt.blockNumber,
+      blockHash: receipt.blockHash,
+      transactionIndex: receipt.index,
+      status: receipt.status,
+    };
+    newDeposit.tx_raw = tx;
+    newDeposit.receipt_raw = receipt;
+
+    user.usdtBalance = (user.usdtBalance || 0) + Number(amount);
+    await user.save();
+
+    const ledger = await getOrCreateLedger(user._id);
+    const depositAmountD128 = mongoose.Types.Decimal128.fromString(amount.toString());
+    ledger.wallets.usdt = addDecimal128(ledger.wallets.usdt, depositAmountD128);
+    ledger.wallets.zeroRisk = addDecimal128(ledger.wallets.zeroRisk, depositAmountD128);
+    ledger.wallets.zeroRiskIpfs = addDecimal128(ledger.wallets.zeroRiskIpfs, depositAmountD128);
+    ledger.markModified("wallets");
+    await ledger.save();
+    await createLedgerEntry({
+      userId: user._id,
+      eventType: "DEPOSIT",
+      amount: depositAmountD128.toString(),
+      walletFrom: "EXTERNAL",
+      walletTo: "USDT",
+      narrative: `BNB wallet deposit. TxHash: ${txHash}`,
+      refId: txHash,
+    });
+
+    await newDeposit.save();
+
+    return {
+      success: true,
+      status: "completed",
+      message: "BNB deposit recorded.",
+      deposit: newDeposit,
+    };
+  } catch (error) {
+    console.error(`Error processing BNB transaction ${txHash}:`, error);
+    if (newDeposit && newDeposit._id) {
+      await BnbDeposit.updateOne(
+        { _id: newDeposit._id },
+        { status: "failed", processingError: error.message || "Unexpected error." }
+      );
+    }
+    return { success: false, status: "error", message: "Server error processing deposit.", error: error.message };
+  }
+}
+
+async function verifyBnbDepositIntent(intent) {
+  if (!intent) {
+    return { success: false, status: "not_found", message: "Deposit intent not found." };
+  }
+
+  if (intent.status === "completed") {
+    return {
+      success: true,
+      status: "completed",
+      message: "Deposit already completed.",
+      txHash: intent.tx_hash,
+    };
+  }
+
+  const now = new Date();
+  if (now > intent.expiresAt) {
+    if (intent.status !== "expired") {
+      intent.status = "expired";
+      await intent.save();
+    }
+    return { success: false, status: "expired", message: "Deposit intent expired." };
+  }
+
+  const systemAddress = getSystemDepositAddress();
+  const depositAddress = normalizeAddress(intent.deposit_address);
+  if (depositAddress !== systemAddress) {
+    return { success: false, status: "config_error", message: "Deposit address mismatch." };
+  }
+
+  const provider = getProvider();
+  await assertMainnet(provider);
+
+  const expectedValue = ethers.parseUnits(intent.amount.toString(), BNB_DECIMALS);
+  const fromAddress =
+    intent.wallet_address && !intent.allowAnySender
+      ? normalizeAddress(intent.wallet_address)
+      : null;
+
+  const latestBlock = await provider.getBlockNumber();
+  const lookback = Number(
+    process.env.BSC_NATIVE_INTENT_LOOKBACK_BLOCKS ||
+      process.env.BSC_INTENT_LOOKBACK_BLOCKS ||
+      "5000"
+  );
+  const fromBlock = Math.max(latestBlock - lookback, 0);
+  const createdAtMs = intent.createdAt ? new Date(intent.createdAt).getTime() : null;
+  const timeSkewMs = Number(process.env.BSC_INTENT_TIME_SKEW_MS || "120000");
+  const createdAtMin = createdAtMs ? createdAtMs - timeSkewMs : null;
+
+  if (intent.tx_hash) {
+    const result = await processBnbTransaction(intent.tx_hash, {
+      intent,
+      userId: intent.user,
+    });
+    if (result.success || (result.status === "duplicate" && intent.tx_hash)) {
+      intent.status = "completed";
+      intent.completedAt = new Date();
+      intent.processingError = null;
+      await intent.save();
+      return {
+        success: true,
+        status: "completed",
+        message: result.message || "Deposit completed.",
+        txHash: intent.tx_hash,
+      };
+    }
+  }
+
+  for (let blockNumber = latestBlock; blockNumber >= fromBlock; blockNumber -= 1) {
+    const block = await provider.getBlock(blockNumber, true);
+    if (!block || !block.transactions?.length) {
+      continue;
+    }
+
+    if (createdAtMin && block.timestamp * 1000 < createdAtMin) {
+      continue;
+    }
+
+    for (const tx of block.transactions) {
+      if (!tx?.to) continue;
+      if (normalizeAddress(tx.to) !== systemAddress) continue;
+      if (tx.data && tx.data !== "0x") continue;
+      if (fromAddress && normalizeAddress(tx.from) !== fromAddress) continue;
+      if (tx.value !== expectedValue) continue;
+
+      const receipt = await provider.getTransactionReceipt(tx.hash);
+      if (!receipt || receipt.status !== 1) {
+        continue;
+      }
+
+      const confirmations = await getConfirmations(provider, receipt.blockNumber);
+      if (confirmations < BSC_CONFIRMATIONS) {
+        return {
+          success: false,
+          status: "pending_confirmations",
+          message: `Waiting for confirmations (${confirmations}/${BSC_CONFIRMATIONS}).`,
+        };
+      }
+
+      const result = await processBnbTransaction(tx.hash, {
+        intent,
+        userId: intent.user,
+      });
+      if (result.success || (result.status === "duplicate" && intent.tx_hash === tx.hash)) {
+        intent.status = "completed";
+        intent.tx_hash = tx.hash;
+        intent.completedAt = new Date();
+        intent.processingError = null;
+        await intent.save();
+        return {
+          success: true,
+          status: "completed",
+          message: result.message || "Deposit completed.",
+          txHash: tx.hash,
+        };
+      }
+
+      intent.status = "failed";
+      intent.processingError =
+        result.status === "duplicate"
+          ? "Transaction hash already used for another deposit."
+          : result.message || "Failed to process deposit.";
+      await intent.save();
+      return { success: false, status: "failed", message: intent.processingError };
+    }
+  }
+
+  return { success: false, status: "pending", message: "No matching transfer found yet." };
+}
+
+async function verifyDepositIntent(intent) {
+  const asset = normalizeAssetType(intent?.asset);
+  if (asset === "BNB" || (asset === "USDT" && !intent?.token_contract)) {
+    return verifyBnbDepositIntent(intent);
+  }
+  return verifyUsdtDepositIntent(intent);
 }

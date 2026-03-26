@@ -24,6 +24,10 @@ const UsdtDepositIntentSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    asset: {
+      type: String,
+      default: "BNB",
+    },
     decimals: {
       type: Number,
     },
