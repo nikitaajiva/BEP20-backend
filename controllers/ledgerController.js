@@ -71,7 +71,7 @@ const getLedgerDetails = async (req, res) => {
 
     /* ================== BASE BALANCES ================== */
     const rawLpBalance = ledger.wallets.lp?.toString() || "0.0";
-    const rawUsdtBalance = ledger.wallets.usdt?.toString() || "0.0";
+    const rawBnbBalance = ledger.wallets.bnb?.toString() || "0.0";
     const rawZeroRisk = ledger.wallets.zeroRisk?.toString() || "0.0";
 
     /* ================== 5X LIMIT ================== */
@@ -151,8 +151,8 @@ const getLedgerDetails = async (req, res) => {
         autopositioning: ledger.wallets.autopositionting?.toString() || "0.0",
       },
 
-      usdtWallet: {
-        balance: rawUsdtBalance,
+      bnbWallet: {
+        balance: rawBnbBalance,
       },
 
       boostWallet: {
@@ -1962,7 +1962,7 @@ const addLpFromUsdt = async (req, res) => {
 
     // Ensure usdt wallet has enough balance
     const usdtBalanceD128 = ensureDecimal128(
-      ledger.wallets.usdt?.toString() || "0.0"
+      ledger.wallets.bnb?.toString() || "0.0"
     );
     console.log(
       `[addLpFromUsdt] Current Usdt balance: ${usdtBalanceD128.toString()}`
@@ -1992,10 +1992,10 @@ const addLpFromUsdt = async (req, res) => {
     }
 
     // 2. Perform wallet transfers (Usdt -> LP)
-    const originalUsdt = ledger.wallets.usdt;
+    const originalUsdt = ledger.wallets.bnb;
     const originalLp = ledger.wallets.lp;
-    ledger.wallets.usdt = subtractDecimal128(
-      ledger.wallets.usdt,
+    ledger.wallets.bnb = subtractDecimal128(
+      ledger.wallets.bnb,
       transferAmountD128
     );
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, transferAmountD128);
@@ -2025,7 +2025,7 @@ const addLpFromUsdt = async (req, res) => {
         // );
       }
     // console.log(
-    //   `[addLpFromUsdt] Usdt wallet updated: ${originalUsdt} -> ${ledger.wallets.usdt}`
+    //   `[addLpFromUsdt] Usdt wallet updated: ${originalUsdt} -> ${ledger.wallets.bnb}`
     // );
     // console.log(
     //   `[addLpFromUsdt] LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`
@@ -2531,7 +2531,7 @@ const withdrawUSDT = async (req, res) => {
 
     // --- REVISED WITHDRAWAL VALIDATION LOGIC ---
     if (walletFrom === "ZERO_RISK") {
-      const usdtBalance = ledger.wallets.usdt || Decimal.fromString("0.0");
+      const usdtBalance = ledger.wallets.bnb || Decimal.fromString("0.0");
       const lpBalance = ledger.wallets.lp || Decimal.fromString("0.0");
       const rewardsBalance =
         ledger.wallets.communityRewards || Decimal.fromString("0.0");
@@ -2628,12 +2628,12 @@ const withdrawUSDT = async (req, res) => {
     if (walletFrom === "ZERO_RISK") {
       const amountFromUsdt = minDecimal128(
         amountD128,
-        ledger.wallets.usdt || Decimal.fromString("0.0")
+        ledger.wallets.bnb || Decimal.fromString("0.0")
       );
       const amountFromLp = subtractDecimal128(amountD128, amountFromUsdt);
 
-      ledger.wallets.usdt = subtractDecimal128(
-        ledger.wallets.usdt || "0.0",
+      ledger.wallets.bnb = subtractDecimal128(
+        ledger.wallets.bnb || "0.0",
         amountFromUsdt
       );
 
@@ -2696,7 +2696,7 @@ const withdrawUSDT = async (req, res) => {
         // --- End Sponsor Boost Wallet Reduction Logic ---
       }
 
-      newBalance = addDecimal128(ledger.wallets.usdt, ledger.wallets.lp);
+      newBalance = addDecimal128(ledger.wallets.bnb, ledger.wallets.lp);
     } else if (walletFrom === "COMMUNITY_REWARDS") {
       ledger.wallets.communityRewards = subtractDecimal128(
         ledger.wallets.communityRewards || "0.0",

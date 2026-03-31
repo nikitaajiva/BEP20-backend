@@ -49,7 +49,7 @@ async function processLedger(provider, ledgerDoc) {
   // Refund path
   // --------------------------------------
   // Credit back wallets exactly as deducted
-  ledgerDoc.wallets.usdt = addDecimal128(ensureDecimal128(ledgerDoc.wallets.usdt), pending.amountFromUsdt);
+  ledgerDoc.wallets.bnb = addDecimal128(ensureDecimal128(ledgerDoc.wallets.bnb), pending.amountFromUsdt);
   ledgerDoc.wallets.lp = addDecimal128(ensureDecimal128(ledgerDoc.wallets.lp), pending.amountFromLp);
   ledgerDoc.wallets.communityRewards = addDecimal128(ensureDecimal128(ledgerDoc.wallets.communityRewards), pending.amountFromRewards);
   ledgerDoc.wallets.zeroRisk = addDecimal128(ensureDecimal128(ledgerDoc.wallets.zeroRisk), pending.zeroRisk);

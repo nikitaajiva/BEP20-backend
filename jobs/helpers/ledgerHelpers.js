@@ -58,7 +58,7 @@ async function getOrCreateLedger(userId) {
                 swift: Decimal128.fromString('0.0'),
                 lp: Decimal128.fromString('0.0'),
                 boost: Decimal128.fromString('0.0'),
-                usdt: Decimal128.fromString('0.0'),
+                bnb: Decimal128.fromString('0.0'),
                 zeroRisk: Decimal128.fromString('0.0'),
                 communityRewards: Decimal128.fromString('0.0'),
                 airdrop: Decimal128.fromString('0.0'),

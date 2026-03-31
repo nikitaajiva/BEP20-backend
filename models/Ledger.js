@@ -56,7 +56,7 @@ const LedgerSchema = new Schema({
       type: Schema.Types.Decimal128,
       default: '0.0'
     },
-    usdt: { // New wallet to hold on-chain deposits
+    bnb: { // Native BNB deposits
       type: Schema.Types.Decimal128,
       default: '0.0'
     },

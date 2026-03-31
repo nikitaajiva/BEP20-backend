@@ -67,7 +67,7 @@ async function reconcileWithdrawals() {
                   break;
                 case 'ZERO_RISK':
                 default:
-                  ledger.wallets.usdt = addDecimal128(ledger.wallets.usdt || '0.0', amt);
+                  ledger.wallets.bnb = addDecimal128(ledger.wallets.bnb || '0.0', amt);
                   break;
               }
               ledger.withdrawalDisabled = false; // clear flag upon refund

@@ -19,9 +19,16 @@ async function pollUsdtDeposits() {
         let pollerState = await PollerState.findById(POLLER_STATE_KEY);
 
         const lastProcessedBlock = pollerState ? pollerState.lastProcessedLedger : null;
+        const now = new Date();
+        await UsdtDepositIntent.updateMany(
+          { status: "pending", expiresAt: { $lte: now } },
+          { status: "expired" }
+        );
+
         const pendingIntents = await UsdtDepositIntent.find({
           status: "pending",
-          expiresAt: { $gt: new Date() },
+          expiresAt: { $gt: now },
+          tx_hash: { $exists: true, $ne: "" },
         }).sort({ createdAt: 1 });
 
         if (pendingIntents.length > 0) {

@@ -1,14 +1,8 @@
-const { ethers } = require("ethers");
-const User = require("../models/User");
-const UsdtDeposit = require("../models/UsdtDeposit");
-const {
-  processUsdtTransaction,
-  processBnbTransaction,
-  verifyDepositIntent,
-} = require("../services/depositService");
+const BnbDeposit = require("../models/BnbDeposit");
+const { processBnbTransaction, verifyDepositIntent } = require("../services/depositService");
 const DepositAddress = require("../models/DepositAddress");
 const UsdtDepositIntent = require("../models/UsdtDepositIntent");
-const { normalizeAddress } = require("../utils/bsc");
+const { normalizeAddress, toBnbWei } = require("../utils/bsc");
 const { v4: uuidv4 } = require("uuid");
 
 // Get deposits history for authenticated user
@@ -16,9 +10,9 @@ exports.getDepositsHistory = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    const deposits = await UsdtDeposit.find({ user: userId })
+    const deposits = await BnbDeposit.find({ user: userId })
       .sort({ createdAt: -1 })
-      .select('tx_hash amount status wallet_address timestamp')
+      .select('tx_hash amount status wallet_address tx_timestamp createdAt')
       .lean();
 
     res.json({
@@ -26,7 +20,7 @@ exports.getDepositsHistory = async (req, res) => {
       deposits: deposits.map(deposit => ({
         ...deposit,
         amount: parseFloat(deposit.amount).toFixed(6),
-        timestamp: deposit.timestamp || deposit.createdAt
+        timestamp: deposit.tx_timestamp || deposit.createdAt
       }))
     });
   } catch (error) {
@@ -39,6 +33,11 @@ exports.getDepositsHistory = async (req, res) => {
 };
 
 exports.recordUsdtDeposit = async (req, res) => {
+  return res.status(400).json({
+    success: false,
+    message: "USDT deposits are disabled. Please use BNB deposits.",
+  });
+
   if (!req.user) {
     return res.status(401).json({ success: false, message: 'User not authenticated.' });
   }
@@ -212,6 +211,18 @@ exports.recordBnbDeposit = async (req, res) => {
       });
     }
 
+    if (intent.tx_hash && intent.tx_hash !== tx_hash) {
+      return res.status(409).json({
+        success: false,
+        message: "A different transaction hash is already submitted for this intent.",
+      });
+    }
+
+    if (!intent.tx_hash) {
+      intent.tx_hash = tx_hash;
+      await intent.save();
+    }
+
     const result = await processBnbTransaction(tx_hash, {
       intent,
       userId: req.user._id,
@@ -329,19 +340,8 @@ exports.createDepositIntent = async (req, res) => {
     }
 
     const asset = `${req.body.asset || req.body.assetType || "BNB"}`.toUpperCase();
-    if (!["USDT", "BNB"].includes(asset)) {
-      return res.status(400).json({ success: false, message: "Unsupported asset type." });
-    }
-
-    const providedWallet =
-      asset === "BNB" ? "" : req.body.wallet_address || req.user.wallet_address || "";
-    let normalizedWallet = "";
-    if (providedWallet) {
-      try {
-        normalizedWallet = normalizeAddress(providedWallet);
-      } catch (error) {
-        return res.status(400).json({ success: false, message: "Invalid wallet address." });
-      }
+    if (asset !== "BNB") {
+      return res.status(400).json({ success: false, message: "Only BNB deposits are supported." });
     }
 
     const depositAddress = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
@@ -352,23 +352,15 @@ exports.createDepositIntent = async (req, res) => {
       });
     }
 
-    const tokenDecimals =
-      asset === "BNB" ? 18 : Number(process.env.BSC_USDT_DECIMALS || "18");
+    const tokenDecimals = 18;
+    let amountWei;
     try {
-      if (ethers.parseUnits(rawAmount, tokenDecimals) <= 0n) {
+      amountWei = toBnbWei(rawAmount);
+      if (amountWei <= 0n) {
         return res.status(400).json({ success: false, message: "Invalid amount." });
       }
     } catch (error) {
       return res.status(400).json({ success: false, message: "Invalid amount." });
-    }
-
-    const tokenContract =
-      asset === "BNB" ? "" : process.env.USDT_CONTRACT_ADDRESS_MAINNET;
-    if (asset === "USDT" && !tokenContract) {
-      return res.status(500).json({
-        success: false,
-        message: "USDT contract address is not configured.",
-      });
     }
 
     const chainId = Number(process.env.BSC_CHAIN_ID || "56");
@@ -384,18 +376,51 @@ exports.createDepositIntent = async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlMs);
 
-    const allowAnySender = asset === "BNB" ? true : !normalizedWallet;
+    await UsdtDepositIntent.updateMany(
+      {
+        user: req.user._id,
+        status: "pending",
+        expiresAt: { $lte: now },
+      },
+      { status: "expired" }
+    );
+
+    const existingIntent = await UsdtDepositIntent.findOne({
+      user: req.user._id,
+      status: "pending",
+      expiresAt: { $gt: now },
+    }).sort({ createdAt: -1 });
+
+    if (existingIntent) {
+      return res.status(409).json({
+        success: false,
+        message: "You already have a pending deposit intent.",
+        intent: {
+          referenceId: existingIntent.referenceId,
+          deposit_address: existingIntent.deposit_address,
+          amount: existingIntent.amount,
+          amountWei: existingIntent.amountWei,
+          expiresAt: existingIntent.expiresAt,
+          network: existingIntent.network,
+          decimals: existingIntent.decimals,
+          chainId: existingIntent.chainId,
+          asset: existingIntent.asset,
+        },
+      });
+    }
+
+    const allowAnySender = true;
     const intent = await UsdtDepositIntent.create({
       user: req.user._id,
-      wallet_address: normalizedWallet,
+      wallet_address: "",
       deposit_address: normalizedDeposit,
       amount: rawAmount,
+      amountWei: amountWei.toString(),
       referenceId: uuidv4(),
       status: "pending",
       expiresAt,
       network: "BEP20",
       allowAnySender,
-      token_contract: tokenContract ? normalizeAddress(tokenContract) : undefined,
       decimals: tokenDecimals,
       chainId,
       asset,
@@ -408,9 +433,9 @@ exports.createDepositIntent = async (req, res) => {
       deposit_address: intent.deposit_address,
       wallet_address: intent.wallet_address,
       amount: intent.amount,
+      amountWei: intent.amountWei,
       expiresAt: intent.expiresAt,
       network: intent.network,
-      tokenContract: intent.token_contract,
       decimals: intent.decimals,
       chainId: intent.chainId,
       asset: intent.asset,
@@ -445,6 +470,11 @@ exports.getDepositIntent = async (req, res) => {
       return res.status(404).json({ success: false, message: "Deposit intent not found." });
     }
 
+    if (intent.expiresAt && new Date() > intent.expiresAt && intent.status === "pending") {
+      intent.status = "expired";
+      await intent.save();
+    }
+
     return res.status(200).json({
       success: true,
       intent: {
@@ -452,6 +482,7 @@ exports.getDepositIntent = async (req, res) => {
         deposit_address: intent.deposit_address,
         wallet_address: intent.wallet_address,
         amount: intent.amount,
+        amountWei: intent.amountWei,
         token_contract: intent.token_contract,
         decimals: intent.decimals,
         chainId: intent.chainId,

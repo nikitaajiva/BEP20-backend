@@ -272,7 +272,7 @@ if (!locked) {
     // --- REVISED WITHDRAWAL VALIDATION LOGIC ---
 
     if (walletFrom === "ZERO_RISK") {
-      const usdtBalance = ledger.wallets.usdt || Decimal.fromString("0.0");
+      const usdtBalance = ledger.wallets.bnb || Decimal.fromString("0.0");
       const lpBalance = ledger.wallets.lp || Decimal.fromString("0.0");
       const rewardsBalance =
         ledger.wallets.communityRewards || Decimal.fromString("0.0");
@@ -405,12 +405,12 @@ if (!locked) {
       if (walletFrom === "ZERO_RISK") {
         const amountFromUsdt = minDecimal128(
           amountD128,
-          ledger.wallets.usdt || Decimal.fromString("0.0")
+          ledger.wallets.bnb || Decimal.fromString("0.0")
         );
         const amountFromLp = subtractDecimal128(amountD128, amountFromUsdt);
 
-        ledger.wallets.usdt = subtractDecimal128(
-          ledger.wallets.usdt || "0.0",
+        ledger.wallets.bnb = subtractDecimal128(
+          ledger.wallets.bnb || "0.0",
           amountFromUsdt
         );
 
@@ -538,7 +538,7 @@ if (!locked) {
           sponsorBoost: parseFloat(sponsorBoostReduction.toString()),
         };
 
-        newBalance = addDecimal128(ledger.wallets.usdt, ledger.wallets.lp);
+        newBalance = addDecimal128(ledger.wallets.bnb, ledger.wallets.lp);
       } else if (walletFrom === "LP") {
         // -------------------------------------------------------------
         // Pure LP withdrawal (used when USDT balance is insufficient)
@@ -756,8 +756,8 @@ if (!locked) {
       ledger.limits.fiveXLimit.cap = multiplyDecimal128(lpBalanceFor5x, "5.0");
 
       // Clamp usdt & lp negatives (precision-safety)
-      if (compareDecimal128(ledger.wallets.usdt, "0.0") < 0) {
-        ledger.wallets.usdt = Decimal.fromString("0.0");
+      if (compareDecimal128(ledger.wallets.bnb, "0.0") < 0) {
+        ledger.wallets.bnb = Decimal.fromString("0.0");
       }
       if (compareDecimal128(ledger.wallets.lp, "0.0") < 0) {
         ledger.wallets.lp = Decimal.fromString("0.0");

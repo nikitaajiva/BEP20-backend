@@ -657,10 +657,10 @@ exports.addFailedUsdtDepositsToUsdt = async (req, res) => {
         amount.toString()
       );
     } else {
-      const prevBalance = ledger.wallets.usdt?.toString() || "0";
-      ledger.wallets.usdt = ensureDecimal128(
+      const prevBalance = ledger.wallets.bnb?.toString() || "0";
+      ledger.wallets.bnb = ensureDecimal128(
         addDecimal128(
-          ledger.wallets.usdt || Decimal128.fromString("0"),
+          ledger.wallets.bnb || Decimal128.fromString("0"),
           ensureDecimal128(amount)
         )
       );
@@ -682,7 +682,7 @@ exports.addFailedUsdtDepositsToUsdt = async (req, res) => {
         "💰 USDT balance updated from",
         prevBalance,
         "to",
-        ledger.wallets.usdt.toString()
+        ledger.wallets.bnb.toString()
       );
     }
 
@@ -1255,7 +1255,7 @@ exports.getUsersSummary = async (req, res) => {
                 /* ZERO RISK AVAILABLE -----------------------------------*/
                 zeroRisk: "$wallets.zeroRisk", // direct principal
                 lp: "$wallets.lp",
-                usdt: "$wallets.usdt",
+                usdt: "$wallets.bnb",
                 /* COMMUNITY REWARDS WALLET BALANCE ---------------------*/
                 communityRewards: "$wallets.communityRewards",
                 cascadeRewards: "$wallets.cascadeRewards", // new column
@@ -4846,7 +4846,7 @@ exports.getUsdt = async (req, res) => {
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const ledgerQuery = { "wallets.usdt": { $exists: true, $gt: 0 } };
+    const ledgerQuery = { "wallets.bnb": { $exists: true, $gt: 0 } };
 
     // 🔍 Search by username or UHID
     if (search) {
@@ -4887,7 +4887,7 @@ exports.getUsdt = async (req, res) => {
         $group: {
           _id: null,
           totalRecords: { $sum: 1 },
-          totalUsdt: { $sum: { $toDouble: "$wallets.usdt" } }
+          totalUsdt: { $sum: { $toDouble: "$wallets.bnb" } }
         },
       },
     ]);
@@ -4897,7 +4897,7 @@ exports.getUsdt = async (req, res) => {
 
     // 🧾 Fetch paginated data
     const ledgers = await Ledger.find(ledgerQuery)
-      .sort({ "wallets.usdt": -1 })
+      .sort({ "wallets.bnb": -1 })
       .skip(skip)
       .limit(limitNumber)
       .populate("userId", "username uhid")
@@ -4909,7 +4909,7 @@ exports.getUsdt = async (req, res) => {
       return {
         username: user.username || "Unknown",
         uhid: user.uhid || "Unknown",
-        usdt: Number(ledger.wallets.usdt || 0).toFixed(6),
+        usdt: Number(ledger.wallets.bnb || 0).toFixed(6),
       };
     });
 
@@ -4944,7 +4944,7 @@ exports.exportUsdt = async (req, res) => {
     const { search } = req.query;
 
     // Query only users having Usdt wallet balance
-    const ledgerQuery = { "wallets.usdt": { $exists: true, $gt: 0 } };
+    const ledgerQuery = { "wallets.bnb": { $exists: true, $gt: 0 } };
 
     // 🔍 Search by username / UHID
     if (search) {
@@ -4982,7 +4982,7 @@ exports.exportUsdt = async (req, res) => {
       sheet.addRow({
         username: user.username || "Unknown",
         uhid: user.uhid || "Unknown",
-        usdt: Number(ledger.wallets.usdt || 0).toFixed(6),
+        usdt: Number(ledger.wallets.bnb || 0).toFixed(6),
       });
     });
 
@@ -5424,7 +5424,7 @@ exports.exportAirdroprewards = async (req, res) => {
 //           totalBoosterWallet: { $sum: "$wallets.boost" },
 //           totalLPWallet: { $sum: "$wallets.lp" },
 //           totalZeroRiskWallet: { $sum: "$wallets.zeroRisk" },
-//           totalUsdtWallet: { $sum: "$wallets.usdt" },
+//           totalUsdtWallet: { $sum: "$wallets.bnb" },
 //           // Community Rewards wallet total
 //           totalCommunityRewardsWallet: { $sum: "$wallets.communityRewards" },
 //         },
@@ -5434,7 +5434,7 @@ exports.exportAirdroprewards = async (req, res) => {
 //     const [{ userCountusdt = 0 } = {}] = await Ledger.aggregate([
 //       {
 //         $match: {
-//           "wallets.usdt": { $gt: mongoose.Types.Decimal128.fromString("0.0") },
+//           "wallets.bnb": { $gt: mongoose.Types.Decimal128.fromString("0.0") },
 //         },
 //       },
 //       { $group: { _id: "$userId" } },
@@ -6100,14 +6100,14 @@ exports.getSystemReport = async (req, res) => {
             totalBoosterWallet: { $sum: "$wallets.boost" },
             totalLPWallet: { $sum: "$wallets.lp" },
             totalZeroRiskWallet: { $sum: "$wallets.zeroRisk" },
-            totalUsdtWallet: { $sum: "$wallets.usdt" },
+            totalUsdtWallet: { $sum: "$wallets.bnb" },
             totalCommunityRewardsWallet: { $sum: "$wallets.communityRewards" }
           }
         }
       ]),
 
       /* User counts */
-      Ledger.distinct("userId", { "wallets.usdt": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
+      Ledger.distinct("userId", { "wallets.bnb": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
       Ledger.distinct("userId", { "wallets.zeroRisk": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
       Ledger.distinct("userId", { "wallets.communityRewards": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
 
@@ -6802,7 +6802,7 @@ exports.getUsdtReport = async (req, res) => {
 };
 
 /**
- * GET users and their USDT balances (from Ledger.wallets.usdt)
+ * GET users and their USDT balances (from Ledger.wallets.bnb)
  *
  * Body/Query (all optional):
  *  - minBalance: string|number (default "0")  // use "0" for > 0, set "-inf" to include zeros
@@ -6829,7 +6829,7 @@ exports.getUsersUsdtBalancesFromLedger = async (req, res) => {
     const _pageSize = Math.max(1, Math.min(500, Number(pageSize) || 100));
     const skip = (_page - 1) * _pageSize;
 
-    // 1) Normalize wallets.usdt to Decimal128
+    // 1) Normalize wallets.bnb to Decimal128
     // 2) Filter by > minBalance
     // 3) Join users to get username
     // 4) Sort, paginate, totals
@@ -6840,7 +6840,7 @@ exports.getUsersUsdtBalancesFromLedger = async (req, res) => {
         $addFields: {
           usdtBalanceDecimal: {
             $convert: {
-              input: "$wallets.usdt",
+              input: "$wallets.bnb",
               to: "decimal",
               onError: { $toDecimal: "0" },
               onNull: { $toDecimal: "0" },
@@ -6929,7 +6929,7 @@ exports.getUsersUsdtBalancesFromLedger = async (req, res) => {
 
 
 /**
- * GET users and their X1Rewards balances (from Ledger.wallets.usdt)
+ * GET users and their X1Rewards balances (from Ledger.wallets.bnb)
  *
  * Body/Query (all optional):
  *  - minBalance: string|number (default "0")  // use "0" for > 0, set "-inf" to include zeros
@@ -7073,7 +7073,7 @@ exports.getUserX1Rewards = async (req, res) => {
 };
 
 /**
- * GET users and their USDT balances (from Ledger.wallets.usdt)
+ * GET users and their USDT balances (from Ledger.wallets.bnb)
  *
  * Body/Query (all optional):
  *  - minBalance: string|number (default "0")  // use "0" for > 0, set "-inf" to include zeros

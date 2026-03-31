@@ -110,7 +110,7 @@ exports.generateUserReport = async (req, res) => {
       const sponsor = user.sponsorId ? sponsorMap[user.sponsorId.toString()] || "N/A" : "N/A";
 
       const lpBalance = parseFloat(ledger?.wallets?.lp?.toString() || "0.0");
-      const usdtBalance = parseFloat(ledger?.wallets?.usdt?.toString() || "0.0");
+      const usdtBalance = parseFloat(ledger?.wallets?.bnb?.toString() || "0.0");
       const zeroRiskBalance = parseFloat(ledger?.wallets?.zeroRisk?.toString() || "0.0");
       const currentBalance = parseFloat(ledger?.wallets?.communityRewards?.toString() || "0.0");
       const totalRewardsWithdrawal = parseFloat(ledger?.totalRewardsWithdrawal || 0);

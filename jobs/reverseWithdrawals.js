@@ -44,7 +44,7 @@ async function reverseWithdrawals() {
               break;
             case 'ZERO_RISK':
             default:
-              ledger.wallets.usdt = subtractDecimal128(ledger.wallets.usdt || '0.0', amt);
+              ledger.wallets.bnb = subtractDecimal128(ledger.wallets.bnb || '0.0', amt);
               break;
           }
           await ledger.save();

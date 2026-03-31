@@ -40,6 +40,10 @@ function normalizeAddress(address) {
   return ethers.getAddress(address);
 }
 
+function toBnbWei(amount) {
+  return ethers.parseUnits(amount.toString(), 18);
+}
+
 module.exports = {
   BSC_CHAIN_ID,
   BSC_CONFIRMATIONS,
@@ -48,4 +52,5 @@ module.exports = {
   assertMainnet,
   getUsdtContract,
   normalizeAddress,
+  toBnbWei,
 };
