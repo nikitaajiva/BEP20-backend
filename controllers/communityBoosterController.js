@@ -178,7 +178,7 @@ const getActiveDirectsStrict = async (sponsorUhid) => {
   if (DEBUG_SNAPSHOT) {
     console.group(`[Cascade] getActiveDirectsStrict`);
     console.time(`  ⏱ ActiveDirects (${sponsorUhid})`);
-    console.log(`  → Input sponsorUhid:`, sponsorUhid);
+    
   }
 
   // If your collection name for Level isn't "levels", replace 'levels' below
@@ -277,9 +277,9 @@ const getActiveDirectsStrict = async (sponsorUhid) => {
 
   if (DEBUG_SNAPSHOT) {
     console.timeEnd(`  ⏱ ActiveDirects (${sponsorUhid})`);
-    console.log(`  → ActiveDirects count:`, mapped.length);
+    
     if (mapped.length) {
-      console.log(`  → ActiveDirects sample (top 6):`);
+      
       console.table(mapped.slice(0, 6));
     }
     console.groupEnd();
@@ -292,7 +292,7 @@ const getUplinesBatch = async (childUhid, maxDepth = 128) => {
   if (DEBUG_SNAPSHOT) {
     console.group(`[Cascade] getUplinesBatch`);
     console.time(`  ⏱ Uplines (${childUhid})`);
-    console.log(`  → Input childUhid:`, childUhid, `maxDepth:`, maxDepth);
+    
   }
 
   const batch = await Level.find({
@@ -307,9 +307,9 @@ const getUplinesBatch = async (childUhid, maxDepth = 128) => {
 
   if (DEBUG_SNAPSHOT) {
     console.timeEnd(`  ⏱ Uplines (${childUhid})`);
-    console.log(`  → Uplines found:`, uhids.length);
+    
     if (uhids.length) {
-      console.log(`  → Uplines sample (top 10):`, uhids.slice(0, 10));
+      
     }
     console.groupEnd();
   }
@@ -538,7 +538,7 @@ const getCascadeSnapshot = async (req, res) => {
       }
 
       if (LOG) {
-        console.log(`→ snapshots count:`, snapshots.length);
+        
         console.timeEnd(`[CascadeTrail] total`);
         console.groupEnd();
       }

@@ -10,7 +10,7 @@ async function run() {
   });
 
   if (existing) {
-    console.log("Seed skipped: settings document already exists.");
+    
     await mongoose.disconnect();
     return;
   }
@@ -21,7 +21,7 @@ async function run() {
     note: "Seeded default settings",
   });
 
-  console.log("Seed complete: settings document created.");
+  
   await mongoose.disconnect();
 }
 

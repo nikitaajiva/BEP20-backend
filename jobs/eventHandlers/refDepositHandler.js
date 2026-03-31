@@ -17,7 +17,7 @@ exports.handleRefDeposit = async (payload, session, event) => {
         lpDepositEventId
     } = payload;
 
-    console.log(`REF_DEPOSIT Handler: Processing for sponsor ${sponsorUserId} due to deposit by referral ${referralUserId}`);
+    
 
     const sponsor = await User.findById(sponsorUserId).session(session);
     if (!sponsor) {
@@ -51,7 +51,7 @@ exports.handleRefDeposit = async (payload, session, event) => {
         bonusPercentage = 0;
     }
 
-    console.log(`Sponsor ${sponsorUserId}: Referral ${referralUserId} deposited. Hours since ref registration: ${hoursSinceReferralRegistration.toFixed(2)}. Bonus: ${bonusPercentage * 100}%`);
+    
 
     if (bonusPercentage > 0) {
         const bonusAmountD128 = depositAmountD128.multiply(Decimal128.fromString(bonusPercentage.toString()));
@@ -66,18 +66,18 @@ exports.handleRefDeposit = async (payload, session, event) => {
 
         const availableBoostCapacity = subtractDecimal128(boostLimitCap, boostWalletBalance);
         
-        console.log(`[BOOST_BONUS_CHECK] Sponsor: ${sponsorUserId}, Boost Balance: ${boostWalletBalance.toString()}, Boost Limit: ${boostLimitCap.toString()}, Available Capacity: ${availableBoostCapacity.toString()}`);
+        
 
         if (compareDecimal128(availableBoostCapacity, '0.0') <= 0) {
-            console.log(`[BOOST_BONUS_CHECK] Sponsor: ${sponsorUserId} has no available capacity in boost wallet. Skipping boost bonus.`);
+            
         } else {
             const actualBonusToCredit = minDecimal128(bonusAmountD128, availableBoostCapacity);
 
-            console.log(`[BOOST_BONUS_CHECK] Sponsor: ${sponsorUserId}, Calculated Bonus: ${bonusAmountD128.toString()}, Actual Bonus to Credit: ${actualBonusToCredit.toString()}`);
+            
 
             if (compareDecimal128(actualBonusToCredit, '0.0') > 0) {
                 sponsorLedger.wallets.boost = addDecimal128(boostWalletBalance, actualBonusToCredit);
-                console.log(`Sponsor ${sponsorUserId} boost wallet updated to: ${sponsorLedger.wallets.boost.toString()}. Bonus credited: ${actualBonusToCredit.toString()}`);
+                
 
                 await createLedgerEntry({ // Uses helper
                     userId: sponsorUserId,
@@ -94,8 +94,8 @@ exports.handleRefDeposit = async (payload, session, event) => {
             }
         }
     } else {
-        console.log(`Sponsor ${sponsorUserId} not eligible for boost bonus from referral ${referralUserId} deposit (time expired or 0%).`);
+        
     }
 
-    console.log(`REF_DEPOSIT for sponsor ${sponsorUserId} processed successfully.`);
+    
 };

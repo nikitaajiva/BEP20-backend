@@ -21,7 +21,7 @@ const Decimal128 = mongoose.Types.Decimal128;
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     const THRESHOLD = Decimal128.fromString("5");
 
@@ -33,7 +33,7 @@ const Decimal128 = mongoose.Types.Decimal128;
     }).lean();
 
     if (!ledgers.length) {
-      console.log("⚠️ No users found with communityRewards > 5");
+      
       process.exit(0);
     }
 
@@ -101,9 +101,9 @@ const Decimal128 = mongoose.Types.Decimal128;
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log("📊 Community Rewards history report generated");
-    console.log("👥 Users:", rows.length);
-    console.log("📁 File:", filePath);
+    
+    
+    
 
     process.exit(0);
   } catch (err) {

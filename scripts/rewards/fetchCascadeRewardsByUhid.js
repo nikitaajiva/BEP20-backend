@@ -79,7 +79,7 @@ async function run(uhid) {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 0, 0, 0));
     const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 23, 59, 59, 999));
 
-    console.log(`📅 Fetching CascadeRewards for UHID ${uhid}, userId ${userId}, between ${start} and ${end}`);
+    
 
     // Step 3: Fetch rewards
     const rewards = await CascadeReward.find({
@@ -88,7 +88,7 @@ async function run(uhid) {
     }).lean();
 
     if (rewards.length === 0) {
-      console.log("⚠️ No CascadeRewards found for yesterday.");
+      
       return;
     }
 
@@ -106,25 +106,25 @@ async function run(uhid) {
       grouped[level].total += amt;
     });
 
-    console.log("\n========= Cascade Rewards Breakdown =========\n");
+    
 
     Object.keys(grouped)
       .sort((a, b) => Number(a) - Number(b)) // order by level ascending
       .forEach(level => {
-        console.log(`Level ${level}`);
+        
         grouped[level].entries.forEach(e => {
-          console.log(`  @ ${e.percent}% from ${e.fromUser} → ${e.amt.toFixed(6)}`);
+          
         });
-        console.log(`  Total (L${level}): ${grouped[level].total.toFixed(6)}\n`);
+        
       });
 
-    console.log("---------------------------------------------");
-    console.log(`GRAND TOTAL: ${grandTotal.toFixed(6)}\n`);
+    
+    
   } catch (err) {
     console.error("❌ Error:", err);
   } finally {
     await mongoose.disconnect();
-    console.log("🔌 MongoDB Disconnected");
+    
   }
 }
 

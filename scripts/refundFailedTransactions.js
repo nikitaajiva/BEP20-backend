@@ -49,7 +49,7 @@ function log(message, writeToFile = true) {
   const timestamp = new Date().toISOString(); // UTC timestamp
   const fullMessage = `[${timestamp}] ${message}`;
 
-  console.log(fullMessage);
+  
 
   if (writeToFile) {
     logStream.write(fullMessage + "\n");
@@ -209,7 +209,7 @@ function d2n(val) {
 
     for (const lg of ledgers) {
       const userId = lg._id;
-      console.log("UHID============================", lg.uhid);
+      
 
       // 🔎 Only fetch rows for this Tx that don't touch ZERO_RISK (belt-and-suspenders)
       const lgrows = await LedgerRow.find({
@@ -263,7 +263,7 @@ function d2n(val) {
 
       let verdict;
       if (diff > TOL && Math.abs(diff - pendingAmt) < TOL) {
-        console.log(`Inside process`);
+        
         verdict = "NEEDS_REFUND";
         needsRefund++;
         if (!isDryRun) {
@@ -306,7 +306,7 @@ function d2n(val) {
         });
 
         if (exactMatch) {
-          console.log("Withdrawal matched", exactMatch.amountXRP.toFixed(6));
+          
           withdrawalsMatched++;
           if (!isDryRun) {
             try {
@@ -337,13 +337,13 @@ function d2n(val) {
           }
         } else {
           const withdrawalsList = await Withdrawal.find({ userId }).lean();
-          console.log(`Pending withdrawal: ${pendingAmt.toFixed(6)}`);
+          
 
           const totalWithdrawals = withdrawalsList.reduce((sum, w) => {
-            console.log(`Withdrawal: ${w.amountXRP.toFixed(6)}`);
+            
             return sum + d2n(w.amountXRP);
           }, 0);
-          console.log(`Total withdrawals: ${totalWithdrawals.toFixed(6)}`);
+          
           unMatchedWithdrawals[userId] = { pendingAmt: withdrawalsList };
         }
         alreadyPaid++;
@@ -358,10 +358,10 @@ function d2n(val) {
       }
     }
 
-    console.log("\nSUMMARY:");
-    console.log(`  Ledgers needing refund : ${needsRefund}`);
-    console.log(`  Already paid / mismatch : ${alreadyPaid}`);
-    console.log(`  Withdrawals matched : ${withdrawalsMatched}`);
+    
+    
+    
+    
     console.log(
       `  Refunds processed (dry-run=${isDryRun}) : ${refundsProcessed}`
     );

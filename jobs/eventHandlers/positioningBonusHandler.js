@@ -75,7 +75,7 @@ const handlePositioningBonus = async (payload) => {
     let lastPaidRate = 0;
     let currentUserId = depositor.referredBy;
 
-    console.log(`[PositioningBonus] Starting calculation for event ${triggeringEventId}, amount ${depositAmount}.`);
+    
 
     while (currentUserId) {
         const uplineUser = await User.findById(currentUserId).lean();
@@ -119,7 +119,7 @@ const handlePositioningBonus = async (payload) => {
                     balance_after: uplineLedger.wallets.rankBonus,
                 });
 
-                console.log(`[PositioningBonus] Awarded ${bonusAmount.toString()} to ${uplineUser.username} (Rank: ${rank}).`);
+                
                 lastPaidRate = currentRate;
             }
         }

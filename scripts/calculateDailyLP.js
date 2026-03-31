@@ -10,7 +10,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -22,7 +22,7 @@ const connectDB = async () => {
  * @param {Date} date - The date to calculate LP for
  */
 const calculateDailyLPForDate = async (date) => {
-    console.log(`Processing LP for date: ${moment(date).format('YYYY-MM-DD')}`);
+    
 
     const startOfDay = moment(date).startOf('day').toDate();
     const endOfDay = moment(date).endOf('day').toDate();
@@ -64,7 +64,7 @@ const calculateDailyLPForDate = async (date) => {
         }
     ]);
 
-    console.log(`Found ${lpTransactions.length} users with LP transactions`);
+    
 
     // Process each user's LP
     for (const transaction of lpTransactions) {
@@ -92,7 +92,7 @@ const calculateDailyLPForDate = async (date) => {
                 { upsert: true }
             );
 
-            console.log(`Updated LP for user ${transaction._id}: Previous LP ${previousLP}, Deposits ${transaction.deposits}, Withdrawals ${transaction.withdrawals}, New LP ${newLP}`);
+            
         } catch (error) {
             console.error(`Error processing user ${transaction._id}:`, error);
         }
@@ -107,7 +107,7 @@ const calculateDailyLPForDate = async (date) => {
 const calculateDailyLP = async (startDate, endDate) => {
     try {
         await connectDB();
-        console.log(`Starting daily LP calculation from ${moment(startDate).format('YYYY-MM-DD')} to ${moment(endDate).format('YYYY-MM-DD')}`);
+        
 
         // Process each day in the range
         let currentDate = moment(startDate);
@@ -118,7 +118,7 @@ const calculateDailyLP = async (startDate, endDate) => {
             currentDate.add(1, 'day');
         }
 
-        console.log('Daily LP calculation completed for all dates');
+        
         await mongoose.disconnect();
     } catch (error) {
         console.error('Script failed:', error);
@@ -154,7 +154,7 @@ if (require.main === module) {
     const { startDate, endDate } = parseArgs();
     calculateDailyLP(startDate, endDate)
         .then(() => {
-            console.log('Script completed successfully');
+            
             process.exit(0);
         })
         .catch(error => {

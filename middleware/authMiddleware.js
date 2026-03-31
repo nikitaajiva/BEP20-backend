@@ -31,7 +31,7 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ msg: 'Not authorized, user not found' });
       }
       const userIp = getClientIP(req);
-      console.log("User IP:", userIp);
+      
 
       // ✅ Check if tokenVersion matches (for logout after maintenance activation)
       if (user.tokenVersion !== decoded.user.tokenVersion) {
@@ -54,7 +54,11 @@ const protect = async (req, res, next) => {
       req.user = user;
       next();
     } catch (error) {
-      console.error('Token verification error:', error.message);
+      if (error.name === 'TokenExpiredError') {
+        console.log('Session expired: jwt expired');
+      } else {
+        console.error('Token verification error:', error.message);
+      }
       return res.status(401).json({ msg: 'Not authorized, token failed' });
     }
   } else {
@@ -106,7 +110,7 @@ const isMaintenanceMode = process.env.MAINTENANCE_MODE === 'true';
 //       // Verify token
 //       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-//       console.log(`[authMiddleware.js protect] Mongoose Connection ID: ${mongoose.connection.id}`);
+//       
 
 //       // Get user from the token
 //       req.user = await User.findById(decoded.user.id).select('-password');

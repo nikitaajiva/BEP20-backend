@@ -27,10 +27,10 @@ function getDateFromArgsOrYesterday() {
 
 async function run() {
   await connectDB();
-  console.log("🔥 Connected to MongoDB");
+  
 
   const TARGET_DATE = getDateFromArgsOrYesterday();
-  console.log(`📅 Running auto-redeem HK Event for: ${TARGET_DATE}`);
+  
 
   // --------------------------------------------------------
   // 1️⃣ Find all users who did NOT redeem (remaining > 0)
@@ -41,7 +41,7 @@ async function run() {
     remaining: { $gt: 0 }
   });
 
-  console.log(`🔍 Found ${credits.length} pending redemptions`);
+  
 
   let successCount = 0;
   let failCount = 0;
@@ -56,7 +56,7 @@ async function run() {
       //---------------------------------------------------------
       const ledger = await Ledger.findOne({ userId });
       if (!ledger) {
-        console.log(`❌ Ledger missing for user ${userId}`);
+        
         failCount++;
         continue;
       }
@@ -133,11 +133,11 @@ async function run() {
         deductedFromZeroRisk: "0.000000"
       });
 
-      console.log(`✔ SUCCESS: Redeemed ${remaining} for user ${userId}`);
+      
       successCount++;
 
     } catch (err) {
-      console.log(`⚠ ERROR for user ${event.userId}: ${err.message}`);
+      
       failCount++;
     }
   }
@@ -145,10 +145,10 @@ async function run() {
   // --------------------------------------------------------
   // Summary
   // --------------------------------------------------------
-  console.log("--------------------------------------------------------");
-  console.log(`🎉 Successful redemptions: ${successCount}`);
-  console.log(`❌ Failed redemptions: ${failCount}`);
-  console.log("--------------------------------------------------------");
+  
+  
+  
+  
 
   process.exit(0);
 }

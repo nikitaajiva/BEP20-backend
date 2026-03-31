@@ -18,7 +18,7 @@ const toD128 = (n) =>
 
 async function applyRewardsWithReport() {
   await connectDB();
-  console.log("🚀 APPLY FINAL + EXCEL REPORT (12-12)\n");
+  
 
   const start = new Date(Date.UTC(2025, 11, 12, 0, 0, 0));
   const end = new Date(Date.UTC(2025, 11, 13, 0, 0, 0));
@@ -166,7 +166,7 @@ async function applyRewardsWithReport() {
 `);
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected");
+  
 }
 
 applyRewardsWithReport().catch(async (err) => {

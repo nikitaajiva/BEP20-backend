@@ -171,7 +171,7 @@ exports.generateUserReport = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
 
-    console.log("✅ User report generated and sent to browser.");
+    
   } catch (err) {
     console.error("Error generating user report:", err);
     res.status(500).json({

@@ -30,7 +30,7 @@ const logToFile = (line) => {
 };
 
 const updateCommunityRewards = async () => {
-  console.log(`📅 Processing Community Booster Rewards for: ${dateStr}`);
+  
   logToFile(`\n📅 Log for Community Booster Rewards on ${dateStr}`);
 
   const rewards = await CommunityBoosterReward.aggregate([
@@ -47,7 +47,7 @@ const updateCommunityRewards = async () => {
     },
   ]);
 
-  console.log(`🔍 Found ${rewards.length} users with community booster rewards.`);
+  
 
   for (const reward of rewards) {
     const userId = reward._id;
@@ -68,7 +68,7 @@ const updateCommunityRewards = async () => {
 
     if (fiveXCap > 0 && fiveXUsed >= fiveXCap) {
       const msg = `🚫 SKIPPED (5× cap reached) userId=${userId}, used=${fiveXUsed}, cap=${fiveXCap}`;
-      console.log(msg);
+      
       logToFile(msg);
       continue;
     }
@@ -118,7 +118,7 @@ const updateCommunityRewards = async () => {
 
     const uhid = ledger.uhid || 'N/A';
     const logLine = `✅ userId=${userId}, uhid=${uhid}, credited=${amount.toString()}, oldBalance=${oldBalance.toString()}`;
-    console.log(logLine);
+    
     logToFile(logLine);
   }
 };

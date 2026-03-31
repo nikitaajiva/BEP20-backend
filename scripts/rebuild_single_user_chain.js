@@ -23,8 +23,8 @@ const userUhid = process.argv.includes("--user")
 const isDryRun = process.argv.includes("--dry");
 
 if (!userUhid) {
-  console.log("❌ Missing --user parameter");
-  console.log("Usage:");
+  
+  
   console.log(
     "node scripts/rebuild_single_user_chain.js --user USER_UHID [--dry]"
   );
@@ -34,12 +34,12 @@ if (!userUhid) {
 async function run() {
   try {
     await connectDB();
-    console.log("✅ DB Connected\n");
+    
 
-    console.log("=================================");
-    console.log("Target User:", userUhid);
-    console.log("Dry Run:", isDryRun);
-    console.log("=================================\n");
+    
+    
+    
+    
 
     // ======================================
     // STEP 1: Get Level 1 (Direct Sponsor)
@@ -51,7 +51,7 @@ async function run() {
     }).lean();
 
     if (!level1) {
-      console.log("❌ Level 1 sponsor not found for this user.");
+      
       process.exit(1);
     }
 
@@ -61,7 +61,7 @@ async function run() {
       uhid: directSponsor
     }).lean();
 
-    console.log("Current Level 1 Sponsor:");
+    
     console.log(
       `Level 1 → UHID: ${directSponsor} | Username: ${
         directSponsorUser ? directSponsorUser.username : "NOT FOUND"
@@ -88,7 +88,7 @@ async function run() {
     // PREVIEW NEW CHAIN
     // ======================================
 
-    console.log("========= REBUILT CHAIN PREVIEW =========");
+    
 
     for (let i = 0; i < rebuiltParents.length; i++) {
       const uhid = rebuiltParents[i];
@@ -102,10 +102,10 @@ async function run() {
       );
     }
 
-    console.log("=========================================\n");
+    
 
     if (isDryRun) {
-      console.log("🧪 DRY RUN COMPLETE — No DB Changes Made.");
+      
       process.exit(0);
     }
 
@@ -134,9 +134,9 @@ async function run() {
       await Levels.insertMany(newDocs);
     }
 
-    console.log("=================================");
-    console.log("✅ Chain Successfully Rebuilt");
-    console.log("=================================\n");
+    
+    
+    
 
     process.exit(0);
 

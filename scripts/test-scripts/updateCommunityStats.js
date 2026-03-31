@@ -58,8 +58,8 @@ const Ledger = mongoose.models.Ledger || mongoose.model('Ledger', LedgerSchema);
 async function run() {
   const dbURI = process.env.TEST_DB_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/xrpmigrate';
   await mongoose.connect(dbURI, { useNewUrlParser: true, useUnifiedTopology: true });
-  console.log(`MongoDB connected to ${dbURI}`);
-  console.log(`Running in ${options.dryRun ? 'DRY-RUN' : 'LIVE'} mode${options.limit ? ` (limit: ${options.limit})` : ''}`);
+  
+  
 
   const threshold = 17498803170;
   const parentSet = new Set();
@@ -72,7 +72,7 @@ async function run() {
     }
   }
   console.timeEnd('Scanning levels');
-  console.log(`Found ${parentSet.size} parent UHIDs affected by rebuild.`);
+  
 
   const parents = Array.from(parentSet);
   if (options.limit) parents.splice(options.limit);
@@ -97,26 +97,26 @@ async function run() {
       }
 
       if (options.dryRun) {
-        console.log(`[DRY-RUN] Would update ${uhid} -> communitySize=${communitySize}, totalTeamLp=${totalTeamLp.toString()}`);
+        
       } else {
         await User.updateOne(
           { uhid },
           { $set: { communitySize, 'counters.totalTeamLp': totalTeamLp } }
         );
         updated += 1;
-        console.log(`Updated ${uhid}: communitySize=${communitySize}, totalTeamLp=${totalTeamLp.toString()}`);
+        
       }
     } catch (err) {
       console.error(`Error processing ${uhid}:`, err.message);
     }
   }
 
-  console.log('\n----- SUMMARY -----');
-  console.log(`Parents processed: ${parents.length}`);
-  if (!options.dryRun) console.log(`Parents updated : ${updated}`);
+  
+  
+  if (!options.dryRun) 
 
   await mongoose.disconnect();
-  console.log('MongoDB disconnected. Script finished.');
+  
 }
 
 run().catch(err => {

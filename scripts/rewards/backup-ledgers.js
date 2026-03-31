@@ -10,7 +10,7 @@ const connectDB = async (dbName) => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log(`MongoDB Connected to ${dbName}...`);
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -28,7 +28,7 @@ const backupLedgers = async () => {
 
     const backupCollectionName = `ledgersBackup`;
 
-    console.log(`Backing up 'ledgers' collection to '${backupCollectionName}'...`);
+    
 
     try {
         await Ledger.aggregate([
@@ -36,9 +36,9 @@ const backupLedgers = async () => {
             { $out: backupCollectionName }
         ]).exec();
         
-        console.log('\nBackup complete!');
-        console.log(`Successfully created backup collection: ${backupCollectionName}`);
-        console.log('You can now safely run the distributeRewards script.');
+        
+        
+        
 
     } catch (error) {
         console.error('An error occurred during the backup process:', error);

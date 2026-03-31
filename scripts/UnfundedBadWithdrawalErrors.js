@@ -41,7 +41,7 @@ const trackChainScript = path.join(__dirname, 'trackChainTx.js');
 function callTrackChainTx(xrpAddress) {
   try {
     if (!xrpAddress) {
-      console.log(`⚠️ No XRP address provided for trackChainTx`);
+      
       return;
     }
 
@@ -52,21 +52,21 @@ function callTrackChainTx(xrpAddress) {
 
     // Event handlers
     child.on('error', (error) => {
-      console.log(`⚠️ trackChainTx spawn error for ${xrpAddress}:`, error.message);
+      
     });
 
     child.on('exit', (code) => {
       if (code === 0) {
-        console.log(`✅ trackChainTx completed successfully for ${xrpAddress}`);
+        
       } else {
-        console.log(`⚠️ trackChainTx exited with code ${code} for ${xrpAddress}`);
+        
       }
     });
 
-    console.log(`🔄 trackChainTx started for user: ${xrpAddress}`);
+    
     return child;
   } catch (error) {
-    console.log(`❌ trackChainTx function error for ${xrpAddress}:`, error.message);
+    
   }
 }
 
@@ -193,7 +193,7 @@ async function repairMissingAmountIfAny(d) {
   if (amountFromLR > 0) {
     if (DRY) {
       const msg = `DRY: would set withdrawalerrorlogs.amount for _id=${d._id} ⇒ ${amountFromLR.toFixed(6)} XRP`;
-      console.log(`🧪 ${msg}`);
+      
       writeLog(`[${nowIso()}] ${msg}`);
       return { amountXrp: amountFromLR, repaired: true, wouldWrite: true };
     }
@@ -202,7 +202,7 @@ async function repairMissingAmountIfAny(d) {
       { $set: { amount: mongoose.Types.Decimal128.fromString(amountFromLR.toFixed(6)) } }
     );
     const msg = `APPLY: set withdrawalerrorlogs.amount for _id=${d._id} ⇒ ${amountFromLR.toFixed(6)} XRP`;
-    console.log(`🩹 ${msg}`);
+    
     writeLog(`[${nowIso()}] ${msg}`);
     return { amountXrp: amountFromLR, repaired: true, wouldWrite: false };
   }
@@ -218,7 +218,7 @@ async function updateWithNewTxHash({ errorLogId, ledgerRowId, newHash, destinati
   if (DRY) {
     const msg = `DRY: would mark errorLog ${errorLogId} RESOLVED with hash ${newHash}` +
                 (ledgerRowId ? `; set LedgerRow(${ledgerRowId}).refId + narrative` : '');
-    console.log(`🧪 ${msg}`);
+    
     writeLog(`[${nowIso()}] ${msg}`);
     return;
   }
@@ -287,13 +287,13 @@ async function updateWithNewTxHash({ errorLogId, ledgerRowId, newHash, destinati
   const header = `=== ${DRY ? 'DRY-RUN' : 'APPLY'} @ ${nowIso()} ===
 Window: ${start.toISOString()} → ${end.toISOString()}
 Filter: /${REGEX}/  |  Limit: ${LIMIT}${USER ? `  |  userId=${USER}` : ''}${RECORD_ID ? `  |  id=${RECORD_ID}` : ''}`;
-  console.log(header);
+  
   writeLog(header);
 
   const cursor = WithdrawalErrorLog.find(match, {}).sort({ createdAt: -1, _id: -1 }).limit(LIMIT);
   const docs = await cursor.lean();
 
-  console.log(`Found: ${docs.length} record(s)\n`);
+  
   writeLog(`Found: ${docs.length} record(s)`);
 
   const rows = [];
@@ -373,7 +373,7 @@ Filter: /${REGEX}/  |  Limit: ${LIMIT}${USER ? `  |  userId=${USER}` : ''}${RECO
     let xrpTxHash = '';
     if (DRY) {
       const msg = `DRY: would send ${fixedAmount} XRP to ${dest}${ledgerRowId ? ` (ledgerRowId=${ledgerRowId})` : ''}`;
-      console.log(`🧪 ${msg}`);
+      
       writeLog(`[${nowIso()}] ${msg}`);
     } else {
       try {
@@ -381,7 +381,7 @@ Filter: /${REGEX}/  |  Limit: ${LIMIT}${USER ? `  |  userId=${USER}` : ''}${RECO
         xrpTxHash = txResult?.hash || '';
         const msg = `SENT ${fixedAmount} XRP to ${dest}  |  hash=${xrpTxHash || 'n/a'}`;
         
-        console.log(`✅ ${msg}`);
+        
         writeLog(`[${nowIso()}] ${msg}`);
         callTrackChainTx(dest);
       } catch (err) {
@@ -439,7 +439,7 @@ Filter: /${REGEX}/  |  Limit: ${LIMIT}${USER ? `  |  userId=${USER}` : ''}${RECO
   Total Fees (from logs): ${totalFees.toFixed(6)} XRP
   Log file: ${LOG_PATH}
 `;
-  console.log('\n' + summary);
+  
   writeLog(summary);
 
   await mongoose.disconnect();

@@ -52,7 +52,7 @@ function checkSponsorUnlock(sponsorCounters, rule) {
 
 exports.handleRoiCascade = async (payload, session, event) => {
     const { userId, lpRoiAmount, processingDate, originalUserLevel, triggeringEventId } = payload;
-    console.log(`ROI_CASCADE Handler: Processing for user ${userId}, Original LP ROI Amount for cascade: ${lpRoiAmount}`);
+    
 
     const originalRoiD128 = Decimal128.fromString(lpRoiAmount.toString());
 
@@ -76,7 +76,7 @@ exports.handleRoiCascade = async (payload, session, event) => {
 
     for (let i = uplinePath.length - 1; i >= 0; i--) {
         if (qualifiedAncestorsProcessed >= 16) {
-            console.log(`ROI_CASCADE: Reached max 16 qualified ancestors for user ${roiEarner.username || userId}. Stopping cascade.`);
+            
             break;
         }
 
@@ -84,13 +84,13 @@ exports.handleRoiCascade = async (payload, session, event) => {
         const distance = uplinePath.length - 1 - i + 1; // Distance from original earner (1 = direct sponsor)
 
         if (distance > 16) {
-            console.log(`ROI_CASCADE: Sponsor ${sponsorUserId} is at distance ${distance} for user ${roiEarner.username || userId}, exceeding max 16 levels. Stopping for this path segment.`);
+            
             break; 
         }
 
         const rule = cascadeUnlockRules.find(r => r.level === distance);
         if (!rule) {
-            console.log(`ROI_CASCADE: No rule found for distance ${distance} for sponsor ${sponsorUserId}. Skipping.`);
+            
             continue;
         }
 
@@ -108,7 +108,7 @@ exports.handleRoiCascade = async (payload, session, event) => {
             let cascadeAmountD128 = originalRoiD128.multiply(cascadeBonusPct);
 
             if (cascadeAmountD128.toFloat() <= 0) {
-                console.log(`ROI_CASCADE: Sponsor ${sponsor.username || sponsorUserId} (Level ${distance} above ${roiEarner.username || userId}) initial cascade amount is ${cascadeAmountD128.toString()}. Skipping.`);
+                
                 continue;
             }
 
@@ -118,7 +118,7 @@ exports.handleRoiCascade = async (payload, session, event) => {
             let fiveXAppliedDescription = 'WithinFiveX';
 
             if (remainingFiveXRoom.toFloat() <= 0) {
-                console.log(`ROI_CASCADE: Sponsor ${sponsor.username || sponsorUserId} FiveXLimit already exhausted. Cap: ${fiveXLimitDef.cap}, Used: ${fiveXLimitDef.used}. Cannot credit cascade bonus.`);
+                
                 continue; 
             }
 
@@ -128,7 +128,7 @@ exports.handleRoiCascade = async (payload, session, event) => {
             }
             
             if (cascadeAmountD128.toFloat() <= 0) { // Check again after FiveX cap
-                console.log(`ROI_CASCADE: Sponsor ${sponsor.username || sponsorUserId} cascade amount is ${cascadeAmountD128.toString()} after FiveX adjustment. Skipping.`);
+                
                 continue;
             }
 
@@ -148,11 +148,11 @@ exports.handleRoiCascade = async (payload, session, event) => {
             }, session);
 
             await sponsorLedger.save({ session });
-            console.log(`ROI_CASCADE: Sponsor ${sponsor.username || sponsorUserId} (Level ${distance} above ${roiEarner.username || userId}) received ${cascadeAmountD128.toString()} into Community Rewards. FiveX: ${fiveXAppliedDescription}.`);
+            
 
         } else {
-            console.log(`ROI_CASCADE: Sponsor ${sponsor.username || sponsorUserId} (Level ${distance} above ${roiEarner.username || userId}) did not meet unlock criteria for ${rule.pct*100}% cascade.`);
+            
         }
     }
-    console.log(`ROI_CASCADE for LP ROI from user ${roiEarner.username || userId} processed. ${qualifiedAncestorsProcessed} upline sponsors paid.`);
+    
 }; 

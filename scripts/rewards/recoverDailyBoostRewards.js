@@ -18,7 +18,7 @@ const fixDecimal = (v) => {
 
 // CLI flags
 const DRY_RUN = process.argv.includes("--dry");
-console.log(`\n🚀 Mode: ${DRY_RUN ? "DRY RUN (no DB changes)" : "LIVE RUN (changes applied)"}`);
+
 
 // Rates
 const REWARD_THRESHOLD = 5000;
@@ -46,7 +46,7 @@ const USERS_UHIDS = [
 
 async function run() {
   await connectDB();
-  console.log("⚡ Connected to MongoDB");
+  
 
   const today = new Date();
   const utcYest = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
@@ -57,12 +57,12 @@ async function run() {
   const summary = [];
 
   for (const uhid of USERS_UHIDS) {
-    console.log("\n---------------------------------------------");
-    console.log(`🔍 Checking UHID: ${uhid}`);
+    
+    
 
     const ledger = await Ledger.findOne({ uhid: uhid.trim() });
     if (!ledger) {
-      console.log("❌ Ledger NOT FOUND");
+      
       summary.push({ uhid, status: "NO_LEDGER" });
       continue;
     }
@@ -74,7 +74,7 @@ async function run() {
       ledger.limits.fiveXLimit.cap = ledger.limits.boostLimit.cap;
       await ledger.save();
     } else {
-      console.log(`(dry-run) Sync caps → fiveXLimit.cap = ${ledger.limits.boostLimit.cap}`);
+      
     }
 
     // ====================================
@@ -113,7 +113,7 @@ async function run() {
     // Decide Action
     // ====================================
     if (existingAmount === 0) {
-      console.log("⚠️ No reward yet → FULL CREDIT needed");
+      
 
       summary.push({
         uhid,
@@ -130,7 +130,7 @@ async function run() {
     }
 
     if (existingAmount === correctReward) {
-      console.log("✅ Reward correct → No changes needed");
+      
 
       summary.push({
         uhid,
@@ -146,7 +146,7 @@ async function run() {
 
     if (existingAmount < correctReward) {
       const diff = correctReward - existingAmount;
-      console.log(`🔧 Underpaid → Need top-up: ${diff}`);
+      
 
       summary.push({
         uhid,
@@ -181,13 +181,13 @@ async function run() {
       action: "OVERPAID"
     });
 
-    console.log("⚠️ Overpaid → No fix applied");
+    
   }
 
   // ====================================
   // REPORT OUTPUT
   // ====================================
-  console.log("\n================ DRY RUN REPORT ================");
+  
   console.table(summary);
 
   const reportFile = DRY_RUN
@@ -195,10 +195,10 @@ async function run() {
     : "boost_recovery_report.json";
 
   fs.writeFileSync(reportFile, JSON.stringify(summary, null, 2));
-  console.log(`📄 Report saved: ${reportFile}`);
+  
 
   await mongoose.disconnect();
-  console.log("🔌 Disconnected");
+  
 }
 
 // ==========================================================

@@ -66,7 +66,7 @@ async function run() {
     // CONNECT DB (required for XrpTxLog)
     // -----------------------------
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     // -----------------------------
     // DUMMY / MANUAL PAYLOAD
@@ -78,15 +78,15 @@ async function run() {
       amount_usdt: "1",
     };
 
-    console.log("📦 Payload being sent:");
-    console.log(payload);
+    
+    
 
     // -----------------------------
     // SEND USDT
     // -----------------------------
     const result = await sendUsdtManual(payload);
 
-    console.log("🎉 USDT SENT SUCCESSFULLY");
+    
     console.dir(result, { depth: null });
 
   } catch (err) {
@@ -105,7 +105,7 @@ async function run() {
 
   } finally {
     await mongoose.disconnect();
-    console.log("🔌 MongoDB disconnected");
+    
     process.exit(0);
   }
 }

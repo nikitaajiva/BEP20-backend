@@ -176,12 +176,12 @@ const CountrySchema = new mongoose.Schema({
 const Country = mongoose.models.Country || mongoose.model('Country', CountrySchema);
 
 async function populateCountries() {
-  console.log('Connecting to the database...');
+  
   try {
     await mongoose.connect("mongodb://localhost:27017/xrp2");
-    console.log('MongoDB connected successfully to xrp2.');
+    
 
-    console.log('Preparing to populate countries data...');
+    
 
     const operations = COUNTRIES_DATA.map((country, index) => ({
       updateOne: {
@@ -200,19 +200,19 @@ async function populateCountries() {
     }));
 
     if (operations.length > 0) {
-      console.log(`Populating/updating ${operations.length} countries...`);
+      
       const result = await Country.bulkWrite(operations);
-      console.log('Bulk write result:', result);
-      console.log('Successfully populated the countries collection.');
+      
+      
     } else {
-      console.log('No country data to populate.');
+      
     }
 
   } catch (error) {
     console.error('\nAn error occurred during the population script:', error);
   } finally {
     await mongoose.disconnect();
-    console.log('\nMongoDB connection closed.');
+    
   }
 }
 

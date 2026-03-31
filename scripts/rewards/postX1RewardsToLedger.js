@@ -79,13 +79,13 @@ async function postX1RewardsToLedger(options = {}) {
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
-  console.log("==========================================");
-  console.log(`Mode      : ${isDryRun ? "DRY RUN" : "LIVE"}`);
-  console.log(`Post Date : ${date} (UTC)`);
-  console.log("==========================================");
+  
+  
+  
+  
 
   await connectDB();
-  console.log("✅ MongoDB connected");
+  
 
   /* -----------------------------------------
      AGGREGATE DATE-WISE UNPOSTED REWARDS
@@ -107,10 +107,10 @@ async function postX1RewardsToLedger(options = {}) {
     },
   ]);
 
-  console.log(`📦 Found ${aggregates.length} users with X1 rewards`);
+  
 
   if (!aggregates.length) {
-    console.log("ℹ️ Nothing to post. Exiting.");
+    
     await mongoose.disconnect();
     return;
   }
@@ -128,11 +128,11 @@ async function postX1RewardsToLedger(options = {}) {
 
     /* ---------- DRY RUN ---------- */
     if (isDryRun) {
-      console.log("--------------------------------------------------");
-      console.log(`👤 UserId   : ${userId}`);
-      console.log(`🧾 Entries  : ${count}`);
-      console.log(`💰 Total    : ${safeTotal.toString()}`);
-      console.log("--------------------------------------------------");
+      
+      
+      
+      
+      
       progressCounter++;
       continue;
     }
@@ -236,7 +236,7 @@ async function postX1RewardsToLedger(options = {}) {
   }
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected");
+  
   console.log(
     `✅ X1 rewards posting ${isDryRun ? "DRY RUN" : "LIVE"} completed`
   );
@@ -274,7 +274,7 @@ if (require.main === module) {
 
   postX1RewardsToLedger(options)
     .then(() => {
-      console.log("🎉 Script finished successfully");
+      
       process.exit(0);
     })
     .catch((err) => {

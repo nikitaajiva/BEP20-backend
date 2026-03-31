@@ -16,7 +16,7 @@ const {
 // Add logging function
 const logX1Check = (message) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [X1Handler] ${message}`);
+    
 };
 
 // X1-X5 Tiers Configuration
@@ -198,27 +198,27 @@ async function getUserQualificationTier(uhid) {
 
   let highest = null;
   for (const rank of XRANKS) {
-  console.log(`--- ${rank.code} ---`);
+  
   const { autoPass, reason, qualifyingLegs } = checkAutoQual(rank.code, legResults, parentSelfLP);
 
   if (autoPass) {
-    console.log(`✅ QUALIFIED ${rank.code}`);
-    console.log(`   Reason: ${reason}`);
+    
+    
     // show legs & users
     qualifyingLegs.forEach((leg, i) => {
-      console.log(`   Leg ${i+1} (root ${leg.root}) contributed:`);
+      
       leg.users
         .filter(u => normalizeRank(u.xRank || u.xrank) === (
           rank.code === "X2" ? "X1" :
           rank.code === "X3" ? "X2" :
           rank.code === "X4" ? "X3" : "X4"
         ))
-        .forEach(u => console.log(`      - ${u.uhid} (${u.username})`));
+        .forEach(u => 
     });
     highest = rank.code;
     continue; // go to next rank
   } else if (reason) {
-    console.log(`❌ Auto rule failed: ${reason}`);
+    
     // ⚠️ DO NOT skip here → fall through to manual check below
   }
 
@@ -253,11 +253,11 @@ async function getUserQualificationTier(uhid) {
   const communityOk = totalCommunity >= rank.reqCommunity;
 
   if (selfOk && communityOk) {
-   console.log(`✅ QUALIFIED ${rank.code}`);
-   console.log(`   Reason: Self LP ${fmt(parentSelfLP)} ≥ ${rank.reqSelf} AND Community LP ${fmt(totalCommunity)} ≥ ${rank.reqCommunity}`);
-   console.log("   Breakdown per leg (capped at 1/3 rule):");
+   
+   
+   
     legContributions.forEach((leg, i) => {
-      console.log(`     Leg ${i+1} (${leg.uhid} - ${leg.username}): Self=${leg.self}, Team=${leg.team}, Total=${leg.total}, Counted=${leg.capped}`);
+      
     });
     highest = rank.code;
   } else {
@@ -275,10 +275,10 @@ if (cappedLegs.length >= 2) {
     );
 
     if (remainingAreGood) {
-        console.log(`✅ SPECIAL RULE QUALIFIED ${rank.code}`);
-        console.log(`   Reason: Two legs reached cap (${maxCap}), and remaining legs have acceptable volume (>= ${minLegValue})`);
+        
+        
         legContributions.forEach((leg, i) => {
-            console.log(`     Leg ${i+1} (${leg.uhid} - ${leg.username}): Self=${leg.self}, Team=${leg.team}, Total=${leg.total}, Counted=${leg.capped}`);
+            
         });
         highest = rank.code;
         continue;
@@ -286,13 +286,13 @@ if (cappedLegs.length >= 2) {
 }
 
 
-   console.log(`❌ NOT QUALIFIED ${rank.code}`);
-  console.log(`   Failed because: Self LP ${fmt(parentSelfLP)} vs Req ${rank.reqSelf}, Community LP ${fmt(totalCommunity)} vs Req ${rank.reqCommunity}`);
- console.log("   Breakdown per leg (capped at 1/3 rule):");
+   
+  
+ 
     legContributions.forEach((leg, i) => {
-     console.log(`     Leg ${i+1} (${leg.uhid} - ${leg.username}): Self=${leg.self}, Team=${leg.team}, Total=${leg.total}, Counted=${leg.capped}`);
+     
     });
-    console.log(`⛔ Stopping script for ${parent.uhid} at ${rank.code}`);
+    
     break;
   }
 }
@@ -420,7 +420,7 @@ async function awardXBonus(uplineUser, depositor, depositAmount, rate, triggerin
         await uplineLedger.save();
     }
 
-    console.log(`[X1Handler] Awarded ${bonusAmount.toString()} USDT to ${uplineUser.username} (${tier} at ${(rate * 100).toFixed(1)}%, Level ${level})`);
+    
     
     return parseFloat(rate);
 }

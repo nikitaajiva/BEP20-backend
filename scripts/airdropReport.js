@@ -30,18 +30,18 @@ async function generateAirdropReport() {
   await connectDB();
 
   try {
-    console.log("🔍 Fetching ledgers where wallets.airdrop > 0...");
+    
 
     const ledgers = await Ledger.find({
       "wallets.airdrop": { $gt: 0 },
     });
 
     if (!ledgers.length) {
-      console.log("⚠️ No records found with airdrop > 0");
+      
       process.exit(0);
     }
 
-    console.log(`✅ Found ${ledgers.length} ledger(s)`);
+    
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Airdrop Wallets");
@@ -134,7 +134,7 @@ async function generateAirdropReport() {
     const filePath = path.join(reportsDir, fileName);
 
     await workbook.xlsx.writeFile(filePath);
-    console.log(`📊 Report generated successfully: ${filePath}`);
+    
 
     process.exit(0);
   } catch (err) {

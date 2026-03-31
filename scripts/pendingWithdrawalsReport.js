@@ -85,7 +85,7 @@ else {
 async function start() {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     const query = {
       errorCode: { $ne: "RESOLVED" },
@@ -94,14 +94,14 @@ async function start() {
 
     if (WALLET_FROM) {
       query.walletFrom = WALLET_FROM;
-      console.log(`🎯 walletFrom filter: ${WALLET_FROM}`);
+      
     }
 
     let logs = await WithdrawalErrorLog.find(query).lean();
 
     if (LIMIT && logs.length > LIMIT) logs.length = LIMIT;
 
-    console.log(`📌 Pending records found: ${logs.length}`);
+    
 
     // --------------------------------------------------
     // EXCEL SETUP
@@ -153,7 +153,7 @@ async function start() {
     const filePath = path.join(reportsDir, fileName);
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`✅ Report generated: ${filePath}`);
+    
     process.exit(0);
   } catch (err) {
     console.error("❌ Report generation failed:", err);

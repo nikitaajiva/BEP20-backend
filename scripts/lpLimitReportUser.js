@@ -176,7 +176,7 @@ async function exportUserReport(user, filename) {
   });
 
   await wb.xlsx.writeFile(filename);
-  console.log(`✅ Detailed report saved: ${filename}`);
+  
 }
 
 (async () => {
@@ -196,13 +196,13 @@ async function exportUserReport(user, filename) {
   } else {
     // --- all users mode ---
     const users = await User.find({}).select("_id uhid username firstLpDepositTs").lean();
-    console.log(`👥 Processing ${users.length} users...`);
+    
 
     for (let i = 0; i < users.length; i++) {
       const user = users[i];
       const baseDate = await getFirstLpDate(user);
       if (!baseDate) {
-        console.log(`[${i + 1}/${users.length}] ${user.uhid} ❌ no LP date`);
+        
         continue;
       }
 

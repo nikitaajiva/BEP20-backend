@@ -539,7 +539,7 @@ exports.loadDepositAddressList = async() =>{
   try {
     const docs = await DepositAddress.find({}, { wallet_address: 1, _id: 0 }).lean();
     DEPOSIT_ADDRESS_LIST = docs.map(d => d.wallet_address);
-    console.log(`✅ Loaded ${DEPOSIT_ADDRESS_LIST.length} deposit addresses into memory.`);
+    
   } catch (err) {
     console.error("❌ Error loading deposit addresses:", err);
   }

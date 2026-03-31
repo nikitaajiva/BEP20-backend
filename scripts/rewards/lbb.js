@@ -30,7 +30,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -49,7 +49,7 @@ const getOrCreateLedger = async (userId) => {
         if (!user) throw new Error(`User not found for ledger creation: ${userId}`);
         ledger = new Ledger({ userId, uhid: user.uhid });
         await ledger.save();
-        console.log(`[Ledger] Created new ledger for user ${userId}`);
+        
     }
     return ledger;
 };
@@ -94,7 +94,7 @@ const getDirectReferralVolume = async (userUhid) => {
  */
 const processLevelBoosterBonuses = async () => {
     await connectDB();
-    console.log('Starting Level Booster Bonus distribution script...');
+    
 
     // Find all unprocessed daily LP reward events.
     const unprocessedEvents = await LedgerRow.find({
@@ -103,22 +103,22 @@ const processLevelBoosterBonuses = async () => {
     }).lean();
 
     if (unprocessedEvents.length === 0) {
-        console.log('No new LP deposit events to process.');
+        
         await mongoose.disconnect();
         return;
     }
 
-    console.log(`Found ${unprocessedEvents.length} new LP deposit events to process.`);
+    
 
     // Process each event one by one.
     for (const event of unprocessedEvents) {
         try {
-            console.log(`\n--- Processing Event ID: ${event._id} for User ID: ${event.userId} ---`);
+            
             const depositAmountD128 = event.amount; // amount is already Decimal128
 
             const depositor = await User.findById(event.userId).lean();
             if (!depositor) {
-                console.log(`[Warning] Depositor user ${event.userId} not found. Skipping event.`);
+                
                 continue;
             }
 
@@ -126,13 +126,13 @@ const processLevelBoosterBonuses = async () => {
             for (let level = 1; level <= 3; level++) {
                 const levelRecord = await Level.findOne({ child: depositor.uhid, level }).lean();
                 if (!levelRecord || !levelRecord.parent) {
-                    console.log(`[Info] No upline found at level ${level} for user ${depositor.username}. Stopping cascade for this user.`);
+                    
                     break; // No more upline users in this chain
                 }
 
                 const uplineUser = await User.findOne({ uhid: levelRecord.parent }).lean();
                 if (!uplineUser) {
-                    console.log(`[Warning] Upline user with UHID ${levelRecord.parent} not found. Skipping level ${level}.`);
+                    
                     continue;
                 }
 
@@ -176,24 +176,24 @@ const processLevelBoosterBonuses = async () => {
                             rate: mongoose.Types.Decimal128.fromString(bonusPercent.toString())
                         }
                     });
-                    console.log(`[Success] Awarded ${bonusAmount.toString()} to ${uplineUser.username} (Level ${level})`);
+                    
                 } else {
-                     console.log(`[Info] Upline user ${uplineUser.username} at level ${level} did not qualify. Team: ${teamVolume}/${required.teamVolume}, Direct: ${directVolume}/${required.directVolume}`);
+                     
                 }
             }
 
             // Mark this event as processed to prevent double-awarding.
             await LedgerRow.findByIdAndUpdate(event._id, { $set: { levelBoosterBonusProcessed: true } });
-            console.log(`--- Finished Processing Event ID: ${event._id} ---`);
+            
 
         } catch (error) {
             console.error(`[Error] Failed to process event ${event._id}. Reason:`, error);
         }
     }
 
-    console.log('\nLevel Booster Bonus distribution script finished.');
+    
     await mongoose.disconnect();
-    console.log('MongoDB Disconnected.');
+    
 };
 
 // Run the script

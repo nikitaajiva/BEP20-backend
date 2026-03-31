@@ -10,7 +10,7 @@ const connectDB = require("../../config/db");
 
 async function creditComputedRewards() {
   await connectDB();
-  console.log("✅ MongoDB connected for credit processing");
+  
 
   const now = new Date();
 
@@ -18,7 +18,7 @@ async function creditComputedRewards() {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() , 0, 0, 0));
   const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
 
-  console.log(`📅 Reward Credit Window: ${start.toISOString()} → ${end.toISOString()}`);
+  
 
   // ---------------------------------------------
   // SUPPORT BOTH `ts` AND `createdAt` !!!
@@ -38,13 +38,13 @@ async function creditComputedRewards() {
 
   const totalPending = pendingLP.length + pendingAir.length + pendingBoost.length;
 
-  console.log(`📦 Pending LP: ${pendingLP.length}`);
-  console.log(`📦 Pending Airdrop: ${pendingAir.length}`);
-  console.log(`📦 Pending Boost: ${pendingBoost.length}`);
-  console.log(`📦 TOTAL Pending Rewards: ${totalPending}`);
+  
+  
+  
+  
 
   if (totalPending === 0) {
-    console.log("⚠️ No pending rewards found.");
+    
     await mongoose.disconnect();
     return;
   }
@@ -107,7 +107,7 @@ async function creditComputedRewards() {
 `);
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected.");
+  
 }
 
 creditComputedRewards();

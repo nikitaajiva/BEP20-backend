@@ -19,7 +19,7 @@ const LedgerRow = require("../models/LedgerRow");
 (async () => {
   await connectDB();
 
-  console.log("🚀 Searching for users with missing firstLpDepositTs...");
+  
 
   // 1️⃣ Find ledgers where LP wallet > 0
   const ledgers = await Ledger.find({
@@ -34,7 +34,7 @@ const LedgerRow = require("../models/LedgerRow");
     $or: [{ firstLpDepositTs: { $exists: false } }, { firstLpDepositTs: null }],
   });
 
-  console.log(`🔍 Found ${users.length} users missing firstLpDepositTs & LP > 0`);
+  
 
   let updated = 0;
 
@@ -59,7 +59,7 @@ const LedgerRow = require("../models/LedgerRow");
     }
   }
 
-  console.log(`\n🎯 Total users updated: ${updated}`);
+  
   await mongoose.connection.close();
   process.exit(0);
 })();

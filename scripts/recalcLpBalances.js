@@ -10,7 +10,7 @@ const { addDecimal128, subtractDecimal128, ensureDecimal128 } = require('../util
 async function recalcLpBalances() {
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/xrpmigrate';
   await mongoose.connect(uri);
-  console.log('Connected to MongoDB');
+  
 
   // Optional CLI arg: node recalcLpBalances.js <username-or-uhid>
   const target = process.argv[2];
@@ -31,7 +31,7 @@ async function recalcLpBalances() {
     }
 
     ledgerMatch.userId = user._id;
-    console.log('Running recalculation for single user', target, '(', user._id.toString(), ')');
+    
   }
 
   let processed = 0;
@@ -107,10 +107,10 @@ async function recalcLpBalances() {
     
     await Ledger.updateOne({ userId: doc.userId }, { $set: { 'wallets.lp': newLp } });
     processed++;
-    if (processed % 100 === 0) console.log('Processed', processed, 'ledgers');
+    if (processed % 100 === 0) 
   }
 
-  console.log('Recalculation done. Total ledgers processed:', processed);
+  
   await mongoose.disconnect();
 }
 

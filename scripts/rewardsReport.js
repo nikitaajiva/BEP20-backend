@@ -22,17 +22,17 @@ async function generateRewardsReport() {
   await connectDB();
 
   try {
-    console.log("🔍 Fetching ledgers where totalRewardsCredited >= 3000...");
+    
     const ledgers = await Ledger.find({
       totalRewardsCredited: { $gte: 3000 },
     }).lean();
 
     if (!ledgers.length) {
-      console.log("⚠️ No ledgers found with totalRewardsCredited >= 3000");
+      
       return;
     }
 
-    console.log(`✅ Found ${ledgers.length} ledgers, fetching user details...`);
+    
     const userIds = ledgers.map((l) => l.userId);
     const users = await User.find({ _id: { $in: userIds } })
       .select("username uhid")
@@ -53,7 +53,7 @@ async function generateRewardsReport() {
       { header: "Onchain Withdrawals", key: "onchainWithdrawals", width: 20 },
     ];
 
-    console.log("⛓️  Fetching onchain data for each user...");
+    
 
     for (const ledger of ledgers) {
       const userId = ledger.userId;
@@ -100,7 +100,7 @@ async function generateRewardsReport() {
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`✅ Report generated successfully: ${filePath}`);
+    
   } catch (err) {
     console.error("❌ Error generating report:", err);
   } finally {

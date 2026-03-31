@@ -54,17 +54,17 @@ async function isStandardUser(user) {
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected successfully");
-    console.log("🚀 Manual AutoPositioning started");
+    
+    
 
     const users = await User.find({ autopositioning: true });
 
     if (!users.length) {
-      console.log("⚠️ No users found with autopositioning enabled");
+      
       return;
     }
 
-    console.log(`📋 Found ${users.length} users with autopositioning enabled`);
+    
 
     for (const user of users) {
       // 🔒 BLOCKED UHID CHECK
@@ -93,7 +93,7 @@ async function isStandardUser(user) {
       await runAutopositioningForUser(user);
     }
 
-    console.log("✅ Manual AutoPositioning completed successfully.");
+    
   } catch (err) {
     console.error("❌ Error during manual autopositioning:", err);
   } finally {

@@ -38,13 +38,13 @@ const EXCEPTION_UHIDS = [
 
 async function run() {
   await connectDB();
-  console.log("🔌 Connected to DB");
+  
 
   const today = new Date();
   const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 0, 0, 0));
   const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 23, 59, 59));
 
-  console.log(`📅 Fixing BOOST REWARDS for date: ${start.toISOString().slice(0,10)}`);
+  
 
   // 1️⃣ Fetch today's BoostReward entries
   const todaysBoosts = await BoostReward.find({
@@ -70,7 +70,7 @@ async function run() {
     // ❗ This is a wrong boost reward, REMOVE IT
     const amount = parseFloat(reward.amount.toString());
 
-    console.log(`🚨 Removing BOOST for UHID ${uhid} amount = ${amount}`);
+    
 
     // 3️⃣ Patch ledger (atomic increment)
     await Ledger.updateOne(
@@ -97,8 +97,8 @@ async function run() {
     fixes++;
   }
 
-  console.log(`\n✅ Completed. Total fixed = ${fixes}`);
-  console.log("🛡 Only UHIDs in the exception list were modified.");
+  
+  
 
   await mongoose.disconnect();
 }

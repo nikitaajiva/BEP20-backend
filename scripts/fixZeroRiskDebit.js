@@ -19,10 +19,10 @@ function getTargetDate() {
 
 async function run() {
   await connectDB();
-  console.log("🔥 Connected to MongoDB");
+  
 
   const TARGET_DATE = getTargetDate();
-  console.log(`📅 Fixing ZERO_RISK ONLY for date: ${TARGET_DATE}`);
+  
 
   // --------------------------------------------------------
   // 1️⃣ Get all users who redeemed something on that date
@@ -33,7 +33,7 @@ async function run() {
     redeemed: { $gt: 0 }
   });
 
-  console.log(`🔍 Found ${credits.length} redeemed users`);
+  
 
   let fixed = 0;
   let skipped = 0;
@@ -45,7 +45,7 @@ async function run() {
 
       const ledger = await Ledger.findOne({ userId });
       if (!ledger) {
-        console.log(`❌ Ledger missing for ${userId}`);
+        
         skipped++;
         continue;
       }
@@ -53,7 +53,7 @@ async function run() {
       let zeroRisk = parseFloat(ledger.wallets.zeroRisk?.toString() || "0");
 
       if (zeroRisk <= 0) {
-        console.log(`⚠ User ${userId} has ZERO zeroRisk → skip`);
+        
         skipped++;
         continue;
       }
@@ -62,7 +62,7 @@ async function run() {
       const deductAmt = Math.min(zeroRisk, redeemedAmount);
 
       if (deductAmt <= 0) {
-        console.log(`⚠ No deduction required for ${userId}`);
+        
         skipped++;
         continue;
       }
@@ -73,11 +73,11 @@ async function run() {
       ledger.wallets.zeroRisk = (zeroRisk - deductAmt).toFixed(6);
       await ledger.save();
 
-      console.log(`✔ FIXED ZERO_RISK by ${deductAmt} for user ${userId}`);
+      
       fixed++;
 
     } catch (err) {
-      console.log(`⚠ ERROR for user ${evt.userId}: ${err.message}`);
+      
       skipped++;
     }
   }
@@ -85,10 +85,10 @@ async function run() {
   // --------------------------------------------------------
   // Summary
   // --------------------------------------------------------
-  console.log("--------------------------------------------------------");
-  console.log(`🎉 ZERO_RISK corrected for: ${fixed} users`);
-  console.log(`❌ Skipped: ${skipped} users`);
-  console.log("--------------------------------------------------------");
+  
+  
+  
+  
 
   process.exit(0);
 }

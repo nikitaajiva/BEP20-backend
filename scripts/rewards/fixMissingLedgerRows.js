@@ -16,7 +16,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -25,7 +25,7 @@ const connectDB = async () => {
 
 const fixMissingLedgerRows = async () => {
     await connectDB();
-    console.log('Starting script to fix missing LedgerRow entries...');
+    
 
     // Define the time range for the failed script run.
     // This should be adjusted to be a safe but narrow window around when the script was run.
@@ -34,7 +34,7 @@ const fixMissingLedgerRows = async () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1); // Start of tomorrow (UTC)
 
-    console.log(`Searching for rewards created between ${today.toISOString()} and ${tomorrow.toISOString()}`);
+    
 
     const rewardModels = [
         { model: LpReward, eventType: 'DAILY_REWARDS_LP', narrative: 'Daily LP Reward' },
@@ -46,7 +46,7 @@ const fixMissingLedgerRows = async () => {
 
     for (const { model, eventType, narrative } of rewardModels) {
         const rewards = await model.find({ createdAt: { $gte: today, $lt: tomorrow } });
-        console.log(`Found ${rewards.length} rewards of type ${eventType} to check.`);
+        
 
         for (const reward of rewards) {
             try {
@@ -59,12 +59,12 @@ const fixMissingLedgerRows = async () => {
                 });
 
                 if (existingRow) {
-                    // console.log(`LedgerRow already exists for user ${reward.userId} for ${eventType}. Skipping.`);
+                    // 
                     continue;
                 }
 
                 // If no corresponding row, create one.
-                console.log(`Creating missing LedgerRow for user ${reward.userId} for ${eventType} of amount ${reward.amount.toString()}`);
+                
                 
                 const user = await User.findById(reward.userId).select('uhid').lean();
                 
@@ -78,7 +78,7 @@ const fixMissingLedgerRows = async () => {
                 });
                 
                 fixedEntries++;
-                console.log(`Successfully created missing LedgerRow for user ${reward.userId}`);
+                
 
             } catch (error) {
                 console.error(`Failed to process fix for user ${reward.userId} and reward type ${eventType}.`, error);
@@ -86,7 +86,7 @@ const fixMissingLedgerRows = async () => {
         }
     }
 
-    console.log(`\nFix script finished. Created ${fixedEntries} missing LedgerRow entries.`);
+    
     await mongoose.disconnect();
 };
 

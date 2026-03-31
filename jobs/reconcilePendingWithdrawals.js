@@ -96,7 +96,7 @@ async function tick() {
 function start() {
   if (timerId) return; // already running
   timerId = setInterval(tick, 60 * 1000); // every minute
-  console.log('ReconcilePendingWithdrawals job scheduled (every 60s)');
+  
 }
 
 function stop() {

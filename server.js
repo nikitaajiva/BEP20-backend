@@ -109,17 +109,17 @@ if (process.env.NODE_ENV !== "test") {
         );
 
         app.locals.db = mongoose.connection.db;
-        console.log("MongoDB native db object set to app.locals.db");
+        
 
      //   depositPoller.start();
       //  startAutoPositioningCron(); // ✅ NEW: Cron for autopositioning
      //   reconcilePendingWithdrawals.start(); // Start new pending-withdrawal reconciler
-     //   console.log("Cron jobs scheduled.");
+     //   
 
       });
     });
 } else {
-  console.log("Running in test mode - server listener handled by test suite.");
+  
 }
 
 
@@ -130,7 +130,7 @@ const gracefulShutdown = async (signal) => {
   );
   if (server) {
     server.close(async () => {
-      console.log("HTTP server closed.");
+      
       await shutdownServices();
     });
   } else {
@@ -140,13 +140,13 @@ const gracefulShutdown = async (signal) => {
 
 const shutdownServices = async () => {
   if (outboxProcessor) {
-    console.log("Stopping Outbox Processor...");
+    
     outboxProcessor.stop();
-    console.log("Outbox Processor stopped.");
+    
   }
   try {
     await mongoose.disconnect();
-    console.log("MongoDB connection closed gracefully.");
+    
   } catch (err) {
     console.error("Error during MongoDB disconnection:", err);
   }

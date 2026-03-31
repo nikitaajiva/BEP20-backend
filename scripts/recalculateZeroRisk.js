@@ -41,7 +41,7 @@ const Withdrawal = mongoose.model('ChainWithdrawal', new Schema(txFields), 'cWit
       { _id: 1, userId: 1, uhid: 1 }
     ).lean();
 
-    console.log(`→ Processing ${lpPositive.length} ledgers with LP > 0`);
+    
 
     for (const led of lpPositive) {
       const uid = led.userId || led._id; // _id is same as userId per schema
@@ -69,7 +69,7 @@ const Withdrawal = mongoose.model('ChainWithdrawal', new Schema(txFields), 'cWit
       );
     }
 
-    console.log('✅  Zero-Risk balances updated.');
+    
   } catch (err) {
     console.error('Fatal error:', err);
   } finally {

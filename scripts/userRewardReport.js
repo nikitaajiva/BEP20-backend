@@ -25,7 +25,7 @@ const toNumber = (val, decimals = 8) => {
 async function main() {
   try {
     await connectDB();
-    console.log("✅ Connected to DB");
+    
 
     /* =====================================================
        STEP 1: USERS WITH ANY FINANCIAL ACTIVITY
@@ -76,7 +76,7 @@ async function main() {
       process.exit(1);
     }
 
-    console.log(`📊 Financially active users: ${userIds.length}`);
+    
 
     /* =====================================================
        STEP 2: FETCH LEDGERS + USERS
@@ -91,7 +91,7 @@ async function main() {
 
     const users = await User.find({ _id: { $in: ledgerUserIds } }).lean();
 
-    console.log(`👤 Users loaded: ${users.length}`);
+    
 
     const ledgerMap = Object.fromEntries(ledgers.map((l) => [l.userId.toString(), l]));
 
@@ -194,9 +194,9 @@ const autopositionMap = Object.fromEntries(
 
     // if (bulkOps.length) {
     //   const res = await Ledger.bulkWrite(bulkOps);
-    //   console.log(`💾 Autopositioning saved for ${res.modifiedCount} ledgers`);
+    //   
     // } else {
-    //   console.log("ℹ️ No AUTOPOSITIONING rows found to persist into ledgers.wallets.autopositionting");
+    //   
     // }
 
     /* =====================================================
@@ -425,10 +425,10 @@ const autopositionMap = Object.fromEntries(
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`✅ Report generated: ${filePath}`);
+    
 
     await mongoose.disconnect();
-    console.log("✅ Done");
+    
   } catch (err) {
     console.error("❌ Error:", err);
     process.exit(1);

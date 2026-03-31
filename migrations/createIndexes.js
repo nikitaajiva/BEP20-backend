@@ -23,28 +23,28 @@ const models = {
 
 async function createAllIndexes() {
   try {
-    console.log(`Connecting to MongoDB: ${MONGODB_URI}`)
+    
     await mongoose.connect(MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('Successfully connected to MongoDB.');
+    
 
     for (const modelName in models) {
       if (models.hasOwnProperty(modelName)) {
-        console.log(`Ensuring indexes for ${modelName}...`);
+        
         await models[modelName].createIndexes();
-        console.log(`Indexes for ${modelName} ensured successfully.`);
+        
       }
     }
 
-    console.log('All indexes ensured successfully.');
+    
   } catch (error) {
     console.error('Error during index creation:', error);
     process.exit(1);
   } finally {
     await mongoose.disconnect();
-    console.log('MongoDB connection closed.');
+    
   }
 }
 

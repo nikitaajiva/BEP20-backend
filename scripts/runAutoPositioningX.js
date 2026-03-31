@@ -9,7 +9,7 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected successfully");
+    
 
     const BLOCKED_UHIDS = [
       1753898284391,
@@ -18,7 +18,7 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
       1765813521617,
     ];
 
-    console.log("🚀 Manual AutoPositioning started");
+    
 
     /* ===============================
        IMPORTANT FIX: FULL USER DOC
@@ -26,11 +26,11 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
     const users = await User.find({ xRank: "X1" }); // ❗ NO lean(), NO projection
 
     if (!users.length) {
-      console.log("⚠️ No X1 users found");
+      
       return;
     }
 
-    console.log(`📋 Found ${users.length} users with xRank X1`);
+    
 
     for (const user of users) {
       if (BLOCKED_UHIDS.includes(Number(user.uhid))) {
@@ -59,7 +59,7 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
       await runAutopositioningForUser(user); // ✅ now works
     }
 
-    console.log("✅ Manual AutoPositioning completed successfully");
+    
   } catch (err) {
     console.error("❌ Error during manual autopositioning:", err);
   } finally {

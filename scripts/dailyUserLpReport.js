@@ -32,22 +32,22 @@ async function generateDailyUserLpReport(targetDateStr) {
   nextDate.setDate(nextDate.getDate() + 1);
 
   try {
-    console.log("🔌 Connecting to MongoDB...");
+    
     await connectDB();
-    console.log("✅ Connected to MongoDB");
+    
 
-    console.log(`📅 Fetching dailyuserlps for date: ${targetDateStr}`);
+    
 
     const records = await DailyUserLp.find({
       date: { $gte: targetDate, $lt: nextDate },
     }).lean();
 
     if (!records.length) {
-      console.log("⚠️ No records found for the given date.");
+      
       return;
     }
 
-    console.log(`✅ Found ${records.length} records`);
+    
 
     // 🧾 Create Excel workbook
     const workbook = new ExcelJS.Workbook();
@@ -99,13 +99,13 @@ async function generateDailyUserLpReport(targetDateStr) {
     const outputPath = path.join(reportsDir, fileName);
     await workbook.xlsx.writeFile(outputPath);
 
-    console.log(`📊 Report generated successfully: ${outputPath}`);
+    
   } catch (err) {
     console.error("❌ Error generating report:", err);
   } finally {
     const mongoose = require("mongoose");
     await mongoose.disconnect();
-    console.log("🔌 MongoDB disconnected");
+    
   }
 }
 

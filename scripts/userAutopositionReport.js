@@ -25,7 +25,7 @@ const toNumber = (val, decimals = 8) => {
 async function main() {
   try {
     await connectDB();
-    console.log("✅ Connected to DB");
+    
 
     /* =====================================================
        STEP 1: USERS WHO HAVE AUTOPOSITIONING (AT LEAST ONCE)
@@ -59,7 +59,7 @@ async function main() {
 
     const users = await User.find({ _id: { $in: userIds } }).lean();
 
-    console.log(`📊 Found ${users.length} users with AUTOPOSITIONING`);
+    
 
     const ledgerMap = Object.fromEntries(
       ledgers.map(l => [l.userId.toString(), l])
@@ -301,9 +301,9 @@ if (bulkOps.length) {
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`✅ Report generated: ${filePath}`);
+    
     await mongoose.disconnect();
-    console.log("✅ Done");
+    
   } catch (err) {
     console.error("❌ Error:", err);
     process.exit(1);

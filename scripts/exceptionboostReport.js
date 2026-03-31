@@ -44,7 +44,7 @@ async function generateBoostReport() {
   await connectDB();
 
   try {
-    console.log("🔍 Fetching users matching provided UHIDs...");
+    
 
     // Fetch users
     const users = await User.find(
@@ -53,7 +53,7 @@ async function generateBoostReport() {
     );
 
     if (!users.length) {
-      console.log("⚠️ No users found matching UHIDs.");
+      
       process.exit(0);
     }
 
@@ -62,7 +62,7 @@ async function generateBoostReport() {
     // Fetch ledgers
     const ledgers = await Ledger.find({ userId: { $in: userIds } });
 
-    console.log(`✅ Found ${ledgers.length} ledger(s).`);
+    
 
     // Compute yesterday UTC window
     const today = new Date();
@@ -174,7 +174,7 @@ async function generateBoostReport() {
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`📊 Exception Boost Report generated successfully: ${filePath}`);
+    
     process.exit(0);
 
   } catch (err) {

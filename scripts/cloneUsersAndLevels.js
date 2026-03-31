@@ -37,7 +37,7 @@ const connect = (uri, label) =>
     useUnifiedTopology: true,
   }).asPromise()
     .then(conn => {
-      console.log(`✅ Connected to ${label}`);
+      
       return conn;
     });
 
@@ -45,14 +45,14 @@ const connect = (uri, label) =>
    CLONE FUNCTION
 ================================ */
 async function cloneCollection({ sourceDb, targetDb, name }) {
-  console.log(`\n📦 Cloning collection: ${name}`);
+  
 
   const sourceCol = sourceDb.collection(name);
   const targetCol = targetDb.collection(name);
 
   if (CLEAN_TARGET) {
     await targetCol.deleteMany({});
-    console.log(`🧹 Cleared target ${name}`);
+    
   }
 
   const cursor = sourceCol.find({});
@@ -66,7 +66,7 @@ async function cloneCollection({ sourceDb, targetDb, name }) {
     if (batch.length >= BATCH_SIZE) {
       await targetCol.insertMany(batch, { ordered: false });
       total += batch.length;
-      console.log(`➡️ ${name}: ${total} docs copied`);
+      
       batch = [];
     }
   }
@@ -76,7 +76,7 @@ async function cloneCollection({ sourceDb, targetDb, name }) {
     total += batch.length;
   }
 
-  console.log(`✅ Finished ${name}: ${total} documents cloned`);
+  
 }
 
 /* ===============================
@@ -96,7 +96,7 @@ async function main() {
 //    await cloneCollection({ sourceDb, targetDb, name: "levels" });
   await cloneCollection({ sourceDb, targetDb, name: "countries" });
 
-    console.log("\n🎉 CLONE COMPLETED SUCCESSFULLY");
+    
   } catch (err) {
     console.error("❌ ERROR:", err);
   } finally {

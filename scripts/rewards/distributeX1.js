@@ -54,7 +54,7 @@ async function preloadXRankUsers() {
   const map = new Map();
   users.forEach((u) => map.set(u.uhid, u));
 
-  console.log(`✅ Preloaded ${map.size} X-Rank users`);
+  
   return map;
 }
 
@@ -147,8 +147,8 @@ async function getQualifiedUplineChain(
   /* -------------------------------
      🔍 DEBUG LOGS (VERY IMPORTANT)
   --------------------------------*/
-  // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  // console.log("🔎 Depositor:", startingUhid);
+  // 
+  // 
   // console.log(
   //   "📜 Parent chain:",
   //   parentChain.map(p => `${p.uhid}@${p.depth}`)
@@ -161,7 +161,7 @@ async function getQualifiedUplineChain(
   //       )
   //     : "NONE"
   // );
-  // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  // 
 
   /* -------------------------------
      3️⃣ CHECK DAILY LP & BUILD RESULT
@@ -184,7 +184,7 @@ for (const m of xRankMatches) {
   const tierConfig = X_TIERS[m.tier];
 
   if (!tierConfig) {
-    console.log(`⛔ Unknown X-Rank ${m.tier} for ${m.user.uhid}`);
+    
     continue;
   }
 
@@ -405,15 +405,15 @@ if (!options.fromDate && !options.toDate) {
 }
 
 
-  console.log("==========================================");
-  console.log(`Mode        : ${isDryRun ? "DRY RUN" : "LIVE"}`);
-  console.log(`Concurrency : ${concurrency}`);
-  if (fromDate) console.log(`From date   : ${fromDate.toISOString()}`);
-  if (toDate) console.log(`To date     : ${toDate.toISOString()}`);
-  console.log("==========================================");
+  
+  
+  
+  if (fromDate) 
+  if (toDate) 
+  
 
   await connectDB();
-  console.log("✅ MongoDB connected");
+  
 
   const xRankUserMap = await preloadXRankUsers();
   
@@ -431,9 +431,9 @@ if (!options.fromDate && !options.toDate) {
   let events = await LedgerRow.find(query).sort({ ts: 1 }).lean();
  if (options.limit) {
   events = events.slice(0, options.limit);
-  console.log(`⚠️ LIMIT ENABLED: Processing only ${events.length} events`);
+  
 } else {
-  console.log(`📦 Found ${events.length} events to process`);
+  
 }
 
 progressCounter = 0;
@@ -477,13 +477,13 @@ startProgressLogger(events.length);
     const ops = updates.filter(Boolean);
     if (ops.length) {
       await LedgerRow.bulkWrite(ops, { ordered: false });
-      console.log(`✅ Marked ${ops.length} events as x1Processed`);
+      
     }
   }
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected");
-  console.log("✅ X1 distribution completed");
+  
+  
 }
 
 /* =========================================================
@@ -526,7 +526,7 @@ if (require.main === module) {
   const options = parseArgs();
   distributeX1(options)
     .then(() => {
-      console.log("🎉 Script finished successfully");
+      
       process.exit(0);
     })
     .catch((err) => {

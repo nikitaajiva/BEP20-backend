@@ -23,19 +23,19 @@ const REPORTS_DIR = path.resolve(__dirname, "../../reports");
 
 if (!fs.existsSync(REPORTS_DIR)) {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
-  console.log("📁 reports folder created");
+  
 }
 
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     // ts is already UTC — just build range
     const start = moment.utc(REPORT_DATE).startOf("day").toDate();
     const end = moment.utc(REPORT_DATE).endOf("day").toDate();
 
-    console.log(`📅 Audit report for ${REPORT_DATE} (UTC)`);
+    
 
     const rows = await LedgerRow.aggregate([
       {
@@ -161,7 +161,7 @@ if (!fs.existsSync(REPORTS_DIR)) {
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`📊 Report saved: ${filePath}`);
+    
     process.exit(0);
   } catch (err) {
     console.error("❌ Audit failed", err);

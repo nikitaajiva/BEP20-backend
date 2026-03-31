@@ -33,7 +33,7 @@ if (!fs.existsSync(REPORTS_DIR)) {
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     /* =====================================================
        STEP 1: FETCH TEAM UHIDs FROM LEVELS (NO EXTRA FILTERS)
@@ -43,14 +43,14 @@ if (!fs.existsSync(REPORTS_DIR)) {
       { child: 1 }
     ).lean();
 
-    console.log("👥 Levels found:", levelDocs.length);
+    
 
     const teamUHIDs = [
       PASSED_UHID,                       // SELF
       ...levelDocs.map(l => String(l.child)), // TEAM
     ];
 
-    console.log("👥 Total UHIDs (self + team):", teamUHIDs.length);
+    
 
     /* =====================================================
        STEP 2: FETCH USERS FOR THESE UHIDs
@@ -60,7 +60,7 @@ if (!fs.existsSync(REPORTS_DIR)) {
       { _id: 1, username: 1, uhid: 1, xrpAddress: 1 }
     ).lean();
 
-    console.log("👤 Users matched:", users.length);
+    
 
     if (!users.length) {
       throw new Error("No users found for these UHIDs");
@@ -110,7 +110,7 @@ if (!fs.existsSync(REPORTS_DIR)) {
       },
     ]);
 
-    console.log("📒 Ledger groups:", ledgerAgg.length);
+    
 
     ledgerAgg.forEach(r => {
       const uid = r._id.userId.toString();
@@ -156,8 +156,8 @@ if (!fs.existsSync(REPORTS_DIR)) {
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log("✅ EXCEL REPORT CREATED");
-    console.log("📁", filePath);
+    
+    
 
     process.exit(0);
   } catch (err) {

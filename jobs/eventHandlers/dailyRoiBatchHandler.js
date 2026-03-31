@@ -5,7 +5,7 @@ const Outbox = require('../../models/Outbox');
 const BATCH_SIZE = process.env.ROI_USER_BATCH_SIZE || 5000; // Number of users to process in one go for enqueuing
 
 exports.handleDailyRoiBatch = async (payload, session, event) => {
-    console.log(`DAILY_ROI_BATCH Handler: Starting to enqueue DAILY_ROI_USER events. Batch ID: ${event._id}`);
+    
     const { triggeredAt } = payload;
 
     let page = 0;
@@ -45,10 +45,10 @@ exports.handleDailyRoiBatch = async (payload, session, event) => {
         if (outboxEvents.length > 0) {
             // Bulk insert for efficiency, still within the transaction of the batch handler
             await Outbox.insertMany(outboxEvents, { session });
-            console.log(`DAILY_ROI_BATCH Handler: Enqueued ${outboxEvents.length} DAILY_ROI_USER events (Page: ${page + 1}).`);
+            
             usersProcessed += outboxEvents.length;
         } else {
-            console.log(`DAILY_ROI_BATCH Handler: No users found in page ${page + 1} to enqueue.`);
+            
         }
 
         if (users.length < BATCH_SIZE) {
@@ -58,6 +58,6 @@ exports.handleDailyRoiBatch = async (payload, session, event) => {
         page++;
     }
 
-    console.log(`DAILY_ROI_BATCH Handler: Finished enqueuing. Total ${usersProcessed} DAILY_ROI_USER events created.`);
+    
     // The batch event itself (DAILY_ROI_BATCH) will be marked as DONE by the OutboxProcessor
 }; 

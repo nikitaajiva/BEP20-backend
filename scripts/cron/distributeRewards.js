@@ -32,8 +32,8 @@ const toNumber = (v) => {
 
 async function distributeRewards() {
   await connectDB();
-  console.log("✅ MongoDB connected");
-  console.log("🚀 Starting BULK reward computation (HIGH SPEED)");
+  
+  
 
   // YESTERDAY UTC
   const today = new Date();
@@ -50,11 +50,11 @@ async function distributeRewards() {
 };
 
 
-  console.log(`📅 Processing rewards for: ${rewardDate.toISOString().slice(0, 10)}`);
+  
 
   // Load all daily LP users
   const dailyRecords = await DailyUserLp.find({ date: rewardDate, lp: { $gt: 8.99 } });
-  console.log(`📊 Found ${dailyRecords.length} LP users`);
+  
 
   if (!dailyRecords.length) return;
 
@@ -92,7 +92,7 @@ const withdrawalMap = Object.fromEntries(
 );
 
 
-  console.log(`📦 Loaded ${ledgers.length} ledgers`);
+  
 
   const ledgerByUserId = new Map();
   const ledgerByUhid = new Map();
@@ -116,7 +116,7 @@ const withdrawalMap = Object.fromEntries(
     (await BoostReward.find({ ts: rewardDate }).select("userId")).map(a => a.userId.toString())
   );
 
-  console.log("🧮 Existing reward rows fetched");
+  
 
   // ----------------------------------------------------
   // PREPARE BULK ARRAYS
@@ -331,7 +331,7 @@ if (effectiveLpBase < 0) {
   `);
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected.");
+  
 }
 
 distributeRewards();

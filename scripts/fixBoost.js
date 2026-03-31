@@ -12,7 +12,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -21,10 +21,10 @@ const connectDB = async () => {
 
 const main = async () => {
     await connectDB();
-    console.log('Processing boost credits...');
+    
 
     const deposits = await LedgerRow.find({ eventType: 'LP_DEPOSIT_FROM_XAMAN' }).sort({ ts: 1 });
-    console.log(`Found ${deposits.length} LP_DEPOSIT_FROM_XAMAN events to process.`);
+    
     let creditCount = 0;
     let creditsTobeAdded = [];
     let creditsAlreadyAdded = [];
@@ -107,7 +107,7 @@ const main = async () => {
         //   if (legacy) continue;     
 
         // // 3. If no correct or legacy bonus was found, create a new one.
-        // console.log(`Crediting sponsor ${sponsorId} for deposit ${deposit._id} from user ${deposit.userId}`);
+        // 
 
         // const upsert = await LedgerRow.updateOne(
         //     { eventType: 'BOOST_BONUS', refId: deposit._id },   // unique filter
@@ -130,7 +130,7 @@ const main = async () => {
         //       { userId: sponsorId },
         //       { $inc: { 'wallets.boost': expectedBonus } }
         //     );
-        //     console.log(`Credited ${expectedBonus} to sponsor ${sponsorId}`);
+        //     
         //   }
         // find users.find({sponsorId: sponsorId})
         const sponsor = await User.findOne({_id: sponsorId});
@@ -145,7 +145,7 @@ const main = async () => {
           // add decimal128 to totalAmount
           totalAmount = addDecimal128(totalAmount, expectedBonusD128);
           totalDeposits = addDecimal128(totalDeposits, depositAmountD128);
-       //   console.log(sponsor, sponsorId);
+       //   
 
         //   console.log({
         //     userId: sponsor.username,
@@ -157,13 +157,13 @@ const main = async () => {
         
     }
 
-    console.log('Finished processing boost credits.');
-    console.log(`Total credits: ${creditCount}`);
-    console.log(`Total deposits: ${deposits.length}`);
-    console.log(`Credits to be added: ${creditsTobeAdded.length}`);
-    console.log(`Total amount: ${totalAmount}`);
-    console.log(`Total deposits: ${totalDeposits}`);
-    console.log(`Credits already added: ${creditsAlreadyAdded.length}`);
+    
+    
+    
+    
+    
+    
+    
     process.exit(0);
 }
 

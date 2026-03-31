@@ -84,7 +84,7 @@ async function updateLedgerWithdrawalFlags(allowedUhids) {
   const userIds = users.map(u => u._id);
 
   if (!userIds.length) {
-    console.log("⚠️ No users found for ledger update");
+    
     return;
   }
 
@@ -98,15 +98,15 @@ async function updateLedgerWithdrawalFlags(allowedUhids) {
     }
   );
 
-  console.log("✅ Ledger updated");
-  console.log(`➡️ Users affected: ${userIds.length}`);
-  console.log(`➡️ Ledgers modified: ${result.modifiedCount}`);
+  
+  
+  
 }
 
 async function run() {
   try {
     await connectDB();
-    console.log("✅ DB Connected");
+    
 
     // -----------------------------
     // OPTIONAL: pass parent via CLI
@@ -118,11 +118,11 @@ async function run() {
     let allowedUhids = null;
 
     if (parent) {
-      console.log(`👥 Resolving team for parent: ${parent}`);
+      
       teamMap = await resolveTeamWithLevels(parent);
 
       if (!teamMap || !teamMap.size) {
-        console.log("⚠️ No team found");
+        
         return;
       }
 
@@ -131,7 +131,7 @@ async function run() {
       await updateLedgerWithdrawalFlags(allowedUhids);
     }
 
-      console.log(`👥 Team size: ${allowedUhids.size}`);
+      
     }
 
     // ---------------------------------------
@@ -174,10 +174,10 @@ async function run() {
       );
     }
 
-    console.log(`📊 Records exported: ${finalRecords.length}`);
+    
 
     if (!finalRecords.length) {
-      console.log("⚠️ No records to export");
+      
       return;
     }
 
@@ -227,14 +227,14 @@ async function run() {
     const outputPath = path.join(reportsDir, fileName);
     await workbook.xlsx.writeFile(outputPath);
 
-    console.log(`📁 Report generated`);
-    console.log(`➡️ ${outputPath}`);
+    
+    
 
   } catch (err) {
     console.error("❌ Report generation failed:", err);
   } finally {
     await mongoose.disconnect();
-    console.log("🔌 DB Disconnected");
+    
     process.exit(0);
   }
 }

@@ -231,7 +231,7 @@ async function checkIfCreditedOnChain(destination, amountXrp, fromUTC, toUTC) {
 async function start() {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected successfully");
+    
 
     let logs = [];
 
@@ -239,7 +239,7 @@ async function start() {
       const single = await WithdrawalErrorLog.findById(SPECIFIC_ID).lean();
       if (single) logs.push(single);
       else {
-        console.log(`❌ No WithdrawalErrorLog found with ID: ${SPECIFIC_ID}`);
+        
         process.exit(1);
       }
     } else {
@@ -255,7 +255,7 @@ async function start() {
 
     if (LIMIT && logs.length > LIMIT) logs.length = LIMIT;
 
-    console.log(`\n📌 Found ${logs.length} log(s) to inspect.\n`);
+    
 
     const summary = {
       resolved: 0,
@@ -264,17 +264,17 @@ async function start() {
     };
 
     for (const log of logs) {
-      console.log("------------------------------------------------");
-      console.log(`🧾 Log ID: ${log._id}`);
-      console.log(`→ Destination: ${log.destinationAddress}`);
-      console.log(`→ Amount (XRP): ${safeNumber(log.amount)}`);
-      console.log(`→ uniqueTransactionId: ${log.uniqueTransactionId || "N/A"}`);
+      
+      
+      
+      
+      
 
       const amountXrp = safeNumber(log.amount);
       const destination = log.destinationAddress;
 
       if (!destination || !amountXrp) {
-        console.log("❌ Missing destination or amount; skipping.");
+        
         summary.unresolved++;
         continue;
       }
@@ -305,10 +305,10 @@ async function start() {
         summary.resolved++;
         summary.resolvedAmount += amountXrp;
 
-        console.log("✅ Marked as RESOLVED & COMPLETED");
+        
       } else {
         summary.unresolved++;
-        console.log("🟡 No matching on-chain payment found in this date range.");
+        
       }
     }
 

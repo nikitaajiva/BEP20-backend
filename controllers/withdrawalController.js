@@ -433,7 +433,7 @@ if (!locked) {
   const { totalDeposits, totalWithdrawals } = await getUserChainTotals(userId);
   const projectedWithdrawals = addDecimal128(totalWithdrawals, amountD128);
 
-  console.log("ZERO_RISK check totalDeposits:", totalDeposits.toString(), " projectedWithdrawals:", projectedWithdrawals.toString());
+  
 
           // ✅ If deposits > projected withdrawals, also debit from Community Rewards
           if (compareDecimal128(totalDeposits, projectedWithdrawals) > 0) {
@@ -464,7 +464,7 @@ if (!locked) {
               debitFromCR
             );
 
-              console.log(`🔄 Debited ${debitFromCR.toString()} from COMMUNITY_REWARDS due to ZERO_RISK withdrawal`);
+              
             }
           }
                   // ** DECREASE UPLINE TEAM LP **
@@ -678,7 +678,7 @@ if (!locked) {
                 ecosystemFeeDeduction = roundTo6Decimal128(ecosystemFeeDeduction);
               }
 
-              console.log("🌿 Final Fee Applied:", ecosystemFeeDeduction.toString(), "Remaining Transfer:", amountD128.toString());
+              
 
 
                 console.log(
@@ -692,7 +692,7 @@ if (!locked) {
                   "\n - finalTransfer:", amountD128.toString()
                 );
         } else {
-        console.log("🌿 No Ecosystem Fee triggered — withdrawals <= deposits");
+        
         }
 
 
@@ -732,7 +732,7 @@ if (!locked) {
         }
         // Step 2: Apply 10% extra deduction on the remaining amount
         const extraDeduction = multiplyDecimal128(remainingAmountD128, "0.1");
-        //console.log(extraDeduction,amountD128,"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+        //
         //  amountWithdraw = subtractDecimal128(amountD128, extraDeduction);
         newBalance = ledger.wallets.communityRewards;
 
@@ -774,7 +774,7 @@ if (!locked) {
 // 🌿 (NEW) Pre-create Ecosystem Fee entry BEFORE chain send
 // ------------------------------------------------------------
 let EcosystemFeeEntry = null;
-console.log("ecosystemFeeDeduction (outer) ===== ", ecosystemFeeDeduction);
+
 
 // Only proceed if fee is applicable and > 0
 if (ecosystemFee === true && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
@@ -788,12 +788,12 @@ if (ecosystemFee === true && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0
       status: "INITIATED",
       createdAt: new Date(),
     });
-    console.log(`🌿 Ecosystem Fee entry pre-created: ${EcosystemFeeEntry._id}`);
+    
   } catch (ecoCreateErr) {
     console.error("⚠️ Failed to pre-create Ecosystem Fee entry:", ecoCreateErr);
   }
 } else {
-  console.log("🌿 Skipping Ecosystem Fee creation — fee is 0.00");
+  
 }
 
 // ------------------------------------------------------------
@@ -833,7 +833,7 @@ try {
             txDate: new Date().toISOString(),
         });
 
-        console.log(`✅ USDT transfer succeeded: ${chainTxHash}`);
+        
     }
 
 } catch (chainError) {

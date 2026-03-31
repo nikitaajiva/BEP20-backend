@@ -3,11 +3,11 @@ const Outbox = require('../models/Outbox');
 
 // Placeholder for actual event handlers
 const eventHandlers = {
-    // LP_DEPOSIT: async (payload, session) => { console.log('Processing LP_DEPOSIT:', payload); },
-    // REF_DEPOSIT: async (payload, session) => { console.log('Processing REF_DEPOSIT:', payload); },
-    // DAILY_ROI_USER: async (payload, session) => { console.log('Processing DAILY_ROI_USER:', payload); },
-    // ROI_CASCADE: async (payload, session) => { console.log('Processing ROI_CASCADE:', payload); },
-    // AIRDROP_EXPIRY_CHECK: async (payload, session) => { console.log('Processing AIRDROP_EXPIRY_CHECK:', payload); }
+    // LP_DEPOSIT: async (payload, session) => {  },
+    // REF_DEPOSIT: async (payload, session) => {  },
+    // DAILY_ROI_USER: async (payload, session) => {  },
+    // ROI_CASCADE: async (payload, session) => {  },
+    // AIRDROP_EXPIRY_CHECK: async (payload, session) => {  }
 };
 
 class OutboxProcessor {
@@ -21,7 +21,7 @@ class OutboxProcessor {
 
     registerHandler(eventType, handler) {
         eventHandlers[eventType] = handler;
-        console.log(`Handler registered for ${eventType}`);
+        
     }
 
     async processEvent(event, session) {
@@ -37,7 +37,7 @@ class OutboxProcessor {
         if (this.isPolling) return;
         this.isPolling = true;
 
-        // console.log('OutboxProcessor: Polling for events...');
+        // 
 
         const eventsToProcess = await Outbox.find({
             status: { $in: ['PENDING', 'RETRY'] },
@@ -47,7 +47,7 @@ class OutboxProcessor {
         .limit(this.batchSize);
 
         if (eventsToProcess.length > 0) {
-            console.log(`OutboxProcessor: Found ${eventsToProcess.length} event(s) to process.`);
+            
         }
 
         for (const event of eventsToProcess) {
@@ -59,12 +59,12 @@ class OutboxProcessor {
                     event.lastAttemptTs = new Date();
                     await event.save({ session });
 
-                    console.log(`OutboxProcessor: Processing event ${event._id} of type ${event.eventType}`);
+                    
                     await this.processEvent(event, session);
 
                     event.status = 'DONE';
                     await event.save({ session });
-                    console.log(`OutboxProcessor: Event ${event._id} processed successfully.`);
+                    
                 });
             } catch (error) {
                 console.error(`OutboxProcessor: Error processing event ${event._id}:`, error.message);
@@ -79,7 +79,7 @@ class OutboxProcessor {
                     // Exponential backoff for retries, e.g., 1m, 2m, 4m, 8m, 16m for 5 retries
                     const retryDelay = Math.pow(2, event.tryCount -1 ) * 60 * 1000; // in milliseconds
                     event.nextRunTs = new Date(Date.now() + retryDelay);
-                    console.log(`OutboxProcessor: Event ${event._id} scheduled for retry at ${event.nextRunTs}. Attempt ${event.tryCount}`);
+                    
                 }
                 await event.save(); // Save outside transaction as the transaction would have aborted
             } finally {
@@ -93,7 +93,7 @@ class OutboxProcessor {
     }
 
     start() {
-        console.log('OutboxProcessor: Starting polling...');
+        
         // Check MONGODB_URI before starting
         if (!process.env.MONGODB_URI) {
             console.error('OutboxProcessor: MONGODB_URI is not defined. Worker cannot start.');
@@ -107,14 +107,14 @@ class OutboxProcessor {
         if (this.timeoutId) {
             clearTimeout(this.timeoutId);
             this.timeoutId = null;
-            console.log('OutboxProcessor: Polling stopped.');
+            
         }
         this.isPolling = false; // Ensure it stops trying to poll
     }
 }
 
 async function processOutboxEvent(event) {
-    console.log(`Processing event: ${event._id}, type: ${event.eventType}`);
+    
     let handler;
     // Note: Handlers are now passed in the processQueue call
     

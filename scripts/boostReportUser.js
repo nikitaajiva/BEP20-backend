@@ -69,7 +69,7 @@ async function exportUserExcel(userId, filename) {
     .lean();
 
   if (!events.length) {
-    console.log(`⚠️  No ledger rows found for userId=${userId}`);
+    
     return null;
   }
 
@@ -104,8 +104,8 @@ async function exportUserExcel(userId, filename) {
   // force end of day 23:59:59 UTC
   lpDepositEndDate.setUTCHours(23, 59, 59, 999);
 
-  console.log("🚀 First LP Deposit Date:", firstLpDepositDate.toISOString());
-  console.log("⏳ LP Deposit End Date:", lpDepositEndDate.toISOString());
+  
+  
 }
 
 // --- Main Loop ---
@@ -145,7 +145,7 @@ await Ledger.updateOne(
   {userId },
   { $set: { "limits.boostLimit.cap": cumulativeLP } }
 );
-//console.log(`✅ Updated user ${userId} wallets.boost to ${cumulativeLP}`);
+//
 
   // Push LP limit for this date after adding row
   lpLimitRows.push({ date, cumulativeLP });
@@ -155,7 +155,7 @@ await Ledger.updateOne(
 
   if (filename) {
     await workbook.xlsx.writeFile(filename);
-    console.log(`✅ User report written: ${filename}`);
+    
   }
 
 return {
@@ -176,10 +176,10 @@ async function exportChildrenExcel(parentUhid, filename, startDate, endDate, lpL
     { $match: { parent: parentUhid, level: 1 } },
     { $group: { _id: "$parent", children: { $push: "$child" } } },
   ]);
-  // console.log(lpLimitRows,"Rows to show");
+  // 
 
   if (!result.length || !result[0].children.length) {
-    console.log("⚠️  No children found for parent:", parentUhid);
+    
     return { closingBalance: 0, childrenCount: 0, rowsCount: 0 };
   }
 
@@ -264,7 +264,7 @@ const lpLimitRow = lpMap.get(toDayKey(date)) ?? 0;
         closingBalance,
         lpLimit: lpLimitRow,
       });
-    // console.log("Date:", date, "Activity:", activity, "LP Limit:", lpLimitRow, "Closing Balance:", closingBalance);
+    // 
 
     } else if (activity === "ZERO_RISK") {
       let withdrawLeft = amount;
@@ -302,7 +302,7 @@ const lpLimitRow = lpMap.get(toDayKey(date)) ?? 0;
 
   if (filename) {
     await workbook.xlsx.writeFile(filename);
-    console.log(`✅ Children report written: ${filename}`);
+    
   }
 
   return { closingBalance, childrenCount: users.length, rowsCount: ws.rowCount };
@@ -332,8 +332,8 @@ const lpLimitRow = lpMap.get(toDayKey(date)) ?? 0;
 
 const firstDate = userExport?.firstDate || user.firstLpDepositTs || null;
 const lpDepositEndDate = userExport?.lpDepositEndDate || null; // now this will not be null
-console.log("User LP Start Date:", firstDate);
-console.log("LP Deposit End Date:", lpDepositEndDate);
+
+
 
 
   // Pass both dates and LP limit rows to children sheet

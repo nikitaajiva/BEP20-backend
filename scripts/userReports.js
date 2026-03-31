@@ -16,7 +16,7 @@ const EcosystemFee = require("../models/EcosystemFee");
 async function main() {
   try {
     await connectDB();
-    console.log("Connected to DB");
+    
 
     // --- Only users with LP > 0 ---
     const ledgers = await Ledger.find({ "wallets.lp": { $gt: 0 } }).lean();
@@ -27,7 +27,7 @@ async function main() {
       console.error("No users with LP > 0 found in DB.");
       process.exit(1);
     }
-    console.log(`Found ${users.length} users with LP > 0. Generating reports...`);
+    
 
     const ledgerMap = Object.fromEntries(ledgers.map(l => [l.userId.toString(), l]));
 
@@ -216,10 +216,10 @@ const autoWithFeeMap = Object.fromEntries(
     worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
     await workbook.xlsx.writeFile(filePath);
-    console.log(`Report saved: ${filePath}`);
+    
 
     await mongoose.disconnect();
-    console.log("Done");
+    
   } catch (err) {
     console.error("Error:", err);
     process.exit(1);

@@ -37,7 +37,7 @@ function getUtcDateRange(dateStr) {
 async function run() {
   try {
     await connectDB();
-    console.log("✅ DB Connected");
+    
 
     const { start, end } = getUtcDateRange(TARGET_DATE);
 
@@ -48,10 +48,10 @@ async function run() {
       createdAt: { $gte: start, $lte: end }
     }).lean();
 
-    console.log(`📦 LP rewards on ${TARGET_DATE}: ${lpRewards.length}`);
+    
 
     if (!lpRewards.length) {
-      console.log("⚠️ No LP rewards found");
+      
       return;
     }
 
@@ -87,12 +87,12 @@ async function run() {
     // ---------------------------------------
     // Output
     // ---------------------------------------
-    console.log("\n❌ Missing DAILY_LP_REWARDS LedgerRows\n");
+    
 
     if (!missing.length) {
-      console.log("✅ All LP rewards are properly ledgered");
+      
     } else {
-      console.log(`🚨 Missing count: ${missing.length}\n`);
+      
 
       missing.forEach((m, i) => {
         console.log(
@@ -105,7 +105,7 @@ async function run() {
     console.error("❌ Script error:", err);
   } finally {
     await mongoose.disconnect();
-    console.log("\n🔌 DB Disconnected");
+    
     process.exit(0);
   }
 }

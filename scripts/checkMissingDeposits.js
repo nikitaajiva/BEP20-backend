@@ -28,7 +28,7 @@ const logFile = getLogFileName();
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`;
-  console.log(line);
+  
   fs.appendFileSync(logFile, line + "\n");
 }
 

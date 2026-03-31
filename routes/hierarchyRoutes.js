@@ -36,23 +36,23 @@ router.get("/users/:uhid/descendants", validateUhId, async (req, res, next) => {
     const { uhid: paramUhid } = req.params;
     const { viewerUhid, search } = req.query;
 
-    console.log("▶️ [START] /users/:uhid/descendants route hit");
-    console.log("📌 Request Params UHID:", paramUhid);
-    console.log("📌 Query - viewerUhid:", viewerUhid, "| search:", search);
+    
+    
+    
 
     let targetUhid = paramUhid;
     let user = null;
     let result = [];
 
     if (search && search.trim() !== "") {
-      console.log("🔍 Performing search for username:", search.trim());
+      
 
       user = await searchUsername(search.trim(), paramUhid);
-      console.log("🔎 Search Result (user):", user);
+      
 
       if (user && user.uhid) {
         targetUhid = user.uhid;
-        console.log("✅ User found in team. Using targetUhid:", targetUhid);
+        
 
         // 1. Get descendants under searched user
         const descendantsList = await descendants(targetUhid, viewerUhid);
@@ -107,18 +107,18 @@ router.get("/users/:uhid/descendants", validateUhId, async (req, res, next) => {
           : [mergedUserData, ...descendantsList];
 
         result = updatedDescendants;
-        console.log("📌 Full user data merged correctly.");
+        
       } else {
         console.warn("⚠️ User not found or not in team.");
         return res.json({ user: null, uhid: null, descendants: [] });
       }
     } else {
-      console.log("📤 No search keyword, fetching normal descendants...");
+      
       result = await descendants(paramUhid, viewerUhid);
-      console.log("📥 Descendants fetched:", result.length);
+      
     }
 
-    console.log("✅ Sending response with uhid:", targetUhid);
+    
     res.json({
       user,
       uhid: targetUhid,
@@ -164,7 +164,7 @@ router.get(
         levelN,
         viewerUhid
       );
-      console.log("levelSelfLpSum", levelSelfLpSum);
+      
       res.json({
         uhid: targetUhid,
         level: levelN,

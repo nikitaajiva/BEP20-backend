@@ -7,7 +7,7 @@ const moment = require('moment');
 
 const createDailyLpSnapshot = async () => {
     try {
-        console.log('Starting daily LP snapshot creation...');
+        
         
         // Get today's date at midnight
         const today = moment().startOf('day').toDate();
@@ -63,7 +63,7 @@ const createDailyLpSnapshot = async () => {
             .collection('dailyuserlps')
             .countDocuments({ date: today });
 
-        console.log(`Successfully created/updated ${recordCount} LP snapshot records for ${moment(today).format('YYYY-MM-DD')}`);
+        
 
         return recordCount;
     } catch (error) {
@@ -77,7 +77,7 @@ const run = async () => {
         await connectDB();
         await createDailyLpSnapshot();
         await mongoose.disconnect();
-        console.log('Script completed successfully');
+        
         process.exit(0);
     } catch (error) {
         console.error('Script failed:', error);

@@ -35,8 +35,8 @@ async function main() {
 
   try {
     await connectDB();
-    console.log("✅ Connected to DB");
-    console.log(`🚦 MODE: ${DRY_RUN ? "DRY RUN" : "LIVE"}`);
+    
+    
 
     /* ===============================
        STEP 1: AGGREGATE DEPOSITS
@@ -87,17 +87,17 @@ async function main() {
     }
 
     if (!usersToZero.length) {
-      console.log("ℹ️ No users matched zeroing rules");
+      
       process.exit(0);
     }
 
-    console.log(`🚨 Users to ZERO LP & ZeroRisk: ${usersToZero.length}`);
+    
 
     // Preview sample
-    console.log("🔍 Sample userIds:", usersToZero.slice(0, 5));
+    
 
     if (DRY_RUN) {
-      console.log("🟡 DRY RUN ENABLED — NO DATABASE CHANGES");
+      
       process.exit(0);
     }
 
@@ -123,7 +123,7 @@ async function main() {
       ]
     );
 
-    console.log(`💾 Backup stored for ${backupRes.modifiedCount} ledgers`);
+    
 
     /* ===============================
        STEP 5: ZERO LP & ZERO RISK
@@ -138,10 +138,10 @@ async function main() {
       }
     );
 
-    console.log(`🔥 Zeroed wallets for ${zeroRes.modifiedCount} ledgers`);
+    
 
     await mongoose.disconnect();
-    console.log("✅ DONE — LIVE UPDATE COMPLETED");
+    
     process.exit(0);
 
   } catch (err) {

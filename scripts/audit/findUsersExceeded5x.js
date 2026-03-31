@@ -12,7 +12,7 @@ const User = require("../../models/User");
 
 async function generate5xExcelReport() {
   await connectDB();
-  console.log("📊 Generating 5× limit Excel report...");
+  
 
   // Ensure reports directory exists
   const reportsDir = path.join(__dirname, "..", "..", "reports");
@@ -29,7 +29,7 @@ async function generate5xExcelReport() {
   }).lean();
 
   if (!ledgers.length) {
-    console.log("✅ No users exceeded or reached 5× cap");
+    
     return;
   }
 
@@ -98,18 +98,18 @@ async function generate5xExcelReport() {
   const filePath = path.join(reportsDir, fileName);
   await workbook.xlsx.writeFile(filePath);
 
-  console.log("========================================");
-  console.log(`📄 Excel file created: ${filePath}`);
-  console.log(`Total reached/exceeded : ${ledgers.length}`);
-  console.log(`Total exceeded (ERROR) : ${exceededCount}`);
-  console.log("========================================");
+  
+  
+  
+  
+  
 
   await mongoose.disconnect();
 }
 
 generate5xExcelReport()
   .then(() => {
-    console.log("✅ Excel report generation completed");
+    
     process.exit(0);
   })
   .catch(err => {

@@ -30,12 +30,12 @@ const run = async () => {
       ]
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} records (${start.toISOString()} → shifted back 1 day)`);
+    
   } catch (err) {
     console.error("❌ Error running update:", err);
   } finally {
     await mongoose.disconnect();
-    console.log("🔌 Disconnected from MongoDB.");
+    
   }
 };
 

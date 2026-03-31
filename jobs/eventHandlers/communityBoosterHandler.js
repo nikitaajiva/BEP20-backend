@@ -53,7 +53,7 @@ async function checkCascadeRequirements(userUhid, level) {
     const selfLP = ledger ? parseFloat(ledger.wallets.lp.toString()) : 0;
 
     const requirement = CASCADE_REQUIREMENTS[level - 1];
-   // console.log(`[CommunityBooster] Checking cascade requirements for user ${userUhid} at level ${level}: Direct count: ${directCount}, Self LP: ${selfLP}, requirement: ${requirement.minDirects}, ${requirement.minSelfLP}`);
+   // 
     return directCount >= requirement.minDirects && selfLP >= requirement.minSelfLP;
 }
 
@@ -68,7 +68,7 @@ const handleCommunityBooster = async (payload) => {
         // Get the depositor's info
         const depositor = await User.findById(depositorUserId).lean();
         if (!depositor) {
-            console.log(`[CommunityBooster] Depositor ${depositorUserId} not found`);
+            
             return;
         }
 
@@ -94,13 +94,13 @@ const handleCommunityBooster = async (payload) => {
                 break;
             }
 
-            console.log(`[CommunityBooster] Processing upline ${uplineUser.username} at level ${level}`);
+            
             processedUplines.add(uplineUser._id.toString());
 
             // First check if this level is open based on cascade requirements
             const levelIsOpen = await checkCascadeRequirements(uplineUser.uhid, level);
             if (!levelIsOpen) {
-                console.log(`[CommunityBooster] ${uplineUser.username} does not meet cascade requirements for level ${level}`);
+                
                 // Move to next upline
                 currentChildUhid = uplineUser.uhid;
                 level++;
@@ -119,7 +119,7 @@ const handleCommunityBooster = async (payload) => {
                     const meetsTeamRequirement = teamVolume >= tierConfig.teamRequired;
 
                     if (meetsDirectRequirement && meetsTeamRequirement) {
-                        console.log(`[CommunityBooster] ${uplineUser.username} meets requirements for level ${level}`);
+                        
                         
                         // Calculate bonus
                         const bonusRateD128 = ensureDecimal128(tierConfig.baseRate.toString());
@@ -155,7 +155,7 @@ const handleCommunityBooster = async (payload) => {
                             await uplineLedger.save();
                         }
 
-                        console.log(`[CommunityBooster] Awarded ${bonusAmount.toString()} USDT to ${uplineUser.username} (Level ${level})`);
+                        
                     }
                 }
             }

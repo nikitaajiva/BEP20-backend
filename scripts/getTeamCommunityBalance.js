@@ -12,7 +12,7 @@ const Level = require("../models/Level");
 async function processUser(uhid, generateExcel = true, showLog = true) {
   const parentUser = await User.findOne({ uhid }).select("_id uhid username").lean();
   if (!parentUser) {
-    if (showLog) console.log(`❌ No user found for UHID: ${uhid}`);
+    if (showLog) 
     return { teamCount: 0, totalCommunityBalance: 0, parentSelfLp: 0 };
   }
 
@@ -115,7 +115,7 @@ async function processUser(uhid, generateExcel = true, showLog = true) {
 
     const filePath = path.join(reportsDir, `team_lp_${uhid}.xlsx`);
     await workbook.xlsx.writeFile(filePath);
-    console.log(`📦 Excel exported: ${filePath}`);
+    
   }
 
   return { teamCount: userData.length, totalCommunityBalance, parentSelfLp };
@@ -129,20 +129,20 @@ async function main() {
     if (uhid) {
       // Single user → Excel + log
       const result = await processUser(uhid, true, true);
-      console.log("📊 Summary:", result);
+      
     } else {
       // Bulk mode → all users, no Excel
       const allUsers = await User.find({}).select("uhid").lean();
-      console.log(`🔄 Processing ${allUsers.length} users...`);
+      
 
       let i = 0;
       for (const u of allUsers) {
         i++;
         await processUser(u.uhid, false, true);
-        console.log(`Progress: ${i}/${allUsers.length}`);
+        
       }
 
-      console.log("✅ Finished updating all users (no Excel generated).");
+      
     }
   } finally {
     await mongoose.disconnect();

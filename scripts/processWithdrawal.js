@@ -122,7 +122,7 @@ if (DATE_SINGLE) {
   dateStart = d;
   dateEnd = new Date(d);
   dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
-  console.log(`📅 Processing ONLY date: ${DATE_SINGLE}`);
+  
 }
 
 // RANGE
@@ -136,7 +136,7 @@ else if (DATE_FROM && DATE_TO) {
   dateStart = d1;
   dateEnd = new Date(d2);
   dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
-  console.log(`📅 Processing RANGE: ${DATE_FROM} → ${DATE_TO}`);
+  
 }
 
 // DEFAULT: TODAY
@@ -144,7 +144,7 @@ else {
   const now = new Date();
   dateStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   dateEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-  console.log("📅 Processing TODAY (UTC)");
+  
 }
 
 // ----------------------------------------------
@@ -196,14 +196,14 @@ async function checkIfAlreadyProcessed(destination, amountXrp, dateStart, dateEn
       const deliveredXrp = dropsToXRP(drops);
 
       if (Number(deliveredXrp.toFixed(6)) === Number(amountXrp.toFixed(6))) {
-        console.log(`🟢 Already processed TODAY. TX: ${tx.hash}`);
+        
         return tx.hash;
       }
     }
 
     return false;
   } catch (err) {
-    console.log("⚠️ QuickNode check failed:", err.message);
+    
     return false;
   }
 }
@@ -214,7 +214,7 @@ async function checkIfAlreadyProcessed(destination, amountXrp, dateStart, dateEn
 async function start() {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected successfully");
+    
 
     let logs = [];
 
@@ -222,7 +222,7 @@ async function start() {
     if (SPECIFIC_ID) {
       const doc = await WithdrawalErrorLog.findById(SPECIFIC_ID).lean();
       if (!doc) {
-        console.log(`❌ No record found with ID: ${SPECIFIC_ID}`);
+        
         process.exit(1);
       }
       logs.push(doc);
@@ -237,29 +237,29 @@ async function start() {
 
       if (WALLET_FROM) {
         query.walletFrom = WALLET_FROM;
-        console.log(`🎯 Filtering records for walletFrom = ${WALLET_FROM}`);
+        
       }
 
       logs = await WithdrawalErrorLog.find(query).lean();
     }
 
-    console.log(`📌 Loaded ${logs.length} logs matching criteria`);
+    
 
     // MAX AMOUNT FILTER
     if (MAX_AMOUNT !== null) {
       logs = logs.filter((l) => Number(l.amount) <= MAX_AMOUNT);
-      console.log(`🔍 After maxAmount=${MAX_AMOUNT} → ${logs.length} logs`);
+      
     }
 
     // LIMIT
     if (LIMIT && logs.length > LIMIT) logs.length = LIMIT;
 
-    console.log(`📌 Final logs to process: ${logs.length}\n`);
+    
 
     // MAIN PROCESS LOOP
     for (const log of logs) {
-      console.log("------------------------------------------------");
-      console.log(`🧾 Processing Log: ${log._id}`);
+      
+      
 
       const amountXrp = Number(log.amount);
       const dest = log.destinationAddress;
@@ -294,14 +294,14 @@ async function start() {
 
       // DRY MODE BEHAVIOR
       if (DRY_MODE) {
-        console.log(`🟡 DRY RUN → WOULD SEND ${amountXrp} XRP`);
+        
         summary.pendingCount++;
         summary.pendingAmount += amountXrp;
         continue;
       }
 
       // SEND XRP
-   //   console.log("💸 Sending XRP...");
+   //   
       // const result = await sendXrp({
       //   idempotency_key: log.uniqueTransactionId,
       //   withdrawal_id: log._id,
@@ -311,7 +311,7 @@ async function start() {
 
       // const txHash = result?.txHash;
       // SEND XRP (SAFE – does not stop loop)
-console.log("💸 Sending XRP...");
+
 let txHash = null;
 const retryIdempotencyKey = FORCE_RETRY
   ? generateRetryId(log.uniqueTransactionId)
@@ -370,11 +370,11 @@ const result = await sendXrp({
         const user = await User.findById(log.userId).lean();
 
         if (user) {
-          console.log(`👤 User: ${user.username}`);
-          console.log(`🆔 UHID: ${user.uhid}`);
+          
+          
         }
       } else {
-        console.log("❌ sendXrp failed");
+        
 
         summary.failedCount++;
         summary.failedAmount += amountXrp;

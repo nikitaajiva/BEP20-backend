@@ -57,7 +57,7 @@ async function run() {
     xRank: { $ne: null }
   }).select("_id uhid xRank").lean();
 
-  console.log(`📌 Found ${users.length} users with xRank`);
+  
 
   for (const user of users) {
     const teamLP = await getTeamLPByUhid(String(user.uhid));
@@ -75,7 +75,7 @@ async function run() {
     );
   }
 
-  console.log("🎯 Team LP snapshot completed");
+  
   process.exit(0);
 }
 

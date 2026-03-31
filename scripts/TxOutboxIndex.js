@@ -9,6 +9,6 @@ const TxOutbox = require('../models/TxOutbox');
     { unique:true, sparse:true }
   );
   await TxOutbox.collection.createIndex({ hash:1 }, { unique:true });
-  console.log('Indexes created – all set!');
+  
   process.exit(0);
 })();

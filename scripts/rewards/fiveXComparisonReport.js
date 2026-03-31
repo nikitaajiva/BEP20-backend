@@ -247,9 +247,9 @@ const generateReport = async ({ uhid = null }) => {
   const filePath = path.join(__dirname, fileName);
   await workbook.xlsx.writeFile(filePath);
 
-  console.log(`✅ Report generated`);
-  console.log(`Users included: ${included}`);
-  console.log(`📁 ${filePath}`);
+  
+  
+  
 
   await mongoose.disconnect();
 };

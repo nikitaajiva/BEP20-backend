@@ -23,14 +23,14 @@ const FIVE_X_MULTIPLIER = 5;
 
 const distributeRewards = async () => {
     await connectDB();
-    console.log('Starting rewards distribution script...');
+    
 
     const ledgers = await Ledger.find({ 'wallets.lp': { $gt: new Decimal128('0') } });
-    console.log(`Found ${ledgers.length} ledgers with LP > 0 to process.`);
+    
 
     for (const ledger of ledgers) {
         try {
-            console.log(`\n--- Processing User: ${ledger.uhid} ---`);
+            
 
             // --- 1. Update Limit Caps ---
             const lpBalance = toFloat(ledger.wallets.lp);
@@ -73,11 +73,11 @@ const distributeRewards = async () => {
                 cappedLpReward *= reductionFactor;
                 cappedAirdropReward *= reductionFactor;
                 cappedBoostReward *= reductionFactor;
-                console.log(`5X Limit applied. Reward reduced by factor: ${reductionFactor}`);
+                
             }
 
             if (finalTotalReward <= 0) {
-                console.log(`No rewards to distribute for user ${ledger.uhid}. Skipping.`);
+                
                 await ledger.save(); // Save the updated caps even if no reward
                 continue;
             }
@@ -95,7 +95,7 @@ const distributeRewards = async () => {
             ledger.limits.fiveXLimit.used = fromFloat(fiveXLimitUsed + finalTotalReward);
 
             await ledger.save();
-            console.log(`Saved ledger for ${ledger.uhid}. Total reward: ${finalTotalReward.toFixed(8)}`);
+            
 
             // --- 6. Create Transaction History ---
             const ledgerRows = [];
@@ -119,7 +119,7 @@ const distributeRewards = async () => {
 
             if (ledgerRows.length > 0) {
                 await LedgerRow.insertMany(ledgerRows);
-                console.log(`Created ${ledgerRows.length} history entries for user ${ledger.uhid}.`);
+                
             }
 
         } catch (error) {
@@ -127,7 +127,7 @@ const distributeRewards = async () => {
         }
     }
 
-    console.log('\nRewards distribution script finished.');
+    
     await mongoose.disconnect();
 };
 

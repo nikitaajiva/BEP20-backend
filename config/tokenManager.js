@@ -27,7 +27,7 @@ async function fetchNewToken() {
     cachedToken = { token, expiresAt };
     process.env.SECURE_TOKEN = token;
 
-    console.log(`✅ SECURE_TOKEN fetched. Expires at: ${expiresAt}`);
+    
   } catch (err) {
     console.error("❌ Failed to fetch SECURE_TOKEN:", err.message);
   }
@@ -36,7 +36,7 @@ async function fetchNewToken() {
 // Get valid token (only refresh if expired)
 async function getValidToken() {
   if (isTokenExpired()) {
-    console.log("🔄 Token expired or missing — fetching new one...");
+    
     await fetchNewToken();
   } else {
     // Keep using current one
@@ -47,11 +47,11 @@ async function getValidToken() {
 
 // Schedule check every 12 hours — but only refresh if expired
 cron.schedule("0 */12 * * *", async () => {
-  console.log("🕒 Scheduled token check triggered...");
+  
   if (isTokenExpired()) {
     await fetchNewToken();
   } else {
-    console.log("✅ Existing SECURE_TOKEN still valid — no refresh needed.");
+    
   }
 });
 

@@ -239,45 +239,45 @@ async function checkRanksForUHID(uhid) {
   // const childRankCounts = await buildChildRankCounts(parent.uhid);
     const { counts: childRankCounts, details: childRankDetails } =
   await buildChildRankCounts(parent.uhid);
-  console.log(`\n=== Checking X-Ranks for UHID ${parent.uhid} (${parent.username || "N/A"}) ===`);
-  console.log(`Child Rank Counts: ${JSON.stringify(childRankCounts)}\n`);
+  
+  
 
 
 
 
-console.log(`Child Rank Counts: ${JSON.stringify(childRankCounts)}\n`);
+
 
   const parentSelfLP = await getSelfLpByUserId(parent._id);
-  console.log(`Parent Self LP: ${fmt(parentSelfLP)} XRP\n`);
+  
   const teamBreakdown = await getTeamLpBreakdown(parent.uhid);
-  console.log("Team LP Breakdown by Level:");
+  
   Object.entries(teamBreakdown).forEach(([lvl, total]) => {
-    console.log(`  ${lvl}: ${fmt(total)} XRP`);
+    
   });
   let highest = null;
 const legResults = await buildLegRankMap(parent.uhid);
 for (const rank of XRANKS) {
-  console.log(`--- ${rank.code} ---`);
+  
   const { autoPass, reason, qualifyingLegs } = checkAutoQual(rank.code, legResults, parentSelfLP);
 
   if (autoPass) {
-    console.log(`✅ QUALIFIED ${rank.code}`);
-    console.log(`   Reason: ${reason}`);
+    
+    
     // show legs & users
     qualifyingLegs.forEach((leg, i) => {
-      console.log(`   Leg ${i+1} (root ${leg.root}) contributed:`);
+      
       leg.users
         .filter(u => normalizeRank(u.xRank || u.xrank) === (
           rank.code === "X2" ? "X1" :
           rank.code === "X3" ? "X2" :
           rank.code === "X4" ? "X3" : "X4"
         ))
-        .forEach(u => console.log(`      - ${u.uhid} (${u.username})`));
+        .forEach(u => 
     });
     highest = rank.code;
     continue; // go to next rank
   } else if (reason) {
-    console.log(`❌ Auto rule failed: ${reason}`);
+    
     // ⚠️ DO NOT skip here → fall through to manual check below
   }
 
@@ -312,21 +312,21 @@ for (const rank of XRANKS) {
   const communityOk = totalCommunity >= rank.reqCommunity;
 
   if (selfOk && communityOk) {
-    console.log(`✅ QUALIFIED ${rank.code}`);
-    console.log(`   Reason: Self LP ${fmt(parentSelfLP)} ≥ ${rank.reqSelf} AND Community LP ${fmt(totalCommunity)} ≥ ${rank.reqCommunity}`);
-    console.log("   Breakdown per leg (capped at 1/3 rule):");
+    
+    
+    
     legContributions.forEach((leg, i) => {
-      console.log(`     Leg ${i+1} (${leg.uhid} - ${leg.username}): Self=${leg.self}, Team=${leg.team}, Total=${leg.total}, Counted=${leg.capped}`);
+      
     });
     highest = rank.code;
   } else {
-    console.log(`❌ NOT QUALIFIED ${rank.code}`);
-    console.log(`   Failed because: Self LP ${fmt(parentSelfLP)} vs Req ${rank.reqSelf}, Community LP ${fmt(totalCommunity)} vs Req ${rank.reqCommunity}`);
-    console.log("   Breakdown per leg (capped at 1/3 rule):");
+    
+    
+    
     legContributions.forEach((leg, i) => {
-      console.log(`     Leg ${i+1} (${leg.uhid} - ${leg.username}): Self=${leg.self}, Team=${leg.team}, Total=${leg.total}, Counted=${leg.capped}`);
+      
     });
-    console.log(`⛔ Stopping script for ${parent.uhid} at ${rank.code}`);
+    
     break;
   }
 }
@@ -340,9 +340,9 @@ for (const rank of XRANKS) {
   //   { $set: { xRank: finalRank } }
   // );
 
-  console.log("===================================================");
-  console.log(`Highest Achieved Rank for ${parent.uhid}: ${finalRank}`);
-  console.log("===================================================");
+  
+  
+  
 }
 
 // ---- Main ----
@@ -360,17 +360,17 @@ for (const rank of XRANKS) {
   try {
     if (uhid) {
       // Run for one UHID
-      console.log(`Running X-Rank calculation for UHID: ${uhid}`);
+      
       await checkRanksForUHID(uhid);
     } else {
       // Run for all users with LP > 0
-      console.log("Fetching all users with LP > 0...");
+      
       const ledgers = await Ledger.find({ "wallets.lp": { $gt: 0 } }, { userId: 1 }).lean();
       const userIds = ledgers.map((l) => l.userId);
 
       const users = await User.find({ _id: { $in: userIds } }, { uhid: 1 }).lean();
 
-      console.log(`Found ${users.length} users with LP > 0\n`);
+      
 
       for (const u of users) {
         try {
@@ -380,7 +380,7 @@ for (const rank of XRANKS) {
         }
       }
 
-      console.log("\n✅ Finished processing all users.");
+      
     }
   } catch (err) {
     console.error("Fatal error:", err);

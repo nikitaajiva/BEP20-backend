@@ -38,7 +38,7 @@ async function updateSponsorIds() {
       if (updateResult.matchedCount === 0) {
         console.warn(`Referred user not found: ${referred}`);
       } else {
-        console.log(`Updated ${referred} with sponsorId ${sponsorDoc._id}`);
+        
       }
     }
   } catch (error) {

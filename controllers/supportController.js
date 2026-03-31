@@ -485,7 +485,7 @@ exports.getUsdtTransactionDetails = async (req, res) => {
       });
     }
 
-    console.log("📡 Fetching BSC transaction details for:", transactionId);
+    
 
     const txDetails = await fetchAndParseUsdtTxAmount(transactionId);
 
@@ -597,14 +597,14 @@ exports.addFailedUsdtDepositsToUsdt = async (req, res) => {
     }
 
     let amount;
-    console.log("📡 Fetching transaction from BSC for tx:", tx_hash);
+    
 
     try {
       const transactiondata = await fetchAndParseUsdtTxAmount(tx_hash);
-      console.log("✅ BSC transaction data received:", transactiondata);
+      
 
       const fetchedAmount = ensureDecimal128(transactiondata.amount);
-      console.log("✅ Parsed amount from BSC:", fetchedAmount.toString());
+      
 
       if (!fetchedAmount || parseFloat(fetchedAmount.toString()) <= 0) {
         throw new Error("Fetched amount is invalid or zero");
@@ -614,7 +614,7 @@ exports.addFailedUsdtDepositsToUsdt = async (req, res) => {
 
       deposit.amount = amount.toString();
       await deposit.save();
-      console.log("💾 Deposit record updated with amount:", amount.toString());
+      
     } catch (err) {
       console.error("❌ Error fetching/parsing BSC amount:", err.message);
       return res.status(500).json({
@@ -689,7 +689,7 @@ exports.addFailedUsdtDepositsToUsdt = async (req, res) => {
     // Finalize deposit
     deposit.status = "completed";
     await deposit.save();
-    console.log("✅ Deposit status updated to 'completed'");
+    
 
     return res.status(200).json({
       success: true,
@@ -3789,8 +3789,8 @@ exports.exportDailyRewards = async (req, res) => {
     }
 
     if (teamUserIdSet) {
-      console.log("TEAM SIZE:", teamUserIdSet.size);
-      console.log("TEAM USER IDS (first 10):", [...teamUserIdSet].slice(0, 10));
+      
+      
     }
 
 

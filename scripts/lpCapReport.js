@@ -27,7 +27,7 @@ async function generateLpCapReport() {
   await connectDB();
 
   try {
-    console.log("🔍 Fetching ledgers with LP cap info...");
+    
 
      const ledgers = await Ledger.find({
       "wallets.lp": { $exists: true, $ne: null },
@@ -38,11 +38,11 @@ async function generateLpCapReport() {
     });
 
     if (!ledgers.length) {
-      console.log("⚠️ No records found with lpLimit.cap present");
+      
       process.exit(0);
     }
 
-    console.log(`✅ Found ${ledgers.length} ledger(s)`);
+    
 
     // Create workbook
     const workbook = new ExcelJS.Workbook();
@@ -95,7 +95,7 @@ async function generateLpCapReport() {
     const filePath = path.join(reportsDir, fileName);
 
     await workbook.xlsx.writeFile(filePath);
-    console.log(`📊 LP Cap Report generated successfully: ${filePath}`);
+    
 
     process.exit(0);
   } catch (err) {

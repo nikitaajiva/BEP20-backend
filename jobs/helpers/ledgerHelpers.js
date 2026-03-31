@@ -46,7 +46,7 @@ const createLedgerEntry = async ({
 async function getOrCreateLedger(userId) {
     let ledger = await Ledger.findById(userId);
     if (!ledger) {
-        console.log(`No ledger for user ${userId}, creating one.`);
+        
         // Note: The User.post('save') hook that also creates a ledger will not
         // be part of this session, so creating it here explicitly is necessary
         // for operations on users who might not have had a ledger before.

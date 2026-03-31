@@ -38,8 +38,8 @@ END.setUTCHours(0, 0, 0, 0);
 // ---------------- MAIN ----------------
 const revokeYesterdayAirdrops = async () => {
   await connectDB();
-  console.log("🚀 Revoking ALL Airdrop rewards (Yesterday UTC)");
-  console.log(`🗓 Range: ${START.toISOString()} → ${END.toISOString()}\n`);
+  
+  
 
   try {
     // 1️⃣ Group total airdrop per user
@@ -59,11 +59,11 @@ const revokeYesterdayAirdrops = async () => {
     ]);
 
     if (!users.length) {
-      console.log("✅ No airdrop rewards found for yesterday.");
+      
       return;
     }
 
-    console.log(`⚠ Found ${users.length} users with airdrop rewards\n`);
+    
 
     for (const u of users) {
       const userId = u._id;
@@ -71,7 +71,7 @@ const revokeYesterdayAirdrops = async () => {
 
       const ledger = await Ledger.findOne({ userId });
       if (!ledger) {
-        console.log(`❌ Ledger not found for user ${userId}, skipping`);
+        
         continue;
       }
 
@@ -116,7 +116,7 @@ const revokeYesterdayAirdrops = async () => {
         );
       }
 
-      console.log("✔ Ledger reversed safely");
+      
 
       // ---------------- DELETE REWARD DOCS ----------------
       await AirdropReward.deleteMany({
@@ -131,13 +131,13 @@ const revokeYesterdayAirdrops = async () => {
         ts: { $gte: START, $lt: END },
       });
 
-      console.log("🗑 Rewards + LedgerRows deleted\n");
+      
     }
   } catch (err) {
     console.error("❌ ERROR:", err);
   } finally {
     await mongoose.disconnect();
-    console.log("\n🎯 Airdrop revoke completed");
+    
   }
 };
 

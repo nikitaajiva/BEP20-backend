@@ -110,21 +110,21 @@ async function searchUsername(username, currentUserId) {
 
     while (currentSponsor) {
       if (currentSponsor.toString() === c_sponsorUser._id.toString()) {
-        console.log("before result");
+        
         return {
           _id: user._id,
           username: user.username,
           email: user.email,
           uhid: user.uhid,
         };
-        console.log("after result");
+        
       }
 
       const sponsorUser = await User.findById(currentSponsor)
         .select("sponsorId")
         .lean();
       if (!sponsorUser) break;
-      console.log("sponsorUser user", sponsorUser);
+      
       currentSponsor = sponsorUser.sponsorId;
     }
 

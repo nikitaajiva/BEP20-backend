@@ -99,20 +99,20 @@ async function processLedger(ledger, logFile) {
     ? ledger.pendingWithdrawal
     : [ledger.pendingWithdrawal];
 
-  console.log(`→ Processing ${pendingList.length} pending withdrawals for ${username} (UHID=${ledger.uhid})`);
+  
 
   const txs = await fetchAccountTx(userXrpAddress);
 
   for (const pw of pendingList) {
     const uniqueTxId = pw?.uniqueTransactionId;
     if (!uniqueTxId) {
-      console.log('⚠️ Skipping one withdrawal with no uniqueTransactionId');
+      
       logLine(logFile, { ts: new Date().toISOString(), userId, uhid: ledger.uhid, status: 'skipped', reason: 'no uniqueTransactionId' });
       continue;
     }
 
     if (!isOldEnough(pw.timestamp, 1)) {
-      console.log(`⏳ Skipping ${uniqueTxId}: pendingWithdrawal.timestamp not yet 1 minute old`);
+      
       logLine(logFile, { ts: new Date().toISOString(), userId, uhid: ledger.uhid, uniqueTransactionId: uniqueTxId, status: 'skipped', reason: 'younger_than_1m' });
       continue;
     }
@@ -143,14 +143,14 @@ async function processLedger(ledger, logFile) {
     });
 
     if (!match) {
-      console.log(`❌ No XRPL tx found for pendingWithdrawal ${uniqueTxId}`);
+      
       logLine(logFile, { ts: new Date().toISOString(), userId, uhid: ledger.uhid, uniqueTransactionId: uniqueTxId, status: 'not_found' });
       continue;
     }
 
     const tx = match.tx;
     const txHash = tx.hash;
-    console.log(`✅ Found XRPL tx for ${uniqueTxId}: ${txHash}`);
+    
 
     const result = await LedgerRow.updateOne(
       { uniqueTransactionId: uniqueTxId },
@@ -164,10 +164,10 @@ async function processLedger(ledger, logFile) {
     );
 
     if (result.matchedCount === 0) {
-      console.log(`⚠️ No ledgerrow found for uniqueTransactionId=${uniqueTxId}`);
+      
       logLine(logFile, { ts: new Date().toISOString(), userId, uhid: ledger.uhid, uniqueTransactionId: uniqueTxId, status: 'ledgerrow_missing' });
     } else {
-      console.log(`✅ Updated ledgerrow for ${uniqueTxId} with txHash ${txHash}`);
+      
       logLine(logFile, { ts: new Date().toISOString(), userId, uhid: ledger.uhid, uniqueTransactionId: uniqueTxId, txHash, status: 'completed' });
     }
   }
@@ -177,7 +177,7 @@ async function processLedger(ledger, logFile) {
     { $set: { pendingWithdrawal: null, withdrawalDisabled: false } }
   );
 
-  console.log(`🎉 Ledger updated for UHID=${ledger.uhid} → withdrawals enabled`);
+  
 }
 
 (async function main() {
@@ -192,17 +192,17 @@ async function processLedger(ledger, logFile) {
     let ledgers;
 
     if (targetUhid) {
-      console.log(`→ Single-user mode for UHID=${targetUhid}`);
+      
       ledgers = await Ledger.find({ uhid: targetUhid, pendingWithdrawal: { $exists: true } })
         .populate('userId', 'xrpAddress username email');
     } else {
-      console.log(`→ Multi-user mode (all with withdrawalDisabled:true + pendingWithdrawal)`);
+      
       ledgers = await Ledger.find({ withdrawalDisabled: true, pendingWithdrawal: { $exists: true, $ne: null } })
         .populate('userId', 'xrpAddress username email');
     }
 
     if (!ledgers.length) {
-      console.log('⚠️ No matching ledgers found');
+      
       process.exit(0);
     }
 
@@ -210,7 +210,7 @@ async function processLedger(ledger, logFile) {
       await processLedger(ledger, dailyLog);
     }
 
-    console.log('✅ All done.');
+    
   } catch (err) {
     console.error('Fatal error:', err);
   } finally {

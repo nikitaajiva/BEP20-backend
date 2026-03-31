@@ -25,7 +25,7 @@ async function run() {
     for (const startUhid of uhids) {
       const startUser = await usersCol.findOne({ uhid: startUhid });
       if (!startUser || !startUser.sponsorId) {
-        console.log(`❌ Missing user or sponsorId for uhid: ${startUhid}`);
+        
         continue;
       }
 
@@ -36,7 +36,7 @@ async function run() {
       while (currentUser && currentUser.sponsorId) {
         const sponsor = await usersCol.findOne({ _id: currentUser.sponsorId });
         if (!sponsor || !sponsor.uhid) {
-          console.log(`❌ Missing sponsor uhid for child: ${childUhid}`);
+          
           break;
         }
 
@@ -46,9 +46,9 @@ async function run() {
 
         if (existing) {
           if (existing.level !== level) {
-            console.log(`⚠️ Level mismatch for child ${childUhid}: expected level ${level}, found ${existing.level}`);
+            
           } else {
-            console.log(`✅ Level ${level} correct for child ${childUhid}`);
+            
           }
         } else {
           const now = new Date();
@@ -63,7 +63,7 @@ async function run() {
             parent: parentUhid
           });
 
-          console.log(`➕ Inserted level ${level}: parent ${parentUhid}, child ${childUhid}`);
+          
         }
 
         if (parentUhid === ROOT_UHID) {

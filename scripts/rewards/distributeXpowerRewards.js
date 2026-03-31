@@ -54,7 +54,7 @@ async function distributeXPowerRewards() {
     },
   ]);
 
-  console.log(`⚡ Found ${aggregated.length} distinct downline users`);
+  
 
   for (const entry of aggregated) {
     try {
@@ -141,7 +141,7 @@ async function createLedgerRowsFromXPower() {
     },
   ]);
 
-  console.log(`⚡ Found ${aggregated.length} sponsors with XPower rewards`);
+  
 
   for (const entry of aggregated) {
     try {
@@ -157,7 +157,7 @@ async function createLedgerRowsFromXPower() {
       }).lean();
 
       if (alreadyCredited) {
-        console.log(`⏭️ Skipped ledger (already credited today) → ${userId}`);
+        
         continue;
       }
 
@@ -216,7 +216,7 @@ async function createLedgerRowsFromXPower() {
 
       await ledger.save();
 
-      console.log(`✅ Ledger credit → ${userId} +${creditStr}`);
+      
     } catch (err) {
       console.error(
         `❌ Ledger credit failed for user ${entry._id} → ${err.message}`
@@ -234,7 +234,7 @@ async function main() {
     await connectDB();
     await distributeXPowerRewards();
     await createLedgerRowsFromXPower();
-    console.log("🎉 XPower reward flow completed safely");
+    
     process.exit(0);
   } catch (err) {
     console.error("❌ XPower process failed:", err);

@@ -27,7 +27,7 @@ const LOG_FILE = path.join(
 const log = (msg) => {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   fs.appendFileSync(LOG_FILE, line);
-  console.log(msg);
+  
 };
 
 
