@@ -1,7 +1,6 @@
 const { ethers } = require("ethers");
 const User = require("../models/User");
 const UsdtDeposit = require("../models/UsdtDeposit");
-const BnbDeposit = require("../models/BnbDeposit");
 const LedgerRow = require("../models/LedgerRow");
 const mongoose = require("mongoose");
 const { addDecimal128 } = require("../utils/decimal128Utils");
@@ -17,6 +16,102 @@ const {
 const TRANSFER_SELECTOR = "0xa9059cbb";
 const SUPPORTED_USDT_DECIMALS = new Set([6, 18]);
 const BNB_DECIMALS = 18;
+
+const toDecimal128 = (value) => mongoose.Types.Decimal128.fromString(value.toString());
+
+async function findDepositLedgerRow({ userId, referenceId, txHash }) {
+  const orConditions = [];
+  if (referenceId) {
+    orConditions.push({ referenceId });
+  }
+  if (txHash) {
+    orConditions.push({ txHash }, { refId: txHash });
+  }
+  if (!orConditions.length) return null;
+  return LedgerRow.findOne({
+    userId,
+    eventType: { $in: ["DEPOSIT", "DEPOSIT_PENDING"] },
+    $or: orConditions,
+  });
+}
+
+async function upsertDepositLedgerRow({
+  userId,
+  referenceId,
+  txHash,
+  status,
+  eventType,
+  amount,
+  intentAmount,
+  amountWei,
+  fromAddress,
+  toAddress,
+  txTimestamp,
+  blockNumber,
+  txMetadata,
+  txRaw,
+  receiptRaw,
+  narrative,
+  processingError,
+  walletFrom = "EXTERNAL",
+  walletTo = "BNB",
+  asset = "BNB",
+  network = "BSC",
+}) {
+  const row = await findDepositLedgerRow({ userId, referenceId, txHash });
+  if (!row) {
+    const created = new LedgerRow({
+      userId,
+      eventType: eventType || "DEPOSIT_PENDING",
+      amount: toDecimal128(amount ?? "0"),
+      walletFrom,
+      walletTo,
+      narrative,
+      refId: txHash || undefined,
+      referenceId,
+      txHash,
+      intentAmount: intentAmount != null ? toDecimal128(intentAmount) : undefined,
+      amountWei,
+      fromAddress,
+      toAddress,
+      txTimestamp,
+      blockNumber,
+      txMetadata,
+      txRaw,
+      receiptRaw,
+      asset,
+      network,
+      processingError,
+      status: status || "INITIATED",
+    });
+    await created.save();
+    return created;
+  }
+
+  if (eventType) row.eventType = eventType;
+  if (status) row.status = status;
+  if (typeof amount !== "undefined") row.amount = toDecimal128(amount);
+  if (typeof intentAmount !== "undefined") row.intentAmount = toDecimal128(intentAmount);
+  if (typeof amountWei !== "undefined") row.amountWei = amountWei;
+  if (typeof fromAddress !== "undefined") row.fromAddress = fromAddress;
+  if (typeof toAddress !== "undefined") row.toAddress = toAddress;
+  if (typeof txTimestamp !== "undefined") row.txTimestamp = txTimestamp;
+  if (typeof blockNumber !== "undefined") row.blockNumber = blockNumber;
+  if (typeof txMetadata !== "undefined") row.txMetadata = txMetadata;
+  if (typeof txRaw !== "undefined") row.txRaw = txRaw;
+  if (typeof receiptRaw !== "undefined") row.receiptRaw = receiptRaw;
+  if (typeof narrative !== "undefined") row.narrative = narrative;
+  if (typeof processingError !== "undefined") row.processingError = processingError;
+  if (typeof txHash !== "undefined") row.txHash = txHash;
+  if (txHash) row.refId = txHash;
+  if (typeof referenceId !== "undefined") row.referenceId = referenceId;
+  if (typeof asset !== "undefined") row.asset = asset;
+  if (typeof network !== "undefined") row.network = network;
+  if (!row.walletFrom) row.walletFrom = walletFrom;
+  if (!row.walletTo) row.walletTo = walletTo;
+  await row.save();
+  return row;
+}
 
 function getSystemDepositAddress() {
   const primary = process.env.BSC_SYSTEM_DEPOSIT_ADDRESS;
@@ -286,6 +381,7 @@ module.exports = {
   verifyDepositIntent,
   verifyUsdtDepositIntent,
   verifyBnbDepositIntent,
+  upsertDepositLedgerRow,
 };
 
 async function verifyUsdtDepositIntent(intent) {
@@ -308,6 +404,16 @@ async function verifyUsdtDepositIntent(intent) {
       intent.status = "expired";
       await intent.save();
     }
+    await upsertDepositLedgerRow({
+      userId: intent.user,
+      referenceId: intent.referenceId,
+      status: "FAILED",
+      eventType: "DEPOSIT_PENDING",
+      processingError: "Deposit intent expired.",
+      narrative: "Deposit intent expired.",
+      asset: "BNB",
+      network: "BSC",
+    });
     return { success: false, status: "expired", message: "Deposit intent expired." };
   }
 
@@ -346,6 +452,17 @@ async function verifyUsdtDepositIntent(intent) {
       ? "Transaction hash already used for another deposit."
       : result.message || "Failed to process deposit.";
   await intent.save();
+  await upsertDepositLedgerRow({
+    userId: intent.user,
+    referenceId: intent.referenceId,
+    txHash: intent.tx_hash,
+    status: "FAILED",
+    eventType: "DEPOSIT_PENDING",
+    processingError: intent.processingError,
+    narrative: intent.processingError,
+    asset: "BNB",
+    network: "BSC",
+  });
   return { success: false, status: "failed", message: intent.processingError };
 }
 
@@ -389,21 +506,16 @@ async function processBnbTransaction(txHash, options = {}) {
     };
   }
 
-  const existingLedgerRow = await LedgerRow.findOne({ refId: txHash, eventType: "DEPOSIT" });
+  const existingLedgerRow = await LedgerRow.findOne({
+    eventType: "DEPOSIT",
+    status: "COMPLETED",
+    $or: [{ refId: txHash }, { txHash }],
+  });
   if (existingLedgerRow) {
     return {
       success: false,
       status: "duplicate",
       message: `Transaction ID ${txHash} has already been recorded in the ledger.`,
-    };
-  }
-
-  const existingDeposit = await BnbDeposit.findOne({ tx_hash: txHash });
-  if (existingDeposit) {
-    return {
-      success: false,
-      status: "duplicate",
-      message: `Transaction ID ${txHash} already recorded (status: ${existingDeposit.status}).`,
     };
   }
 
@@ -416,61 +528,95 @@ async function processBnbTransaction(txHash, options = {}) {
     };
   }
 
-  let newDeposit;
+  let ledgerRow;
 
   try {
     const provider = getProvider();
     await assertMainnet(provider);
 
-    newDeposit = new BnbDeposit({
-      user: user._id,
-      wallet_address: "",
-      tx_hash: txHash,
+    ledgerRow = await upsertDepositLedgerRow({
+      userId: user._id,
+      referenceId: intent?.referenceId,
+      txHash,
+      status: "INITIATED",
+      eventType: "DEPOSIT_PENDING",
       amount: "0",
-      status: "pending_verification",
-      ledgerTimestamp: new Date(),
+      intentAmount: intent?.amount,
+      narrative: "BNB deposit submitted for verification.",
+      asset: "BNB",
       network: "BSC",
-      decimals: BNB_DECIMALS,
     });
-    await newDeposit.save();
 
     const tx = await provider.getTransaction(txHash);
     if (!tx || !tx.to) {
-      newDeposit.status = "failed";
-      newDeposit.processingError = "Transaction not found.";
-      await newDeposit.save();
-      return { success: false, status: "validation_failed", message: newDeposit.processingError };
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: "Transaction not found.",
+        narrative: "Transaction not found.",
+      });
+      return { success: false, status: "validation_failed", message: "Transaction not found." };
     }
 
     if (normalizeAddress(tx.to) !== systemAddress) {
-      newDeposit.status = "failed";
-      newDeposit.processingError = "Transaction destination is not the system wallet.";
-      await newDeposit.save();
-      return { success: false, status: "wrong_destination", message: newDeposit.processingError };
+      const message = "Transaction destination is not the system wallet.";
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: message,
+        narrative: message,
+      });
+      return { success: false, status: "wrong_destination", message };
     }
 
     if (tx.data && tx.data !== "0x") {
-      newDeposit.status = "failed";
-      newDeposit.processingError = "Transaction is not a native transfer.";
-      await newDeposit.save();
-      return { success: false, status: "invalid_type", message: newDeposit.processingError };
+      const message = "Transaction is not a native transfer.";
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: message,
+        narrative: message,
+      });
+      return { success: false, status: "invalid_type", message };
     }
 
     const receipt = await provider.getTransactionReceipt(txHash);
     if (!receipt || receipt.status !== 1) {
       const errorMessage = "Transaction not found or failed";
-      newDeposit.status = "failed";
-      newDeposit.processingError = errorMessage;
-      await newDeposit.save();
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: errorMessage,
+        narrative: errorMessage,
+      });
       return { success: false, status: "validation_failed", message: errorMessage };
     }
 
     const confirmations = await getConfirmations(provider, receipt.blockNumber);
     if (confirmations < BSC_CONFIRMATIONS) {
-      newDeposit.status = "pending_verification";
-      newDeposit.processingError = `Waiting for confirmations (${confirmations}/${BSC_CONFIRMATIONS}).`;
-      await newDeposit.save();
-      return { success: false, status: "pending_confirmations", message: newDeposit.processingError };
+      const message = `Waiting for confirmations (${confirmations}/${BSC_CONFIRMATIONS}).`;
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "INITIATED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: message,
+        narrative: message,
+      });
+      return { success: false, status: "pending_confirmations", message };
     }
 
     const expectedFromNormalized = expectedFrom ? normalizeAddress(expectedFrom) : null;
@@ -479,27 +625,48 @@ async function processBnbTransaction(txHash, options = {}) {
       try {
         expectedValue = BigInt(expectedAmountWei);
       } catch (error) {
-        newDeposit.status = "failed";
-        newDeposit.processingError = "Invalid expected amount (wei).";
-        await newDeposit.save();
-        return { success: false, status: "validation_failed", message: newDeposit.processingError };
+        const message = "Invalid expected amount (wei).";
+        await upsertDepositLedgerRow({
+          userId: user._id,
+          referenceId: intent?.referenceId,
+          txHash,
+          status: "FAILED",
+          eventType: "DEPOSIT_PENDING",
+          processingError: message,
+          narrative: message,
+        });
+        return { success: false, status: "validation_failed", message };
       }
     } else if (expectedAmount) {
       expectedValue = ethers.parseUnits(expectedAmount.toString(), BNB_DECIMALS);
     }
 
     if (expectedFromNormalized && normalizeAddress(tx.from) !== expectedFromNormalized) {
-      newDeposit.status = "failed";
-      newDeposit.processingError = "Sender wallet mismatch.";
-      await newDeposit.save();
-      return { success: false, status: "sender_mismatch", message: newDeposit.processingError };
+      const message = "Sender wallet mismatch.";
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: message,
+        narrative: message,
+      });
+      return { success: false, status: "sender_mismatch", message };
     }
 
     if (expectedValue && tx.value !== expectedValue) {
-      newDeposit.status = "failed";
-      newDeposit.processingError = "Transfer amount mismatch.";
-      await newDeposit.save();
-      return { success: false, status: "amount_error", message: newDeposit.processingError };
+      const message = "Transfer amount mismatch.";
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: message,
+        narrative: message,
+      });
+      return { success: false, status: "amount_error", message };
     }
 
     const amount = ethers.formatUnits(tx.value, BNB_DECIMALS);
@@ -511,18 +678,7 @@ async function processBnbTransaction(txHash, options = {}) {
       }
     }
 
-    newDeposit.amount = amount.toString();
-    newDeposit.amount_wei = tx.value?.toString();
-    newDeposit.referenceId = intent?.referenceId;
-    newDeposit.status = "completed";
-    newDeposit.processingError = null;
-    newDeposit.wallet_address = normalizeAddress(tx.from);
-    newDeposit.from_address = normalizeAddress(tx.from);
-    newDeposit.to_address = normalizeAddress(tx.to);
-    newDeposit.ledgerTimestamp = receipt.blockNumber ? new Date() : new Date();
-    newDeposit.block_number = receipt.blockNumber;
-    newDeposit.tx_timestamp = txTimestamp;
-    newDeposit.tx_metadata = {
+    const txMetadata = {
       from: normalizeAddress(tx.from),
       to: normalizeAddress(tx.to),
       value: tx.value?.toString(),
@@ -534,8 +690,6 @@ async function processBnbTransaction(txHash, options = {}) {
       transactionIndex: receipt.index,
       status: receipt.status,
     };
-    newDeposit.tx_raw = tx;
-    newDeposit.receipt_raw = receipt;
 
     const ledger = await getOrCreateLedger(user._id);
     const depositAmountD128 = mongoose.Types.Decimal128.fromString(amount.toString());
@@ -544,32 +698,45 @@ async function processBnbTransaction(txHash, options = {}) {
     ledger.wallets.zeroRiskIpfs = addDecimal128(ledger.wallets.zeroRiskIpfs, depositAmountD128);
     ledger.markModified("wallets");
     await ledger.save();
-    await createLedgerEntry({
+
+    ledgerRow = await upsertDepositLedgerRow({
       userId: user._id,
+      referenceId: intent?.referenceId,
+      txHash,
+      status: "COMPLETED",
       eventType: "DEPOSIT",
       amount: depositAmountD128.toString(),
-      walletFrom: "EXTERNAL",
-      walletTo: "BNB",
+      amountWei: tx.value?.toString(),
+      fromAddress: normalizeAddress(tx.from),
+      toAddress: normalizeAddress(tx.to),
+      txTimestamp,
+      blockNumber: receipt.blockNumber,
+      txMetadata,
+      txRaw: tx,
+      receiptRaw: receipt,
       narrative: `BNB wallet deposit. TxHash: ${txHash}`,
-      refId: txHash,
+      processingError: null,
+      asset: "BNB",
+      network: "BSC",
     });
-
-    await newDeposit.save();
 
     return {
       success: true,
       status: "completed",
       message: "BNB deposit recorded.",
-      deposit: newDeposit,
+      deposit: ledgerRow,
     };
   } catch (error) {
     console.error(`Error processing BNB transaction ${txHash}:`, error);
-    if (newDeposit && newDeposit._id) {
-      await BnbDeposit.updateOne(
-        { _id: newDeposit._id },
-        { status: "failed", processingError: error.message || "Unexpected error." }
-      );
-    }
+    await upsertDepositLedgerRow({
+      userId: resolvedUserId,
+      referenceId: intent?.referenceId,
+      txHash,
+      status: "FAILED",
+      eventType: "DEPOSIT_PENDING",
+      processingError: error.message || "Unexpected error.",
+      narrative: error.message || "Unexpected error.",
+    });
     return { success: false, status: "error", message: "Server error processing deposit.", error: error.message };
   }
 }

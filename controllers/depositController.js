@@ -1,5 +1,5 @@
-const BnbDeposit = require("../models/BnbDeposit");
-const { processBnbTransaction, verifyDepositIntent } = require("../services/depositService");
+const LedgerRow = require("../models/LedgerRow");
+const { processBnbTransaction, verifyDepositIntent, upsertDepositLedgerRow } = require("../services/depositService");
 const DepositAddress = require("../models/DepositAddress");
 const UsdtDepositIntent = require("../models/UsdtDepositIntent");
 const { normalizeAddress, toBnbWei } = require("../utils/bsc");
@@ -10,18 +10,26 @@ exports.getDepositsHistory = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    const deposits = await BnbDeposit.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .select('tx_hash amount status wallet_address tx_timestamp createdAt')
+    const deposits = await LedgerRow.find({
+      userId,
+      eventType: "DEPOSIT",
+      walletTo: "BNB",
+      status: "COMPLETED",
+    })
+      .sort({ ts: -1 })
+      .select("txHash refId amount status fromAddress toAddress txTimestamp ts")
       .lean();
 
     res.json({
       success: true,
-      deposits: deposits.map(deposit => ({
-        ...deposit,
-        amount: parseFloat(deposit.amount).toFixed(6),
-        timestamp: deposit.tx_timestamp || deposit.createdAt
-      }))
+      deposits: deposits.map((deposit) => ({
+        tx_hash: deposit.txHash || deposit.refId || "",
+        amount: parseFloat(deposit.amount?.toString() || "0").toFixed(6),
+        status: deposit.status,
+        wallet_address: deposit.fromAddress || "",
+        to_address: deposit.toAddress || "",
+        timestamp: deposit.txTimestamp || deposit.ts,
+      })),
     });
   } catch (error) {
     console.error('Error fetching deposits history:', error);
@@ -108,7 +116,12 @@ exports.recordUsdtDeposit = async (req, res) => {
         message: result.message,
         deposit: result.deposit,
         usdtWalletBalance: result.usdtWalletBalance,
-        zeroRiskLimitIncreased: result.usdtWalletBalance
+        zeroRiskLimitIncreased: result.usdtWalletBalance,
+        intentAmount: intent.amount,
+        intentAmountWei: intent.amountWei,
+        asset: intent.asset,
+        referenceId: intent.referenceId,
+        txHash: intent.tx_hash,
       });
     }
 
@@ -126,14 +139,30 @@ exports.recordUsdtDeposit = async (req, res) => {
           intent.processingError = "Transaction hash already used.";
           await intent.save();
         }
-        return res.status(409).json({ success: false, message: result.message });
+        return res.status(409).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
       case 'pending_confirmations':
         if (intent) {
           intent.status = "pending";
           intent.processingError = result.message;
           await intent.save();
         }
-        return res.status(202).json({ success: false, message: result.message });
+        return res.status(202).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
       case 'no_user':
         return res.status(404).json({ success: false, message: result.message });
       case 'validation_failed':
@@ -141,7 +170,15 @@ exports.recordUsdtDeposit = async (req, res) => {
       case 'wrong_destination':
       case 'sender_mismatch':
       case 'amount_error':
-        return res.status(400).json({ success: false, message: result.message });
+        return res.status(400).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
       default:
         if (intent && result.status !== "duplicate") {
           intent.status = "failed";
@@ -149,7 +186,15 @@ exports.recordUsdtDeposit = async (req, res) => {
           await intent.save();
         }
         // For 'error' status or any other unhandled case
-        return res.status(500).json({ success: false, message: result.message || 'An unexpected server error occurred.' });
+        return res.status(500).json({
+          success: false,
+          message: result.message || "An unexpected server error occurred.",
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
     }
   } catch (error) {
     console.error('Unhandled error in recordUsdtDeposit controller:', error);
@@ -196,6 +241,16 @@ exports.recordBnbDeposit = async (req, res) => {
     }
 
     if (intent.asset && intent.asset.toUpperCase() !== "BNB") {
+      await upsertDepositLedgerRow({
+        userId: req.user._id,
+        referenceId: intent.referenceId,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: "Deposit intent is not for BNB.",
+        narrative: "Deposit intent is not for BNB.",
+        asset: intent.asset || "BNB",
+        network: "BSC",
+      });
       return res.status(400).json({
         success: false,
         message: "Deposit intent is not for BNB.",
@@ -205,6 +260,16 @@ exports.recordBnbDeposit = async (req, res) => {
     if (intent.expiresAt && new Date() > intent.expiresAt) {
       intent.status = "expired";
       await intent.save();
+      await upsertDepositLedgerRow({
+        userId: req.user._id,
+        referenceId: intent.referenceId,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: "Deposit intent expired. Please create a new intent.",
+        narrative: "Deposit intent expired. Please create a new intent.",
+        asset: intent.asset || "BNB",
+        network: "BSC",
+      });
       return res.status(400).json({
         success: false,
         message: "Deposit intent expired. Please create a new intent.",
@@ -212,6 +277,17 @@ exports.recordBnbDeposit = async (req, res) => {
     }
 
     if (intent.tx_hash && intent.tx_hash !== tx_hash) {
+      await upsertDepositLedgerRow({
+        userId: req.user._id,
+        referenceId: intent.referenceId,
+        txHash: intent.tx_hash,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: "A different transaction hash is already submitted for this intent.",
+        narrative: "A different transaction hash is already submitted for this intent.",
+        asset: intent.asset || "BNB",
+        network: "BSC",
+      });
       return res.status(409).json({
         success: false,
         message: "A different transaction hash is already submitted for this intent.",
@@ -222,6 +298,19 @@ exports.recordBnbDeposit = async (req, res) => {
       intent.tx_hash = tx_hash;
       await intent.save();
     }
+
+    await upsertDepositLedgerRow({
+      userId: req.user._id,
+      referenceId: intent.referenceId,
+      txHash: tx_hash,
+      status: "INITIATED",
+      eventType: "DEPOSIT_PENDING",
+      amount: "0",
+      intentAmount: intent.amount,
+      narrative: "BNB deposit submitted for verification.",
+      asset: intent.asset || "BNB",
+      network: "BSC",
+    });
 
     const result = await processBnbTransaction(tx_hash, {
       intent,
@@ -239,6 +328,11 @@ exports.recordBnbDeposit = async (req, res) => {
         success: true,
         message: result.message,
         deposit: result.deposit,
+        intentAmount: intent.amount,
+        intentAmountWei: intent.amountWei,
+        asset: intent.asset,
+        referenceId: intent.referenceId,
+        txHash: intent.tx_hash,
       });
     }
 
@@ -254,15 +348,42 @@ exports.recordBnbDeposit = async (req, res) => {
           intent.status = "failed";
           intent.processingError = "Transaction hash already used.";
           await intent.save();
+          await upsertDepositLedgerRow({
+            userId: req.user._id,
+            referenceId: intent.referenceId,
+            txHash: tx_hash,
+            status: "FAILED",
+            eventType: "DEPOSIT_PENDING",
+            processingError: "Transaction hash already used.",
+            narrative: "Transaction hash already used.",
+            asset: intent.asset || "BNB",
+            network: "BSC",
+          });
         }
-        return res.status(409).json({ success: false, message: result.message });
+        return res.status(409).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
       case "pending_confirmations":
         if (intent) {
           intent.status = "pending";
           intent.processingError = result.message;
           await intent.save();
         }
-        return res.status(202).json({ success: false, message: result.message });
+        return res.status(202).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
       case "no_user":
         return res.status(404).json({ success: false, message: result.message });
       case "validation_failed":
@@ -270,7 +391,15 @@ exports.recordBnbDeposit = async (req, res) => {
       case "wrong_destination":
       case "sender_mismatch":
       case "amount_error":
-        return res.status(400).json({ success: false, message: result.message });
+        return res.status(400).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
       default:
         if (intent && result.status !== "duplicate") {
           intent.status = "failed";
@@ -280,6 +409,11 @@ exports.recordBnbDeposit = async (req, res) => {
         return res.status(500).json({
           success: false,
           message: result.message || "An unexpected server error occurred.",
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
         });
     }
   } catch (error) {
@@ -376,14 +510,35 @@ exports.createDepositIntent = async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlMs);
 
-    await UsdtDepositIntent.updateMany(
-      {
-        user: req.user._id,
-        status: "pending",
-        expiresAt: { $lte: now },
-      },
-      { status: "expired" }
-    );
+    const expiredIntents = await UsdtDepositIntent.find({
+      user: req.user._id,
+      status: "pending",
+      expiresAt: { $lte: now },
+    }).select("referenceId asset");
+    if (expiredIntents.length) {
+      await UsdtDepositIntent.updateMany(
+        {
+          user: req.user._id,
+          status: "pending",
+          expiresAt: { $lte: now },
+        },
+        { status: "expired" }
+      );
+      const expiredRefs = expiredIntents.map((intent) => intent.referenceId);
+      await LedgerRow.updateMany(
+        {
+          userId: req.user._id,
+          eventType: "DEPOSIT_PENDING",
+          referenceId: { $in: expiredRefs },
+          status: "INITIATED",
+        },
+        {
+          status: "FAILED",
+          processingError: "Deposit intent expired.",
+          narrative: "Deposit intent expired.",
+        }
+      );
+    }
 
     const existingIntent = await UsdtDepositIntent.findOne({
       user: req.user._id,
@@ -392,6 +547,17 @@ exports.createDepositIntent = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     if (existingIntent) {
+      await upsertDepositLedgerRow({
+        userId: req.user._id,
+        referenceId: existingIntent.referenceId,
+        status: "INITIATED",
+        eventType: "DEPOSIT_PENDING",
+        amount: "0",
+        intentAmount: existingIntent.amount,
+        narrative: "BNB deposit intent created.",
+        asset: existingIntent.asset || "BNB",
+        network: existingIntent.network || "BSC",
+      });
       return res.status(409).json({
         success: false,
         message: "You already have a pending deposit intent.",
@@ -424,6 +590,18 @@ exports.createDepositIntent = async (req, res) => {
       decimals: tokenDecimals,
       chainId,
       asset,
+    });
+
+    await upsertDepositLedgerRow({
+      userId: req.user._id,
+      referenceId: intent.referenceId,
+      status: "INITIATED",
+      eventType: "DEPOSIT_PENDING",
+      amount: "0",
+      intentAmount: intent.amount,
+      narrative: "BNB deposit intent created.",
+      asset: intent.asset || "BNB",
+      network: intent.network || "BSC",
     });
 
     return res.status(200).json({
@@ -487,6 +665,7 @@ exports.getDepositIntent = async (req, res) => {
         decimals: intent.decimals,
         chainId: intent.chainId,
         asset: intent.asset,
+        tx_hash: intent.tx_hash,
         status: intent.status,
         expiresAt: intent.expiresAt,
         network: intent.network,
@@ -519,7 +698,18 @@ exports.verifyDepositIntent = async (req, res) => {
     });
 
     const result = await verifyDepositIntent(intent);
-    return res.status(result.success ? 200 : 400).json(result);
+    const payload = {
+      ...result,
+      intentAmount: intent.amount,
+      intentAmountWei: intent.amountWei,
+      asset: intent.asset,
+      referenceId: intent.referenceId,
+      txHash: intent.tx_hash || result.txHash || "",
+    };
+    if (result.status === "pending_confirmations") {
+      return res.status(202).json(payload);
+    }
+    return res.status(result.success ? 200 : 400).json(payload);
   } catch (error) {
     console.error("Error verifying deposit intent:", error);
     return res.status(500).json({

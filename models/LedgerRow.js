@@ -18,6 +18,7 @@ const LedgerRowSchema = new mongoose.Schema(
       required: true,
       enum: [
         "AUTOPOSITIONING", // User AUTOPOSITIONING
+        "DEPOSIT_PENDING", // Deposit intent awaiting confirmation
         "DEPOSIT", // User deposits LP
         "AIRDROP_ACTIVATION", // Swift moved to LP during first deposit
         "AIRDROP_BURN", // Unmatched airdrop burned
@@ -77,6 +78,51 @@ const LedgerRowSchema = new mongoose.Schema(
       // Reference to related documents, e.g., transaction hash, parent ledger row ID for cascades
       type: String,
       index: true,
+    },
+    referenceId: {
+      // Deposit intent reference ID
+      type: String,
+      index: true,
+    },
+    txHash: {
+      type: String,
+      index: true,
+    },
+    intentAmount: {
+      type: mongoose.Schema.Types.Decimal128,
+    },
+    amountWei: {
+      type: String,
+    },
+    fromAddress: {
+      type: String,
+    },
+    toAddress: {
+      type: String,
+    },
+    blockNumber: {
+      type: Number,
+    },
+    txTimestamp: {
+      type: Date,
+    },
+    txMetadata: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+    txRaw: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+    receiptRaw: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+    asset: {
+      type: String,
+    },
+    network: {
+      type: String,
+    },
+    processingError: {
+      type: String,
     },
     // Fields specific to ROI for detailed auditing as per §5.2
     roiWalletSource: { type: String }, // e.g., 'LP', 'SWIFT', 'BOOST' - for ROI_CREDIT events
