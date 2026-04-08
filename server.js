@@ -55,6 +55,7 @@ const {
 } = require("./controllers/ledgerController.js"); // ⬅️ NEW
 
 const depositPoller = require("./jobs/depositPoller"); // Import the new deposit poller
+const bep20Watcher = require("./jobs/bep20Watcher");
 const withdrawalReconciler = require("./jobs/withdrawalReconciler"); // ⬅️ NEW: Import withdrawal reconciler job
 const reconcilePendingWithdrawals = require("./jobs/reconcilePendingWithdrawals"); // Pending-withdrawal reconciler
 
@@ -112,6 +113,7 @@ if (process.env.NODE_ENV !== "test") {
         
 
      //   depositPoller.start();
+        bep20Watcher.start();
       //  startAutoPositioningCron(); // ✅ NEW: Cron for autopositioning
      //   reconcilePendingWithdrawals.start(); // Start new pending-withdrawal reconciler
      //   

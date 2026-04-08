@@ -1,9 +1,68 @@
+const crypto = require("crypto");
+const { ethers } = require("ethers");
 const LedgerRow = require("../models/LedgerRow");
-const { processBnbTransaction, verifyDepositIntent, upsertDepositLedgerRow } = require("../services/depositService");
+const { verifyDepositIntent, upsertDepositLedgerRow } = require("../services/depositService");
 const DepositAddress = require("../models/DepositAddress");
 const UsdtDepositIntent = require("../models/UsdtDepositIntent");
 const { normalizeAddress, toBnbWei } = require("../utils/bsc");
 const { v4: uuidv4 } = require("uuid");
+
+const formatAmount = (value, decimals = 18) => {
+  const raw = ethers.formatUnits(value, decimals);
+  return raw.includes(".") ? raw.replace(/\.?0+$/, "") : raw;
+};
+
+const getAdjustmentBounds = (originalAmountWei, decimals = 18) => {
+  const minRaw =
+    process.env.BSC_DEPOSIT_ADJUST_MIN ||
+    process.env.DEPOSIT_ADJUST_MIN ||
+    "0";
+  const maxRaw =
+    process.env.BSC_DEPOSIT_ADJUST_MAX ||
+    process.env.DEPOSIT_ADJUST_MAX ||
+    "0.0001";
+  const maxBpsRaw = Number(
+    process.env.BSC_DEPOSIT_ADJUST_MAX_BPS ||
+      process.env.DEPOSIT_ADJUST_MAX_BPS ||
+      50
+  );
+  const maxBps = Number.isFinite(maxBpsRaw) && maxBpsRaw >= 0 ? maxBpsRaw : 50;
+
+  let minAbs = ethers.parseUnits(String(minRaw), decimals);
+  let maxAbs = ethers.parseUnits(String(maxRaw), decimals);
+  if (minAbs < 0n) minAbs = 0n;
+  if (maxAbs < 0n) maxAbs = 0n;
+
+  let maxByBps = 0n;
+  if (originalAmountWei > 0n && maxBps > 0) {
+    maxByBps = (originalAmountWei * BigInt(maxBps)) / 10000n;
+  }
+
+  let max = maxAbs;
+  if (maxByBps > 0n && maxByBps < max) {
+    max = maxByBps;
+  }
+
+  let min = minAbs;
+  if (min > max) min = max;
+  return { min, max };
+};
+
+const randomOffset = (min, max) => {
+  const range = max - min;
+  if (range <= 0n) return min;
+  const span = range + 1n;
+  const maxUint64 = 1n << 64n;
+  const threshold = maxUint64 - (maxUint64 % span);
+
+  while (true) {
+    const buf = crypto.randomBytes(8);
+    const value = BigInt(`0x${buf.toString("hex")}`);
+    if (value < threshold) {
+      return min + (value % span);
+    }
+  }
+};
 
 // Get deposits history for authenticated user
 exports.getDepositsHistory = async (req, res) => {
@@ -312,14 +371,10 @@ exports.recordBnbDeposit = async (req, res) => {
       network: "BSC",
     });
 
-    const result = await processBnbTransaction(tx_hash, {
-      intent,
-      userId: req.user._id,
-    });
+    const result = await verifyDepositIntent(intent);
 
     if (result.success) {
       intent.status = "completed";
-      intent.tx_hash = tx_hash;
       intent.completedAt = new Date();
       intent.processingError = null;
       await intent.save();
@@ -340,7 +395,6 @@ exports.recordBnbDeposit = async (req, res) => {
       case "duplicate":
         if (intent && intent.tx_hash === tx_hash) {
           intent.status = "completed";
-          intent.tx_hash = tx_hash;
           intent.completedAt = intent.completedAt || new Date();
           intent.processingError = null;
           await intent.save();
@@ -376,6 +430,36 @@ exports.recordBnbDeposit = async (req, res) => {
           await intent.save();
         }
         return res.status(202).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
+      case "pending":
+        return res.status(202).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
+      case "expired":
+        return res.status(410).json({
+          success: false,
+          message: result.message,
+          intentAmount: intent.amount,
+          intentAmountWei: intent.amountWei,
+          asset: intent.asset,
+          referenceId: intent.referenceId,
+          txHash: intent.tx_hash || tx_hash,
+        });
+      case "failed":
+        return res.status(400).json({
           success: false,
           message: result.message,
           intentAmount: intent.amount,
@@ -510,6 +594,38 @@ exports.createDepositIntent = async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlMs);
 
+    const { min: adjustMin, max: adjustMax } = getAdjustmentBounds(
+      amountWei,
+      tokenDecimals
+    );
+    const adjustAttempts = Number(
+      process.env.BSC_DEPOSIT_ADJUST_ATTEMPTS ||
+        process.env.DEPOSIT_ADJUST_ATTEMPTS ||
+        6
+    );
+    let adjustedWei = null;
+
+    for (let attempt = 0; attempt < adjustAttempts; attempt += 1) {
+      const offset = randomOffset(adjustMin, adjustMax);
+      const candidate = amountWei + offset;
+      const exists = await UsdtDepositIntent.exists({
+        status: "pending",
+        expiresAt: { $gt: now },
+        amountWei: candidate.toString(),
+      });
+      if (!exists) {
+        adjustedWei = candidate;
+        break;
+      }
+    }
+
+    if (!adjustedWei) {
+      adjustedWei = amountWei + adjustMin;
+    }
+
+    const adjustedAmount = formatAmount(adjustedWei, tokenDecimals);
+    amountWei = adjustedWei;
+
     const expiredIntents = await UsdtDepositIntent.find({
       user: req.user._id,
       status: "pending",
@@ -580,7 +696,7 @@ exports.createDepositIntent = async (req, res) => {
       user: req.user._id,
       wallet_address: "",
       deposit_address: normalizedDeposit,
-      amount: rawAmount,
+      amount: adjustedAmount,
       amountWei: amountWei.toString(),
       referenceId: uuidv4(),
       status: "pending",
@@ -642,13 +758,18 @@ exports.getDepositIntent = async (req, res) => {
     const intent = await UsdtDepositIntent.findOne({
       referenceId,
       user: req.user._id,
-    }).lean();
+    });
 
     if (!intent) {
       return res.status(404).json({ success: false, message: "Deposit intent not found." });
     }
 
-    if (intent.expiresAt && new Date() > intent.expiresAt && intent.status === "pending") {
+    if (
+      intent.expiresAt &&
+      new Date() > intent.expiresAt &&
+      intent.status === "pending" &&
+      !intent.tx_hash
+    ) {
       intent.status = "expired";
       await intent.save();
     }
@@ -696,6 +817,12 @@ exports.verifyDepositIntent = async (req, res) => {
       referenceId,
       user: req.user._id,
     });
+    if (!intent) {
+      return res.status(404).json({
+        success: false,
+        message: "Deposit intent not found.",
+      });
+    }
 
     const result = await verifyDepositIntent(intent);
     const payload = {
@@ -706,8 +833,14 @@ exports.verifyDepositIntent = async (req, res) => {
       referenceId: intent.referenceId,
       txHash: intent.tx_hash || result.txHash || "",
     };
-    if (result.status === "pending_confirmations") {
+    if (result.status === "pending_confirmations" || result.status === "pending") {
       return res.status(202).json(payload);
+    }
+    if (result.status === "expired") {
+      return res.status(410).json(payload);
+    }
+    if (result.status === "failed") {
+      return res.status(400).json(payload);
     }
     return res.status(result.success ? 200 : 400).json(payload);
   } catch (error) {
