@@ -63,7 +63,7 @@ async function getOrCreateLedger(userId) {
                 communityRewards: Decimal128.fromString('0.0'),
                 airdrop: Decimal128.fromString('0.0'),
                 cascadeRewards:Decimal128.fromString('0.0'),
-                rankRewards: Decimal128('0.0'),
+                rankRewards: Decimal128.fromString('0.0'),
                 dailyCascadeRewards: Decimal128.fromString('0.0'),
                 dailyLevelBoosterBonus: Decimal128.fromString('0.0'),
                 dailyRankBonus:Decimal128.fromString('0.0'),
