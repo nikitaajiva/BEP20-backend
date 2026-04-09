@@ -205,7 +205,11 @@ async function updateConfirmations() {
 
 function start() {
   const provider = getProvider();
-  const wssProvider = getWssProvider();
+  const useWss =
+    String(process.env.BSC_WATCHER_USE_WSS || "true")
+      .trim()
+      .toLowerCase() === "true";
+  const wssProvider = useWss ? getWssProvider() : null;
   const requiredConfs = Number(
     process.env.BSC_CONFIRMATIONS ||
       process.env.CONFIRMATIONS_REQUIRED ||

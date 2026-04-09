@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const User = require("../models/User");
 const UsdtDeposit = require("../models/UsdtDeposit");
+const UsdtDepositIntent = require("../models/UsdtDepositIntent");
 const LedgerRow = require("../models/LedgerRow");
 const mongoose = require("mongoose");
 const { addDecimal128 } = require("../utils/decimal128Utils");
