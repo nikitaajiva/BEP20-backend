@@ -1,5 +1,11 @@
 const { ethers } = require("ethers");
-const { getHttpProvider, BSC_CHAIN_ID, USDT_CONTRACT_ADDRESS, BSC_CONFIRMATIONS } = require("../config/blockchain");
+
+const BSC_CHAIN_ID = 56;
+const RPC_URL = process.env.BSC_MAINNET_RPC_URL;
+const RPC_WSS_URL =
+  process.env.BSC_MAINNET_RPC_WSS || process.env.BSC_MAINNET_WSS_URL;
+const USDT_CONTRACT_ADDRESS = process.env.USDT_CONTRACT_ADDRESS_MAINNET;
+const BSC_CONFIRMATIONS = Number(process.env.BSC_CONFIRMATIONS || "3");
 
 const ERC20_ABI = [
   "function decimals() view returns (uint8)",
@@ -10,6 +16,11 @@ const ERC20_ABI = [
 
 function getProvider() {
   return getHttpProvider();
+}
+
+function getWssProvider() {
+  if (!RPC_WSS_URL) return null;
+  return new ethers.WebSocketProvider(RPC_WSS_URL);
 }
 
 async function assertMainnet(provider) {
@@ -42,6 +53,7 @@ module.exports = {
   BSC_CONFIRMATIONS,
   ERC20_ABI,
   getProvider,
+  getWssProvider,
   assertMainnet,
   getUsdtContract,
   normalizeAddress,

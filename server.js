@@ -118,6 +118,7 @@ const {
 } = require("./controllers/ledgerController.js"); // ⬅️ NEW
 
 const depositPoller = require("./jobs/depositPoller"); // Import the new deposit poller
+const bep20Watcher = require("./jobs/bep20Watcher");
 const withdrawalReconciler = require("./jobs/withdrawalReconciler"); // ⬅️ NEW: Import withdrawal reconciler job
 const reconcilePendingWithdrawals = require("./jobs/reconcilePendingWithdrawals"); // Pending-withdrawal reconciler
 
@@ -166,13 +167,12 @@ if (process.env.NODE_ENV !== "test") {
     .then(() => {
       server = app.listen(PORT, () => {
         console.log(
-          `Unified Server running in ${
-            process.env.NODE_ENV || "development"
+          `Unified Server running in ${process.env.NODE_ENV || "development"
           } mode on port ${PORT}`
         );
 
         app.locals.db = mongoose.connection.db;
-        
+
 
         const bscWatcher = require("./services/BscWatcherService");
         bscWatcher.start().catch(err => console.error("Failed to start BSC Watcher:", err));
@@ -181,7 +181,7 @@ if (process.env.NODE_ENV !== "test") {
       });
     });
 } else {
-  
+
 }
 
 
@@ -192,7 +192,7 @@ const gracefulShutdown = async (signal) => {
   );
   if (server) {
     server.close(async () => {
-      
+
       await shutdownServices();
     });
   } else {
@@ -202,13 +202,13 @@ const gracefulShutdown = async (signal) => {
 
 const shutdownServices = async () => {
   if (outboxProcessor) {
-    
+
     outboxProcessor.stop();
-    
+
   }
   try {
     await mongoose.disconnect();
-    
+
   } catch (err) {
     console.error("Error during MongoDB disconnection:", err);
   }

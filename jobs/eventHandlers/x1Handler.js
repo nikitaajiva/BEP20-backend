@@ -204,17 +204,6 @@ async function getUserQualificationTier(uhid) {
   if (autoPass) {
     
     
-    // show legs & users
-    qualifyingLegs.forEach((leg, i) => {
-      
-      leg.users
-        .filter(u => normalizeRank(u.xRank || u.xrank) === (
-          rank.code === "X2" ? "X1" :
-          rank.code === "X3" ? "X2" :
-          rank.code === "X4" ? "X3" : "X4"
-        ))
-        .forEach(u => 
-    });
     highest = rank.code;
     continue; // go to next rank
   } else if (reason) {
@@ -256,9 +245,6 @@ async function getUserQualificationTier(uhid) {
    
    
    
-    legContributions.forEach((leg, i) => {
-      
-    });
     highest = rank.code;
   } else {
 
@@ -277,9 +263,6 @@ if (cappedLegs.length >= 2) {
     if (remainingAreGood) {
         
         
-        legContributions.forEach((leg, i) => {
-            
-        });
         highest = rank.code;
         continue;
     }
@@ -289,10 +272,6 @@ if (cappedLegs.length >= 2) {
    
   
  
-    legContributions.forEach((leg, i) => {
-     
-    });
-    
     break;
   }
 }

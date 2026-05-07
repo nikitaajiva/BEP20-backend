@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const User = require("../models/User");
 const UsdtDeposit = require("../models/UsdtDeposit");
+const UsdtDepositIntent = require("../models/UsdtDepositIntent");
 const LedgerRow = require("../models/LedgerRow");
 const mongoose = require("mongoose");
 const { addDecimal128 } = require("../utils/decimal128Utils");
@@ -18,6 +19,36 @@ const SUPPORTED_USDT_DECIMALS = new Set([6, 18]);
 const BNB_DECIMALS = 18;
 
 const toDecimal128 = (value) => mongoose.Types.Decimal128.fromString(value.toString());
+
+function getToleranceBps() {
+  const raw = Number(
+    process.env.BSC_DEPOSIT_MATCH_TOLERANCE_BPS ||
+      process.env.DEPOSIT_MATCH_TOLERANCE_BPS ||
+      50
+  );
+  return Number.isFinite(raw) && raw >= 0 ? raw : 50;
+}
+
+function isWithinTolerance(value, expected) {
+  const bps = getToleranceBps();
+  const tolerance = (expected * BigInt(bps)) / 10000n;
+  const min = expected > tolerance ? expected - tolerance : 0n;
+  const max = expected + tolerance;
+  return value >= min && value <= max;
+}
+
+function getLateWindowMs() {
+  const lateWindowMinutesRaw = Number(
+    process.env.BSC_DEPOSIT_LATE_MATCH_WINDOW_MIN ||
+      process.env.DEPOSIT_LATE_MATCH_WINDOW_MIN ||
+      60
+  );
+  const lateWindowMinutes =
+    Number.isFinite(lateWindowMinutesRaw) && lateWindowMinutesRaw > 0
+      ? lateWindowMinutesRaw
+      : 60;
+  return lateWindowMinutes * 60 * 1000;
+}
 
 async function findDepositLedgerRow({ userId, referenceId, txHash }) {
   const orConditions = [];
@@ -399,26 +430,29 @@ async function verifyUsdtDepositIntent(intent) {
   }
 
   const now = new Date();
-  if (now > intent.expiresAt) {
-    if (intent.status !== "expired") {
-      intent.status = "expired";
-      await intent.save();
+  if (now > intent.expiresAt && !intent.tx_hash) {
+    const lateWindowMs = getLateWindowMs();
+    if (now.getTime() - intent.expiresAt.getTime() > lateWindowMs) {
+      if (intent.status !== "expired") {
+        intent.status = "expired";
+        await intent.save();
+      }
+      await upsertDepositLedgerRow({
+        userId: intent.user,
+        referenceId: intent.referenceId,
+        status: "FAILED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: "Deposit intent expired.",
+        narrative: "Deposit intent expired.",
+        asset: "BNB",
+        network: "BSC",
+      });
+      return { success: false, status: "expired", message: "Deposit intent expired." };
     }
-    await upsertDepositLedgerRow({
-      userId: intent.user,
-      referenceId: intent.referenceId,
-      status: "FAILED",
-      eventType: "DEPOSIT_PENDING",
-      processingError: "Deposit intent expired.",
-      narrative: "Deposit intent expired.",
-      asset: "BNB",
-      network: "BSC",
-    });
-    return { success: false, status: "expired", message: "Deposit intent expired." };
   }
 
   if (!intent.tx_hash) {
-    return { success: false, status: "pending", message: "Awaiting transaction hash." };
+    return { success: false, status: "pending", message: "Awaiting on-chain transfer." };
   }
 
   const result = await processUsdtTransaction(intent.tx_hash, {
@@ -590,8 +624,21 @@ async function processBnbTransaction(txHash, options = {}) {
     }
 
     const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt || receipt.status !== 1) {
-      const errorMessage = "Transaction not found or failed";
+    if (!receipt) {
+      const message = "Transaction receipt pending.";
+      await upsertDepositLedgerRow({
+        userId: user._id,
+        referenceId: intent?.referenceId,
+        txHash,
+        status: "INITIATED",
+        eventType: "DEPOSIT_PENDING",
+        processingError: message,
+        narrative: message,
+      });
+      return { success: false, status: "pending_confirmations", message };
+    }
+    if (receipt.status !== 1) {
+      const errorMessage = "Transaction failed on-chain.";
       await upsertDepositLedgerRow({
         userId: user._id,
         referenceId: intent?.referenceId,
@@ -655,7 +702,7 @@ async function processBnbTransaction(txHash, options = {}) {
       return { success: false, status: "sender_mismatch", message };
     }
 
-    if (expectedValue && tx.value !== expectedValue) {
+    if (expectedValue && !isWithinTolerance(tx.value, expectedValue)) {
       const message = "Transfer amount mismatch.";
       await upsertDepositLedgerRow({
         userId: user._id,
@@ -741,6 +788,87 @@ async function processBnbTransaction(txHash, options = {}) {
   }
 }
 
+async function findMatchingBnbTransfer(intent) {
+  if (!intent) return null;
+  let systemAddress;
+  try {
+    systemAddress = getSystemDepositAddress();
+  } catch {
+    return null;
+  }
+  const expectedTo = normalizeAddress(intent.deposit_address || systemAddress);
+  if (!expectedTo || expectedTo !== systemAddress) return null;
+
+  const expectedFrom =
+    intent.wallet_address && !intent.allowAnySender
+      ? normalizeAddress(intent.wallet_address)
+      : null;
+
+  let expectedValue = null;
+  if (intent.amountWei) {
+    try {
+      expectedValue = BigInt(intent.amountWei);
+    } catch {
+      expectedValue = null;
+    }
+  } else if (intent.amount) {
+    expectedValue = ethers.parseUnits(intent.amount.toString(), BNB_DECIMALS);
+  }
+
+  const provider = getProvider();
+  await assertMainnet(provider);
+
+  const latest = await provider.getBlockNumber();
+  const lookbackRaw = Number(process.env.BSC_VERIFY_LOOKBACK_BLOCKS || "0");
+  const estimatedBlocks = Math.max(60, Math.ceil(getLateWindowMs() / 3000));
+  const lookbackBlocks = lookbackRaw > 0 ? lookbackRaw : estimatedBlocks;
+  const start = Math.max(0, latest - lookbackBlocks);
+
+  for (let blockNumber = latest; blockNumber >= start; blockNumber -= 1) {
+    const block = await provider.getBlock(blockNumber, true);
+    if (!block || !Array.isArray(block.transactions)) continue;
+    for (const entry of block.transactions) {
+      let tx = entry;
+      if (typeof entry === "string") {
+        try {
+          tx = await provider.getTransaction(entry);
+        } catch {
+          tx = null;
+        }
+      }
+      if (!tx || !tx.to) continue;
+      if (normalizeAddress(tx.to) !== systemAddress) continue;
+      if (tx.data && tx.data !== "0x") continue;
+      if (!tx.value || BigInt(tx.value.toString()) <= 0n) continue;
+      const fromAddress = tx.from ? normalizeAddress(tx.from) : null;
+      if (!fromAddress) continue;
+      if (expectedFrom && fromAddress !== expectedFrom) continue;
+      const value = BigInt(tx.value.toString());
+      if (expectedValue && !isWithinTolerance(value, expectedValue)) continue;
+
+      const receipt = await provider.getTransactionReceipt(tx.hash);
+      if (!receipt || receipt.status !== 1) continue;
+
+      const existingIntent = await UsdtDepositIntent.findOne({
+        tx_hash: tx.hash,
+        _id: { $ne: intent._id },
+      }).lean();
+      if (existingIntent) continue;
+
+      const existingLedger = await LedgerRow.findOne({
+        eventType: "DEPOSIT",
+        status: "COMPLETED",
+        $or: [{ txHash: tx.hash }, { refId: tx.hash }],
+      }).lean();
+      if (existingLedger) continue;
+
+      return tx.hash;
+    }
+  }
+
+  return null;
+}
+
 async function verifyBnbDepositIntent(intent) {
   if (!intent) {
     return { success: false, status: "not_found", message: "Deposit intent not found." };
@@ -756,16 +884,27 @@ async function verifyBnbDepositIntent(intent) {
   }
 
   const now = new Date();
-  if (now > intent.expiresAt) {
-    if (intent.status !== "expired") {
-      intent.status = "expired";
-      await intent.save();
+  if (now > intent.expiresAt && !intent.tx_hash) {
+    const lateWindowMs = getLateWindowMs();
+    if (now.getTime() - intent.expiresAt.getTime() > lateWindowMs) {
+      if (intent.status !== "expired") {
+        intent.status = "expired";
+        await intent.save();
+      }
+      return { success: false, status: "expired", message: "Deposit intent expired." };
     }
-    return { success: false, status: "expired", message: "Deposit intent expired." };
   }
 
   if (!intent.tx_hash) {
-    return { success: false, status: "pending", message: "Awaiting transaction hash." };
+    const detectedHash = await findMatchingBnbTransfer(intent);
+    if (detectedHash) {
+      intent.tx_hash = detectedHash;
+      intent.status = "pending";
+      intent.processingError = null;
+      await intent.save();
+    } else {
+      return { success: false, status: "pending", message: "Awaiting on-chain transfer." };
+    }
   }
 
   const result = await processBnbTransaction(intent.tx_hash, {
