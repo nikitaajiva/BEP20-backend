@@ -101,16 +101,16 @@ async function findDepositTx(destination, tag) {
       createdAt: { $gte: fiveMinutesAgo },
     }).lean();
 
-    console.log(`🔍 Found ${recentAddresses.length} active deposit addresses (last 5 mins)`);
+    
 
     for (const addr of recentAddresses) {
       const { wallet_address, destination_tag, _id } = addr;
 
-      console.log(`→ Checking address: ${wallet_address} | Tag: ${destination_tag}`);
+      
       const tx = await findDepositTx(wallet_address, destination_tag);
 
       if (tx) {
-        console.log(`✅ Found deposit TX: ${tx.txHash} | ${tx.amountXRP} XRP`);
+        
         await DepositAddress.updateOne(
           { _id },
           {
@@ -124,11 +124,11 @@ async function findDepositTx(destination, tag) {
           }
         );
       } else {
-        console.log("⚠️ No deposit found for this tag yet.");
+        
       }
     }
 
-    console.log("✅ Done checking all recent addresses.");
+    
     await mongoose.disconnect();
     process.exit(0);
   } catch (err) {

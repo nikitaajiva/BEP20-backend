@@ -7,7 +7,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error('MongoDB Connection Error:', err.message);
         process.exit(1);
@@ -21,7 +21,7 @@ const createIndexes = async () => {
             { userId: 1, date: 1 },
             { unique: true }
         );
-        console.log('Successfully created indexes');
+        
     } catch (error) {
         console.error('Error creating indexes:', error);
         throw error;
@@ -33,7 +33,7 @@ const run = async () => {
         await connectDB();
         await createIndexes();
         await mongoose.disconnect();
-        console.log('Index creation completed successfully');
+        
         process.exit(0);
     } catch (error) {
         console.error('Index creation failed:', error);

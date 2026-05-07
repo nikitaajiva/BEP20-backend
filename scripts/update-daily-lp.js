@@ -167,7 +167,7 @@ async function processNewTransactions() {
             }
         }
 
-        console.log(`Processed ${latestTransactions.length} transactions`);
+        
     } catch (error) {
         console.error('Error processing transactions:', error);
     }
@@ -176,7 +176,7 @@ async function processNewTransactions() {
 // Connect to MongoDB and start processing
 mongoose.connect(config.mongoURI)
     .then(() => {
-        console.log('MongoDB connected...');
+        
         
         // Process new transactions every minute
         setInterval(processNewTransactions, 60000);

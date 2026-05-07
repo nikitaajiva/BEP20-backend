@@ -25,14 +25,14 @@ const LpReward = require("../models/LpReward");
     const passedDate = process.argv[3];
 
     if (!uhid) {
-      console.log("❌ Usage: node scripts/teamLpRewardsReport.js <UHID> [YYYY-MM-DD]");
+      
       process.exit(1);
     }
 
     // Find sponsor user
     const parentUser = await User.findOne({ uhid }).lean();
     if (!parentUser) {
-      console.log(`⚠️ No user found for UHID: ${uhid}`);
+      
       process.exit(0);
     }
 
@@ -40,13 +40,13 @@ const LpReward = require("../models/LpReward");
     const startOfDay = reportDate.clone().startOf("day").toDate();
     const endOfDay = reportDate.clone().endOf("day").toDate();
 
-    console.log(`\n📅 Generating Team LP Rewards Report for ${uhid} (${parentUser.username || parentUser.name}) on ${reportDate.format("YYYY-MM-DD")}`);
+    
 
     // Get all level entries where this user is parent
     const levelLinks = await Level.find({ parent: uhid }).lean();
     const childUHIDs = levelLinks.map(l => l.child);
     if (!childUHIDs.length) {
-      console.log(`⚠️ No child users found under parent UHID: ${uhid}`);
+      
       process.exit(0);
     }
 
@@ -57,7 +57,7 @@ const LpReward = require("../models/LpReward");
     childUsers.forEach(u => (childMap[u._id.toString()] = u));
 
     if (!childIds.length) {
-      console.log(`⚠️ No matching User documents found for child UHIDs.`);
+      
       process.exit(0);
     }
 
@@ -70,11 +70,11 @@ const LpReward = require("../models/LpReward");
       .lean();
 
     if (!rewards.length) {
-      console.log(`ℹ️ No LP rewards found for the team on ${reportDate.format("YYYY-MM-DD")}`);
+      
       process.exit(0);
     }
 
-    console.log(`✅ Found ${rewards.length} LP reward entries for team.`);
+    
 
     // Prepare Excel rows
     const rows = [];
@@ -149,8 +149,8 @@ const LpReward = require("../models/LpReward");
     const filePath = path.join(reportsDir, fileName);
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`\n💰 Total Team LP Rewards: ${total.toFixed(6)} XRP`);
-    console.log(`📁 Report saved to: ${filePath}`);
+    
+    
 
     process.exit(0);
   } catch (err) {

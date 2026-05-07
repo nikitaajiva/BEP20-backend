@@ -62,60 +62,60 @@ async function checkCommunityBoosterConditions(uhid) {
         // Get user details
         const user = await User.findOne({ uhid }).lean();
         if (!user) {
-            console.log('User not found');
+            
             return;
         }
 
-        console.log(`\nChecking Community Booster conditions for user: ${user.username} (${uhid})`);
+        
 
         // Get direct referral count and self LP
         const directCount = await Level.countDocuments({ parent: uhid, level: 1 });
         const ledger = await Ledger.findOne({ uhid }).select('wallets.lp').lean();
         const selfLP = ledger ? parseFloat(ledger.wallets.lp.toString()) : 0;
 
-        console.log('\nBasic Stats:');
-        console.log(`- Direct Referrals: ${directCount}`);
-        console.log(`- Self LP: ${selfLP} XRP`);
+        
+        
+        
 
         // Calculate volumes
         const directVolume = await getTeamVolume(uhid, 1);  // Level 1 volume
         const teamVolume = await getTeamVolume(uhid, 3);    // Level 1-3 volume
 
-        console.log('\nVolume Stats:');
-        console.log(`- Direct Volume (Level 1): ${directVolume} XRP`);
-        console.log(`- Team Volume (Levels 1-3): ${teamVolume} XRP`);
+        
+        
+        
 
         // Check each tier's requirements
-        console.log('\nTier Qualification Check:');
+        
         for (const [tier, requirements] of Object.entries(COMMUNITY_TIERS)) {
-            console.log(`\nTier ${tier} XRP:`);
+            
             
             // Check cascade level requirements first
             const cascadeReq = CASCADE_REQUIREMENTS[requirements.bonusLevel - 1];
             const meetsBasicRequirements = directCount >= cascadeReq.minDirects && selfLP >= cascadeReq.minSelfLP;
             
-            console.log(`Cascade Level ${requirements.bonusLevel} Requirements:`);
-            console.log(`- Required Direct Referrals: ${cascadeReq.minDirects} (Has: ${directCount})`);
-            console.log(`- Required Self LP: ${cascadeReq.minSelfLP} (Has: ${selfLP})`);
-            console.log(`- Basic Requirements Met: ${meetsBasicRequirements ? 'YES' : 'NO'}`);
+            
+            
+            
+            
 
             if (meetsBasicRequirements) {
                 const meetsDirectVolume = directVolume >= requirements.directRequired;
                 const meetsTeamVolume = teamVolume >= requirements.teamRequired;
                 
-                console.log('\nVolume Requirements:');
-                console.log(`- Required Direct Volume: ${requirements.directRequired} (Has: ${directVolume})`);
-                console.log(`- Required Team Volume: ${requirements.teamRequired} (Has: ${teamVolume})`);
-                console.log(`- Direct Volume Requirement Met: ${meetsDirectVolume ? 'YES' : 'NO'}`);
-                console.log(`- Team Volume Requirement Met: ${meetsTeamVolume ? 'YES' : 'NO'}`);
+                
+                
+                
+                
+                
                 
                 if (meetsDirectVolume && meetsTeamVolume) {
-                    console.log(`\n✅ QUALIFIED for Tier ${tier} - Will double Level ${requirements.bonusLevel} rate to ${requirements.baseRate * 200}%`);
+                    
                 } else {
-                    console.log(`\n❌ NOT QUALIFIED for Tier ${tier}`);
+                    
                 }
             } else {
-                console.log(`\n❌ NOT QUALIFIED for Tier ${tier} - Basic cascade requirements not met`);
+                
             }
         }
 
@@ -128,5 +128,5 @@ async function checkCommunityBoosterConditions(uhid) {
 
 // Check the specified UHID
 const targetUhid = "17469855250636";
-console.log(`\nAnalyzing Community Booster conditions for UHID: ${targetUhid}\n`);
+
 checkCommunityBoosterConditions(targetUhid); 

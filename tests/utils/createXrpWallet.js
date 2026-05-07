@@ -10,17 +10,17 @@ async function createTestWallet() {
     const fund_result = await client.fundWallet();
     const test_wallet = fund_result.wallet;
 
-    console.log("\nCreated test wallet!");
-    console.log("===============================");
-    console.log("Classic Address:", test_wallet.classicAddress);
-    console.log("Seed:", test_wallet.seed);
-    console.log("Public Key:", test_wallet.publicKey);
-    console.log("Private Key:", test_wallet.privateKey);
-    console.log("===============================\n");
+    
+    
+    
+    
+    
+    
+    
 
     // Get the balance
     const balance = await client.getXrpBalance(test_wallet.address);
-    console.log("Balance:", balance, "XRP");
+    
 
     await client.disconnect();
     return test_wallet;

@@ -37,8 +37,8 @@ async function main() {
 
   try {
     await connectDB();
-    console.log("✅ Connected to DB");
-    console.log(`🚦 MODE: ${DRY_RUN ? "DRY RUN" : "LIVE"}`);
+    
+    
 
     /* ===============================
        STEP 1: AGGREGATE DEPOSITS
@@ -99,15 +99,15 @@ async function main() {
     }
 
     if (!updates.length) {
-      console.log("ℹ️ No users matched update rules");
+      
       process.exit(0);
     }
 
-    console.log(`🔧 Users to sync LP: ${updates.length}`);
-    console.log("🔍 Sample:", updates.slice(0, 3));
+    
+    
 
     if (DRY_RUN) {
-      console.log("🟡 DRY RUN — NO DATABASE CHANGES");
+      
       process.exit(0);
     }
 
@@ -131,7 +131,7 @@ async function main() {
       ]
     );
 
-    console.log("💾 Wallet backup stored");
+    
 
     /* ===============================
        STEP 5: APPLY UPDATES
@@ -151,10 +151,10 @@ async function main() {
     }));
 
     const res = await Ledger.bulkWrite(bulkOps);
-    console.log(`✅ Updated ledgers: ${res.modifiedCount}`);
+    
 
     await mongoose.disconnect();
-    console.log("✅ DONE");
+    
     process.exit(0);
 
   } catch (err) {

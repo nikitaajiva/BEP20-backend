@@ -16,12 +16,12 @@ const updateXRanks = async (options = {}) => {
     const concurrency = options.concurrency || 20; // how many users in parallel
     const uhid = options.uhid || null;
 
-    console.log(`Running in ${isDryRun ? 'DRY RUN' : 'LIVE'} mode`);
-    console.log(`Batch size: ${batchSize}, Concurrency: ${concurrency}`);
+    
+    
 
     try {
         await connectDB();
-        console.log('🚀 Starting X1–X5 rank update script...');
+        
 
         let processedCount = 0;
         let updatedCount = 0;
@@ -29,19 +29,19 @@ const updateXRanks = async (options = {}) => {
 
         // ---------- Single user mode ----------
         if (uhid) {
-            console.log(`🔍 Running for single UHID: ${uhid}`);
+            
             const user = await User.findOne({ uhid }).lean();
 
             if (!user) {
-                console.log(`⚠️  No user found with UHID: ${uhid}`);
+                
                 return;
             }
 
             try {
-                console.log(`Processing user ${user.username} (UHID: ${user.uhid})`);
+                
                     // 🚫 Skip blocked UHID
                 if (user.uhid === "1760448463650") {
-                    console.log(`⛔ Skipping blocked UHID in batch: ${user.uhid}`);
+                    
                     return null;
                 }
 
@@ -55,10 +55,10 @@ const updateXRanks = async (options = {}) => {
 
                     if (updateResult.modifiedCount > 0) {
                         updatedCount++;
-                        console.log(`✅ Updated ${user.username}'s rank to ${tier || 'null'}`);
+                        
                     }
                 } else {
-                    console.log(`DRY RUN - Would update ${user.username}'s rank to: ${tier || 'null'}`);
+                    
                 }
                 processedCount++;
             } catch (error) {
@@ -67,7 +67,7 @@ const updateXRanks = async (options = {}) => {
             }
         } else {
             // ---------- All users mode (batch) ----------
-            console.log(`📦 Processing all users in batches of ${batchSize}`);
+            
             let lastProcessedId = null;
 
             while (true) {
@@ -90,7 +90,7 @@ const updateXRanks = async (options = {}) => {
                                 },
                             };
                         } else {
-                            console.log(`DRY RUN - Would update ${user.username} -> ${tier}`);
+                            
                             return null;
                         }
                     } catch (err) {
@@ -109,15 +109,15 @@ const updateXRanks = async (options = {}) => {
 
                 processedCount += users.length;
                 lastProcessedId = users[users.length - 1]._id;
-                console.log(`📊 Processed ${processedCount} users so far...`);
+                
             }
         }
 
         // ---------- Summary ----------
         const summary = { totalProcessed: processedCount, updatedCount, errorCount };
-        console.log('\n📋 Processing Summary:');
-        console.log(JSON.stringify(summary, null, 2));
-        console.log(`\n✅ Script finished in ${isDryRun ? 'DRY RUN' : 'LIVE'} mode.`);
+        
+        
+        
 
         await mongoose.disconnect();
         return summary;
@@ -162,7 +162,7 @@ if (require.main === module) {
     const options = parseArgs();
     updateXRanks(options)
         .then(() => {
-            console.log('✅ Script completed successfully');
+            
             process.exit(0);
         })
         .catch(error => {

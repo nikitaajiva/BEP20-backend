@@ -29,12 +29,12 @@ const distributeCommunityBooster = async (options = {}) => {
     const fromDate = options.fromDate ? new Date(options.fromDate) : null;
     const toDate = options.toDate ? new Date(options.toDate) : null;
 
-    console.log(`Running in ${isDryRun ? 'DRY RUN' : 'LIVE'} mode, `);
-    if (fromDate) console.log(`From date: ${fromDate.toISOString()}`);
-    if (toDate) console.log(`To date: ${toDate.toISOString()}`);
+    
+    if (fromDate) 
+    if (toDate) 
 
     await connectDB();
-    console.log('Starting COMMUNITY BOOSTER reward distribution script...');
+    
 
 
     const today = new Date();
@@ -67,7 +67,7 @@ const distributeCommunityBooster = async (options = {}) => {
         .sort({ ts: 1 }) // Process oldest first
         .lean();
 
-    console.log(`Found ${lpDepositEvents.length} unprocessed LP rewards to analyze for Community Booster rewards.`);
+    
 
     let processedCount = 0;
     let errorCount = 0;
@@ -76,12 +76,12 @@ const distributeCommunityBooster = async (options = {}) => {
 
     for (const event of lpDepositEvents) {
         try {
-           // console.log(`\n--- Processing event ${event._id} from ${event.ts}`);
-            //console.log(`User: ${event.userId}, Amount: ${event.amount}, TxHash: ${event.refId}`);
-            //console.log(`Processing event ${event._id} from ${event.ts} with userId ${event.userId}`);
+           // 
+            //
+            //
             // if (event.userId ===  ObjectId('68416df05d8deee438fae10a') || event.userId === '68416df05d8deee438fae10a') {
             // }
-       //     console.log(`Processing event  userId ${event.userId}`);
+       //     
 
             const payload = {
                 depositorUserId: event.userId,
@@ -90,7 +90,7 @@ const distributeCommunityBooster = async (options = {}) => {
             };
 
         if (!isDryRun) {
-                console.log(`Processing event ${event._id} from ${event.ts} with userId ${event.userId}`);
+                
 
                 // =================================================
                 // 🔒 5× CAP CHECK — COMMUNITY BOOSTER
@@ -131,8 +131,8 @@ const distributeCommunityBooster = async (options = {}) => {
                 processedCount++;
             } else {
                 // In dry run, just simulate the processing
-           //     console.log('DRY RUN - Would process this event:');
-                console.log(JSON.stringify(payload, null, 2));
+           //     
+                
             }
 
         } catch (error) {
@@ -149,9 +149,9 @@ const distributeCommunityBooster = async (options = {}) => {
         totalRewardsAmount
     };
 
-    console.log('\nProcessing Summary:');
-    console.log(JSON.stringify(summary, null, 2));
-    console.log(`\nCOMMUNITY BOOSTER distribution script finished in ${isDryRun ? 'DRY RUN' : 'LIVE'} mode.`);
+    
+    
+    
     
     await mongoose.disconnect();
     return summary;
@@ -188,7 +188,7 @@ if (require.main === module) {
     const options = parseArgs();
     distributeCommunityBooster(options)
         .then(() => {
-            console.log('Script completed successfully');
+            
             process.exit(0);
         })
         .catch(error => {

@@ -23,7 +23,7 @@ function getRoiRateForBalance(balanceD128) {
 
 exports.handleDailyRoiUser = async (payload, session, event) => {
     const { userId, processingDate } = payload;
-    console.log(`DAILY_ROI_USER Handler: Calculating ROI for user ${userId} for date ${processingDate}`);
+    
 
     const user = await User.findById(userId).session(session);
     if (!user) {
@@ -42,13 +42,13 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
 
     for (const wallet of walletsToProcess) {
         if (!wallet.balance || wallet.balance.toFloat() <= 0) {
-            console.log(`User ${userId}, Wallet ${wallet.name}: Balance is ${wallet.balance?.toString() || 'undefined'}, skipping ROI calculation.`);
+            
             continue;
         }
 
         const { rate, description: rateSlabDescription } = getRoiRateForBalance(wallet.balance);
         if (rate === 0) {
-            console.log(`User ${userId}, Wallet ${wallet.name}: Balance ${wallet.balance.toString()} does not meet minimum for ROI.`);
+            
             continue;
         }
 
@@ -62,7 +62,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
             const remainingWalletLimit = subtractDecimal128(limitDef.cap, limitDef.used);
             
             if (parseFloat(remainingWalletLimit.toString()) <= 0) {
-                console.log(`User ${userId}, Wallet ${wallet.name}: Specific limit ${wallet.limitKey} already exhausted. Cap: ${limitDef.cap}, Used: ${limitDef.used}`);
+                
                 continue; 
             }
             if (compareDecimal128(roiToCredit, remainingWalletLimit) === 1) { // roiToCredit > remainingWalletLimit
@@ -74,7 +74,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
         }
 
         if (parseFloat(roiToCredit.toString()) <= 0) {
-            console.log(`User ${userId}, Wallet ${wallet.name}: ROI to credit is ${roiToCredit.toString()} after wallet-specific limits, skipping.`);
+            
             continue;
         }
 
@@ -83,7 +83,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
         const remainingFiveXRoom = subtractDecimal128(fiveXLimitDef.cap, fiveXLimitDef.used);
 
         if (parseFloat(remainingFiveXRoom.toString()) <= 0) {
-            console.log(`User ${userId}, Wallet ${wallet.name}: FiveXLimit already exhausted. Cap: ${fiveXLimitDef.cap}, Used: ${fiveXLimitDef.used}. Cannot credit further to CommunityRewards.`);
+            
             continue; // Cannot credit any more to Community Rewards
         }
 
@@ -98,7 +98,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
         }
 
         if (parseFloat(finalRoiCreditedToCommunity.toString()) <= 0) {
-            console.log(`User ${userId}, Wallet ${wallet.name}: ROI to credit is ${finalRoiCreditedToCommunity.toString()} after FiveXLimit, skipping.`);
+            
             continue;
         }
 
@@ -136,7 +136,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
             }
         }, session);
 
-        console.log(`User ${userId}, Wallet ${wallet.name}: ROI of ${finalRoiCreditedToCommunity.toString()} credited to Community Rewards. Rate: ${rate*100}%. WalletLimit: ${walletLimitAppliedDescription}, FiveX: ${fiveXAppliedDescription}`);
+        
 
         if (wallet.name === 'LP') {
             totalLpRoiEarned = addDecimal128(totalLpRoiEarned, finalRoiCreditedToCommunity); // totalLpRoiEarned is what actually hit CommunityRewards
@@ -147,7 +147,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
 
     // If LP-ROI > 0, emit ROI_CASCADE
     if (parseFloat(totalLpRoiEarned.toString()) > 0) {
-        console.log(`User ${userId} earned actual LP ROI of ${totalLpRoiEarned.toString()} (after all limits). Enqueuing ROI_CASCADE.`);
+        
         const cascadePayload = {
             userId, 
             lpRoiAmount: totalLpRoiEarned.toString(), // This is the amount that actually hit CommunityRewards and is eligible for cascade
@@ -164,5 +164,5 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
         await cascadeEvent.save({ session }); 
     }
 
-    console.log(`DAILY_ROI_USER for user ${userId} processed successfully.`);
+    
 }; 

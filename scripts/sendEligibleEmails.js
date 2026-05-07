@@ -201,23 +201,23 @@ async function sendEligibilityEmails() {
 
   const allowedRanks = ["X1", "X2", "X3", "X4", "X5"];
 
-  console.log("🔍 Fetching eligible users...");
+  
 
   const users = await User.find(
     { xRank: { $in: allowedRanks }, email: { $exists: true } },
     "email username xRank hasReceivedEligibilityEmail"
   ).lean();
 
-  console.log(`🎯 Found ${users.length} eligible users.`);
+  
 
   for (const user of users) {
     // OPTIONAL: Skip users already emailed
     // if (user.hasReceivedEligibilityEmail) {
-    //   console.log(`⏭️ Already sent: ${user.email}`);
+    //   
     //   continue;
     // }
 
-    console.log(`📧 Sending to: ${user.email} (${user.xRank})...`);
+    
 
     try {
       const htmlBody = buildEligibilityEmail(user.username);
@@ -239,13 +239,13 @@ async function sendEligibilityEmails() {
       //   { hasReceivedEligibilityEmail: true }
       // );
 
-      console.log(`✅ Sent successfully: ${user.email}`);
+      
     } catch (err) {
       console.error(`❌ Failed to send to ${user.email}:`, err);
     }
   }
 
-  console.log("🎉 Done sending eligibility emails!");
+  
   process.exit(0);
 }
 

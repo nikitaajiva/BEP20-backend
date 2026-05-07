@@ -29,7 +29,7 @@ const Country = mongoose.models.Country || mongoose.model('Country', CountrySche
 // --- Main Script Logic ---
 
 async function enrichUserData() {
-  console.log('Starting user data enrichment...');
+  
 
   const countries = await Country.find({});
   if (countries.length === 0) {
@@ -84,12 +84,12 @@ async function enrichUserData() {
   ];
 
   try {
-    console.log('Executing aggregation pipeline to find users to update...');
+    
     const usersToUpdate = await UserSignUp.aggregate(pipeline);
-    console.log(`Found ${usersToUpdate.length} users with valid country information to enrich.`);
+    
 
     if (usersToUpdate.length === 0) {
-      console.log('No users to update.');
+      
       return;
     }
 
@@ -106,10 +106,10 @@ async function enrichUserData() {
       }
     }));
 
-    console.log(`Performing bulk update for ${bulkOps.length} users...`);
+    
     const result = await User.bulkWrite(bulkOps);
-    console.log('Bulk write result:', JSON.stringify(result, null, 2));
-    console.log('Successfully enriched user data.');
+    
+    
 
   } catch (error) {
     console.error('An error occurred during the data enrichment process:', error);
@@ -121,9 +121,9 @@ async function enrichUserData() {
 
 async function run() {
   try {
-    console.log(`Connecting to database: ${dbName}...`);
+    
     await mongoose.connect(mongoUrl);
-    console.log('MongoDB connected successfully.');
+    
     
     await enrichUserData();
 
@@ -132,7 +132,7 @@ async function run() {
     process.exit(1);
   } finally {
     await mongoose.disconnect();
-    console.log('\nMongoDB connection closed.');
+    
   }
 }
 

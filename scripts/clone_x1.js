@@ -26,12 +26,12 @@ const { Decimal128 } = mongoose.Types;
 // ----------- READ DATE FROM COMMAND LINE ------------
 const argDate = process.argv.find(a => a.startsWith("--date="));
 if (!argDate) {
-    console.log("❌ Missing --date=YYYY-MM-DD");
+    
     process.exit(1);
 }
 const INPUT_DATE = argDate.split("=")[1];
 if (!/^\d{4}-\d{2}-\d{2}$/.test(INPUT_DATE)) {
-    console.log("❌ Invalid date format. Use YYYY-MM-DD");
+    
     process.exit(1);
 }
 
@@ -41,10 +41,10 @@ const TODAY_TS = new Date();
 // ----------------------------------------------------
 
 async function run() {
-    console.log("⏳ Connecting to MongoDB...");
+    
     await connectDB();
 
-    console.log(`📅 Searching all X1Rewards for date: ${INPUT_DATE}`);
+    
 
     const start = new Date(`${INPUT_DATE}T00:00:00.000Z`);
     const end = new Date(`${INPUT_DATE}T23:59:59.999Z`);
@@ -54,11 +54,11 @@ async function run() {
     });
 
     if (!rewards.length) {
-        console.log("❌ No X1Rewards found for this date.");
+        
         process.exit(0);
     }
 
-    console.log(`🔍 Found ${rewards.length} X1Rewards for that date.`);
+    
 
     // group by user
     const byUser = {};
@@ -68,7 +68,7 @@ async function run() {
         byUser[uid].push(r);
     }
 
-    console.log(`👤 Total users to update: ${Object.keys(byUser).length}`);
+    
 
     const finalReport = [];
 
@@ -79,7 +79,7 @@ async function run() {
         const userId = new mongoose.Types.ObjectId(userIdStr);
         const userRewards = byUser[userIdStr];
 
-        console.log(`\n➡️ Processing user: ${userIdStr}, rewards: ${userRewards.length}`);
+        
 
         let cloneList = [];
         let sumUserRewards = 0;
@@ -107,13 +107,13 @@ async function run() {
         // Insert cloned X1 rewards
         await X1Rewards.insertMany(cloneList);
 
-        console.log(`   ✔ Cloned ${userRewards.length} → Total: ${sumUserRewards}`);
+        
 
         // ------ UPDATE LEDGER FOR THIS USER ------
         const ledger = await Ledger.findOne({ userId });
 
         if (!ledger) {
-            console.log("   ⚠️ Ledger not found for this user — skipping ledger update.");
+            
             continue;
         }
 
@@ -135,12 +135,12 @@ async function run() {
             newFiveXUsed: ledger.limits.fiveXLimit.used.toString()
         });
 
-        console.log("   💰 Ledger updated.");
+        
     }
 
-    console.log("\n========== DAILY CLONE SUMMARY ==========");
+    
     console.table(finalReport);
-    console.log("✅ All done!");
+    
 
     process.exit(0);
 }

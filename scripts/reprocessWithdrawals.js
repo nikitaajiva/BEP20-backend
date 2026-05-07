@@ -129,13 +129,13 @@ async function exportTeamDryRunExcel(summary) {
   );
 
   await workbook.xlsx.writeFile(filePath);
-  console.log(`📁 Excel generated: ${filePath}`);
+  
 }
 
 /* ================= MAIN ================= */
 async function start() {
   await connectDB();
-  console.log("✅ MongoDB connected");
+  
 
   /* -------- TEAM USERS -------- */
   const teamRows = await Level.find(
@@ -144,7 +144,7 @@ async function start() {
   ).lean();
 
   const teamUhids = new Set(teamRows.map(r => String(r.child)));
-  console.log(`👥 Team users loaded: ${teamUhids.size}`);
+  
 
   /* -------- LOAD PENDING LOGS -------- */
   // const logs = await WithdrawalErrorLog.find({
@@ -163,7 +163,7 @@ const logs = await WithdrawalErrorLog.find({
 }).lean();
 
 
-  console.log(`📌 Pending logs: ${logs.length}`);
+  
 
   for (const log of logs) {
     const amountXrp = Number(log.amount);
@@ -196,7 +196,7 @@ if (TEAM_ONLY && !isTeamUser) {
     DestinationTag: 200001, 
     memo: `withdrawal:${log._id}`,
   });
-console.log(result);
+
       if (result?.txHash) {
         summary.sentCount++;
         summary.sentAmount += amountXrp;
@@ -209,7 +209,7 @@ console.log(result);
         throw new Error("TX failed");
       }
     } catch (err) {
-      console.log(err);
+      
       summary.failedCount++;
       summary.failedAmount += amountXrp;
 

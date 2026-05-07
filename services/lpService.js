@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
  */
 const updateUplineTeamLp = async (userUhid, lpAmountAdded) => {
     if (!userUhid || !lpAmountAdded || lpAmountAdded.toString() === '0.0' || lpAmountAdded.toString() === '0') {
-        console.log('Skipping team LP update: Invalid input or zero amount.');
+        
         return;
     }
 
@@ -23,7 +23,7 @@ const updateUplineTeamLp = async (userUhid, lpAmountAdded) => {
         }).select('parent').lean();
 
         if (uplineLevels.length === 0) {
-            console.log(`No upline found for user ${userUhid}. No team LP to update.`);
+            
             return;
         }
 
@@ -35,7 +35,7 @@ const updateUplineTeamLp = async (userUhid, lpAmountAdded) => {
             { $inc: { 'counters.totalTeamLp': lpAmountAdded } }
         );
 
-        console.log(`Successfully updated totalTeamLp for ${result.modifiedCount} upline members of user ${userUhid}.`);
+        
 
     } catch (error) {
         console.error(`Error updating team LP for user ${userUhid}:`, error);
@@ -54,7 +54,7 @@ const updateUplineTeamLp = async (userUhid, lpAmountAdded) => {
  */
 const decreaseUplineTeamLp = async (userUhid, lpAmountRemoved) => {
     if (!userUhid || !lpAmountRemoved || lpAmountRemoved.toString() === '0.0' || lpAmountRemoved.toString() === '0') {
-        console.log('Skipping team LP decrease: Invalid input or zero amount.');
+        
         return;
     }
 
@@ -65,7 +65,7 @@ const decreaseUplineTeamLp = async (userUhid, lpAmountRemoved) => {
         }).select('parent').lean();
 
         if (uplineLevels.length === 0) {
-            console.log(`No upline found for user ${userUhid}. No team LP to decrease.`);
+            
             return;
         }
 
@@ -81,7 +81,7 @@ const decreaseUplineTeamLp = async (userUhid, lpAmountRemoved) => {
             { $inc: { 'counters.totalTeamLp': amountToDecrement } }
         );
 
-        console.log(`Successfully decreased totalTeamLp for ${result.modifiedCount} upline members of user ${userUhid}.`);
+        
 
     } catch (error) {
         console.error(`Error decreasing team LP for user ${userUhid}:`, error);

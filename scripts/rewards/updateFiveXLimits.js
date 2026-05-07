@@ -9,7 +9,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -19,11 +19,11 @@ const connectDB = async () => {
 async function updateFiveXLimits() {
     try {
         await connectDB();
-        console.log('Starting fiveXLimit update script...');
+        
 
         // Get all X1 rewards
         const rewards = await X1Reward.find({}).lean();
-        console.log(`Found ${rewards.length} X1 rewards records`);
+        
 
         // Group rewards by userId and calculate total
         const userTotals = {};
@@ -35,7 +35,7 @@ async function updateFiveXLimits() {
             userTotals[userId] += parseFloat(reward.amount.toString());
         });
 
-        console.log(`Processing updates for ${Object.keys(userTotals).length} users`);
+        
 
         // Update each user's ledger
         for (const [userId, total] of Object.entries(userTotals)) {
@@ -55,19 +55,19 @@ async function updateFiveXLimits() {
                 ledger.limits.fiveXLimit.used = newUsed;
                 await ledger.save();
                 
-                console.log(`Updated user ${userId}: Set fiveXLimit.used to ${total}`);
+                
             } else {
-                console.log(`Warning: No ledger found for user ${userId}`);
+                
             }
         }
 
-        console.log('Finished updating fiveXLimit values');
+        
     } catch (error) {
         console.error('Script failed:', error);
         process.exit(1);
     } finally {
         await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        
     }
 }
 
@@ -75,7 +75,7 @@ async function updateFiveXLimits() {
 if (require.main === module) {
     updateFiveXLimits()
         .then(() => {
-            console.log('Script completed successfully');
+            
             process.exit(0);
         })
         .catch(error => {

@@ -5,12 +5,12 @@ async function main() {
   try {
     // Connect to MongoDB
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/your-database');
-    console.log('Connected to MongoDB');
+    
 
     // Run the reversal
     await reverseReconcileWithdrawals();
     
-    console.log('Reversal completed successfully');
+    
   } catch (error) {
     console.error('Reversal failed:', error);
     process.exit(1);

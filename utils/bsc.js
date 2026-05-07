@@ -2,6 +2,8 @@ const { ethers } = require("ethers");
 
 const BSC_CHAIN_ID = 56;
 const RPC_URL = process.env.BSC_MAINNET_RPC_URL;
+const RPC_WSS_URL =
+  process.env.BSC_MAINNET_RPC_WSS || process.env.BSC_MAINNET_WSS_URL;
 const USDT_CONTRACT_ADDRESS = process.env.USDT_CONTRACT_ADDRESS_MAINNET;
 const BSC_CONFIRMATIONS = Number(process.env.BSC_CONFIRMATIONS || "3");
 
@@ -13,10 +15,12 @@ const ERC20_ABI = [
 ];
 
 function getProvider() {
-  if (!RPC_URL) {
-    throw new Error("BSC RPC URL is not configured");
-  }
-  return new ethers.JsonRpcProvider(RPC_URL);
+  return getHttpProvider();
+}
+
+function getWssProvider() {
+  if (!RPC_WSS_URL) return null;
+  return new ethers.WebSocketProvider(RPC_WSS_URL);
 }
 
 async function assertMainnet(provider) {
@@ -40,12 +44,18 @@ function normalizeAddress(address) {
   return ethers.getAddress(address);
 }
 
+function toBnbWei(amount) {
+  return ethers.parseUnits(amount.toString(), 18);
+}
+
 module.exports = {
   BSC_CHAIN_ID,
   BSC_CONFIRMATIONS,
   ERC20_ABI,
   getProvider,
+  getWssProvider,
   assertMainnet,
   getUsdtContract,
   normalizeAddress,
+  toBnbWei,
 };

@@ -40,7 +40,7 @@ function log(message, writeToFile = true) {
   const timestamp = new Date().toISOString(); // UTC timestamp
   const fullMessage = `[${timestamp}] ${message}`;
 
-  console.log(fullMessage);
+  
 
   if (writeToFile) {
     logStream.write(fullMessage + '\n');
@@ -66,7 +66,7 @@ function d2n(val) {
     await connectDB();
 
     const ledgers = await Ledger.find({ withdrawalDisabled: true}).lean();
-    console.log(`Found ${ledgers.length} ledgers with withdrawalDisabled & pendingWithdrawal`);
+    
 
     let needsRefund = 0;
     let alreadyPaid = 0;
@@ -75,7 +75,7 @@ function d2n(val) {
     let refundsProcessed = 0;
     for (const lg of ledgers) {
       const userId = lg._id;
-    console.log("UHID============================",lg.uhid);
+    
       // Aggregate on-chain deposits & withdrawals
       const [depAgg] = await Deposit.aggregate([
         { $match: { userId } },
@@ -108,7 +108,7 @@ function d2n(val) {
     //   //&& lg.uhid == 17481857045649 
     //     const userledger = await Ledger.findById(userId);
     //     userledger.wallets.communityRewards = communityRewards + diff;
-    //     console.log(`diff vale ${diff}> Needs to be Added in communityRewards `,lg.uhid,"communityRewards:",communityRewards,`New Rewards wil be ${userledger.wallets.communityRewards}` );
+    //     
     //     // await userledger.save();
     // }
     
@@ -122,13 +122,13 @@ function d2n(val) {
         userledger.withdrawalDisabled = false;
         userledger.pendingWithdrawal = null;
         log(`pendingAmt value ${pendingAmt}> Needs to be adjusted ${lg.uhid} `,  true);
-        console.log(`pendingAmt value ${pendingAmt}> Needs to be adjusted `,lg.uhid );
+        
         // await userledger.save();
     }
       
       let verdict;
       if (diff > TOL && Math.abs(diff - pendingAmt) < TOL) {
-         console.log(`Inside process`);
+         
         verdict = 'NEEDS_REFUND';
         needsRefund++;
         if (!isDryRun) {
@@ -141,14 +141,14 @@ function d2n(val) {
               ledgerDoc.pendingWithdrawal = undefined;
               await ledgerDoc.save();
               refundsProcessed++;
-              console.log(`Refunded ${pendingAmt.toFixed(6)} XRP to user ${ledgerDoc.uhid || userId}`);
+              
             }
           } catch (refundErr) {
             console.error('Failed to process refund for', userId, refundErr);
           }
         } else {
           refundsProcessed++;
-          console.log(`[DRY RUN] Would refund ${pendingAmt.toFixed(6)} XRP to user ${lg.uhid || userId}`);
+          
         }
       } else {
         verdict = 'ALREADY_PAID_OR_MISMATCH';
@@ -158,7 +158,7 @@ function d2n(val) {
         });
     
         if (exactMatch) {
-          console.log('Withdrawal matched', exactMatch.amountXRP.toFixed(6));
+          
           withdrawalsMatched++;
           if (!isDryRun) {
             try {
@@ -167,24 +167,24 @@ function d2n(val) {
                 ledgerDoc.withdrawalDisabled = false;
                 ledgerDoc.pendingWithdrawal = undefined;
                 await ledgerDoc.save();
-                console.log(`Released withdrawal lock for user ${ledgerDoc.uhid || userId}`);
+                
               }
             } catch (releaseErr) {
               console.error('Failed to release withdrawal lock for', userId, releaseErr);
             }
           } else {
-            console.log(`[DRY RUN] Would release withdrawal lock for user ${lg.uhid || userId}`);
+            
           }
         }
         else {
           const withdrawals = await Withdrawal.find({ userId }).lean();
-          console.log(`Pending withdrawal: ${pendingAmt.toFixed(6)}`);
+          
 
           const totalWithdrawals = withdrawals.reduce((sum, w) => {
-            console.log(`Withdrawal: ${w.amountXRP.toFixed(6)}`);
+            
             return sum + d2n(w.amountXRP);
           }, 0);
-          console.log(`Total withdrawals: ${totalWithdrawals.toFixed(6)}`);
+          
           unMatchedWithdrawals[userId] = { pendingAmt: withdrawals };
         }
         alreadyPaid++;
@@ -199,11 +199,11 @@ function d2n(val) {
       }
     }
 
-    console.log('\nSUMMARY:');
-    console.log(`  Ledgers needing refund : ${needsRefund}`);
-    console.log(`  Already paid / mismatch : ${alreadyPaid}`);
-    console.log(`  Withdrawals matched : ${withdrawalsMatched}`);
-    console.log(`  Refunds processed (dry-run=${isDryRun}) : ${refundsProcessed}`);
+    
+    
+    
+    
+    
 
   } catch (err) {
     console.error('Fatal error:', err);

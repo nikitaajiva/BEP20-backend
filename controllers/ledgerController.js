@@ -71,7 +71,7 @@ const getLedgerDetails = async (req, res) => {
 
     /* ================== BASE BALANCES ================== */
     const rawLpBalance = ledger.wallets.lp?.toString() || "0.0";
-    const rawUsdtBalance = ledger.wallets.usdt?.toString() || "0.0";
+    const rawBnbBalance = ledger.wallets.bnb?.toString() || "0.0";
     const rawZeroRisk = ledger.wallets.zeroRisk?.toString() || "0.0";
 
     /* ================== 5X LIMIT ================== */
@@ -151,8 +151,8 @@ const getLedgerDetails = async (req, res) => {
         autopositioning: ledger.wallets.autopositionting?.toString() || "0.0",
       },
 
-      usdtWallet: {
-        balance: rawUsdtBalance,
+      bnbWallet: {
+        balance: rawBnbBalance,
       },
 
       boostWallet: {
@@ -243,27 +243,27 @@ const runAutopositioningForUser = async (user) => {
   let ecosystemFeeDeduction = ensureDecimal128("0.0");
   let boostBonusEntry = null;
 
-  console.log(`🔄 [runAutopositioningForUser] Starting for user: ${user?.username} (${userId})`);
+  
 
   try {
     if (!user) {
-      console.log("❌ User not found");
+      
       return;
     }
 
     const ledger = await getOrCreateLedger(userId);
-    console.log("📒 Ledger fetched or created");
+    
 
     // ---- compute gross, fee, net (no mutations yet)
     const grossCR = ensureDecimal128(ledger.wallets.communityRewards?.toString() || "0.0");
-    console.log(`💰 COMMUNITY_REWARDS balance: ${grossCR.toString()}`);
+    
 
    if (
     !grossCR ||
     isNaN(parseFloat(grossCR.toString())) ||
     compareDecimal128(grossCR, "0.0") <= 0
     ) {
-    console.log("⚠️ Skipping autopositioning: No valid COMMUNITY_REWARDS balance or balance ≤ 0.");
+    
     return;
     }
 
@@ -283,7 +283,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
     ledger.wallets.zeroRisk || "0.0",
     netToLP
   );
-  console.log(`🛡 ZERO_RISK wallet updated: ${originalZeroRisk} → ${ledger.wallets.zeroRisk}`);
+  
 }
 
     // ---- apply wallet mutations in consistent order
@@ -296,26 +296,26 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
 
     if (wasFirstDeposit) {
       user.firstLpDepositTs = new Date();
-      console.log("🕒 First LP deposit timestamp set:", user.firstLpDepositTs);
+      
     }
 
     const originalLp = ledger.wallets.lp;
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, netToLP);
-    console.log(`💼 LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`);
+    
 
     // 3) Limits based on NET
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     ledger.limits.boostLimit.cap = addDecimal128(ledger.limits.boostLimit.cap || "0.0", netToLP);
     ledger.limits.fiveXLimit.cap = multiplyDecimal128(ledger.wallets.lp, "5");
-    console.log(`🔁 Boost cap: ${originalBoostCap} → ${ledger.limits.boostLimit.cap}`);
+    
 
     // ---- Sponsor bonus (base on NET)
     if (user.sponsorId) {
-      console.log(`🔗 Sponsor found: ${user.sponsorId}`);
+      
       const sponsor = await User.findById(user.sponsorId);
 
       if (!sponsor) {
-        console.log("⚠️ Sponsor not found in DB.");
+        
       } else {
         const sponsorLedger = await getOrCreateLedger(sponsor._id);
 
@@ -325,7 +325,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
           if (compareDecimal128(sponsorLpBalance, "0.0") > 0) {
             sponsor.firstLpDepositTs = new Date();
             await sponsor.save();
-            console.log(`⏱️ Retroactively set sponsor LP timestamp: ${sponsor.firstLpDepositTs}`);
+            
           }
         }
 
@@ -339,7 +339,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
           // else if (hoursDifference <= 24 + 168 * 3) bonusPercentage = 0.2;
           // else if (hoursDifference <= 24 + 168 * 4) bonusPercentage = 0.1;
           bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
-          console.log(bonusPercentage,"===================bonusPercentage=====================");
+          
 
           if (bonusPercentage > 0) {
             const bonusAmount = multiplyDecimal128(netToLP, bonusPercentage.toString());
@@ -371,7 +371,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
                   refId: user._id.toString(),
                 });
 
-                console.log("🎁 Boost bonus credited:", actualBonusToCredit.toString());
+                
               }
             }
           }
@@ -381,7 +381,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
 
     await user.save();
     await ledger.save();
-    console.log("✅ User and ledger saved.");
+    
 
     // ---- Ledger row: write AUTOPOSITIONING with GROSS so history matches deduction
     const lpDepositLedgerEntry = await createLedgerEntry({
@@ -394,7 +394,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
         ? `Auto-positioned ${grossCR} CR → LP. Credited ${netToLP}. Fee ${ecosystemFeeDeduction} (10%).`
         : `Auto-positioned ${grossCR} CR → LP. No fee.`,
     });
-    console.log("🧾 Created AUTOPOSITIONING ledger entry");
+    
 
     // ---- Record + settle the fee (chain)
     if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
@@ -418,7 +418,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
     //     EcosystemFeeEntry.refId = txResult?.quicknode?.tx_json?.hash;
     //   }
       await EcosystemFeeEntry.save();
-      console.log("🏛️ Ecosystem fee recorded and chain debit attempted.");
+      
     }
 
     if (boostBonusEntry) {
@@ -426,7 +426,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
         { _id: boostBonusEntry._id },
         { $set: { refId: lpDepositLedgerEntry._id.toString() } }
       );
-      console.log("🔗 BOOST_BONUS refId updated");
+      
     }
 
     // ---- Upline team LP (non-blocking) using NET
@@ -434,7 +434,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
       console.error("🧱 Team LP update failed:", err)
     );
 
-    console.log(`✅ Autopositioning completed successfully for ${user.username}`);
+    
   } catch (error) {
     console.error(`❌ Error in runAutopositioningForUser: ${error.message}`, error);
   }
@@ -447,7 +447,7 @@ const startAutoPositioningCron = () => {
     "0 5 * * *", // ⏰ Runs at 12:05 AM UTC
     async () => {
       const now = new Date().toISOString();
-      console.log(`🚀 [CRON @ ${now}] AutoPositioning job started`);
+      
 
       try {
         const users = await User.find({ autopositioning: true });
@@ -462,7 +462,7 @@ const startAutoPositioningCron = () => {
           await runAutopositioningForUser(user);
         }
 
-        console.log("✅ [CRON] AutoPositioning job completed.");
+        
       } catch (err) {
         console.error(
           "❌ [CRON] Error during autopositioning cron:",
@@ -475,7 +475,7 @@ const startAutoPositioningCron = () => {
     }
   );
 
-  console.log("🕓 AutoPositioning Cron scheduled for 12:05 AM UTC daily");
+  
 };
 
 // Get ledger history for authenticated user
@@ -726,13 +726,13 @@ if (ecoLinked && ecoLinked.length > 0) {
       eventType: "ECOSYSTEM_FEE",
       ecosystemLinked: true,
     });
-    console.log(`💸 Added ecosystem fee after LedgerRow ${entry._id}`);
+    
   }
 }
   const prev = runningBalanceCR;
   // Skip deposits (we only want debits)
   if (entry.eventType === "DEPOSIT") {
-    console.log(`⏩ Skipping DEPOSIT event for REWARDS on ${entry.ts}`);
+    
     continue;
   }
   // every record is a debit from COMMUNITY_REWARDS
@@ -741,15 +741,15 @@ if (ecoLinked && ecoLinked.length > 0) {
 
   if (entry.eventType === "REWARDS_REDEEMED") {
     totalRedeemed += amount;
-    console.log(`🔻 REWARD Redeemed: -${amount}, New Balance: ${runningBalanceCR}`);
+    
   } else if (entry.eventType === "AUTOPOSITIONING") {
     totalPositioned += amount;
-    console.log(`📤 REWARD AutoPositioning: -${amount}, New Balance: ${runningBalanceCR}`);
+    
   }  else if (entry.eventType === "AUTO_DEBIT") {
     totalPositioned += amount;
-    console.log(`📤 REWARD AUTO DEBIT: -${amount}, New Balance: ${runningBalanceCR}`);
+    
   }else {
-    console.log(`📉 REWARD Other debit: -${amount}, New Balance: ${runningBalanceCR}`);
+    
   }
 
   enrichedEntries.push({
@@ -894,7 +894,7 @@ const reports = async (req, res) => {
 
       matchedUserIds = matchedUsers.map((u) => u._id.toString());
 
-      console.log("🔍 Matched User IDs for search:", matchedUserIds);
+      
 
       if (matchedUserIds.length === 0) {
         return res.json({
@@ -1287,7 +1287,7 @@ const usersReports = async (req, res) => {
       }
 
       for (const record of day.records) {
-        console.log(record, "recordssssss");
+        
         const { eventType, walletFrom, walletTo, totalAmount } = record;
         const amount = parseFloat(totalAmount.toString());
 
@@ -1642,19 +1642,19 @@ const getUserChainTotals = async (userId) => {
 
 // Add LP from CommuntityRewards wallet
 const addLpFromCommuntityRewards = async (req, res) => {
-  console.log("[addLpFromCommuntityRewards] Received request");
-  console.log(req.user);
+  
+  
   const userId = req.user._id;
-  console.log(userId);
+  
   let ecosystemFee = false;
   let ecosystemFeeDeduction = null;
-  console.log(req.query.deactivate, "req.query.deactivateeeeeeeeeeee");
+  
 
   try {
     const user = await User.findById(userId);
 
     if (!user) {
-      console.log("[addLpFromCommuntityRewards] Error: User not found.");
+      
       return res.status(404).json({
         success: false,
         message: "User not found",
@@ -1664,7 +1664,7 @@ const addLpFromCommuntityRewards = async (req, res) => {
     if (req.query.deactivate === "true") {
       user.autopositioning = false;
       await user.save();
-      console.log(` Autopositioning deactivated for user: ${userId}`);
+      
 
       return res.status(200).json({
         success: true,
@@ -1674,10 +1674,10 @@ const addLpFromCommuntityRewards = async (req, res) => {
 
     user.autopositioning = true;
     await user.save();
-    console.log(`[addLpFromCommuntityRewards] Found user: ${user.username}`);
+    
 
     const ledger = await getOrCreateLedger(userId);
-    console.log("[addLpFromCOMMUNITY_REWARDS] Fetched or created ledger.");
+    
 
     let transferAmountD128 = ensureDecimal128(
       ledger.wallets.communityRewards?.toString() || "0.0"
@@ -1723,7 +1723,7 @@ const addLpFromCommuntityRewards = async (req, res) => {
         transferAmountD128
       );
       // Optional: attach these for tracking
-      console.log("ecosystemFeeDeduction:", ecosystemFeeDeduction.toString());
+      
       console.log(
         "Adjusted transferAmountD128:",
         transferAmountD128.toString()
@@ -1750,7 +1750,7 @@ const addLpFromCommuntityRewards = async (req, res) => {
       `[addLpFromCommunityRewards] LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`
     );
     let boostBonusEntry = null;
-    console.log("[addLpFromcommunityRewards] Updating limits...");
+    
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     const original5xCap = ledger.limits.fiveXLimit?.cap;
     let firstDepositDate = null;
@@ -1812,7 +1812,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
 
           let bonusPercentage = 0;
           bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
-            console.log(bonusPercentage,"===================bonusPercentage=====================");
+            
 
           if (bonusPercentage > 0) {
             const bonusAmount = multiplyDecimal128(
@@ -1896,7 +1896,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
           ecosystemFeeDeduction,
           uniqueTransactionId
         );
-        console.log(txResult);
+        
         chainTxHash = txResult.txHash || txResult.hash;
         EcosystemFeeEntry.refId = chainTxHash;
       }
@@ -1926,7 +1926,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
 
 // Add LP from Usdt wallet
 const addLpFromUsdt = async (req, res) => {
-  console.log("[addLpFromUsdt] Received request");
+  
   try {
     const userId = req.user._id;
     const { transferAmount } = req.body;
@@ -1935,7 +1935,7 @@ const addLpFromUsdt = async (req, res) => {
     );
 
     if (!transferAmount || transferAmount < 9) {
-      console.log("[addLpFromUsdt] Error: Invalid transfer amount.");
+      
       return res.status(400).json({
         success: false,
         message: "Valid transfer amount is required",
@@ -1944,13 +1944,13 @@ const addLpFromUsdt = async (req, res) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      console.log("[addLpFromUsdt] Error: User not found.");
+      
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
-    console.log(`[addLpFromUsdt] Found user: ${user.username}`);
+    
 
     const transferAmountD128 = ensureDecimal128(transferAmount);
     console.log(
@@ -1958,28 +1958,28 @@ const addLpFromUsdt = async (req, res) => {
     );
 
     const ledger = await getOrCreateLedger(userId);
-    console.log("[addLpFromUsdt] Fetched or created ledger.");
+    
 
     // Ensure usdt wallet has enough balance
     const usdtBalanceD128 = ensureDecimal128(
-      ledger.wallets.usdt?.toString() || "0.0"
+      ledger.wallets.bnb?.toString() || "0.0"
     );
     console.log(
       `[addLpFromUsdt] Current Usdt balance: ${usdtBalanceD128.toString()}`
     );
     if (compareDecimal128(usdtBalanceD128, transferAmountD128) < 0) {
-      console.log("[addLpFromUsdt] Error: Insufficient Usdt balance.");
+      
       return res.status(400).json({
         success: false,
         message: `Insufficient Usdt balance. Trying to transfer ${transferAmount}, but only ${usdtBalanceD128.toString()} available.`,
       });
     }
 
-    console.log("[addLpFromUsdt] --- Starting Core Business Logic ---");
+    
 
     // 1. Update user's self LP counter and check if this is the first deposit
     const isFirstDeposit = (user.counters.selfLp || "0.0").toString() === "0.0";
-    console.log(`[addLpFromUsdt] Is first deposit? ${isFirstDeposit}`);
+    
     user.counters.selfLp = addDecimal128(
       user.counters.selfLp || "0.0",
       transferAmountD128
@@ -1992,10 +1992,10 @@ const addLpFromUsdt = async (req, res) => {
     }
 
     // 2. Perform wallet transfers (Usdt -> LP)
-    const originalUsdt = ledger.wallets.usdt;
+    const originalUsdt = ledger.wallets.bnb;
     const originalLp = ledger.wallets.lp;
-    ledger.wallets.usdt = subtractDecimal128(
-      ledger.wallets.usdt,
+    ledger.wallets.bnb = subtractDecimal128(
+      ledger.wallets.bnb,
       transferAmountD128
     );
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, transferAmountD128);
@@ -2025,14 +2025,14 @@ const addLpFromUsdt = async (req, res) => {
         // );
       }
     // console.log(
-    //   `[addLpFromUsdt] Usdt wallet updated: ${originalUsdt} -> ${ledger.wallets.usdt}`
+    //   `[addLpFromUsdt] Usdt wallet updated: ${originalUsdt} -> ${ledger.wallets.bnb}`
     // );
     // console.log(
     //   `[addLpFromUsdt] LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`
     // );
 
     // 3. Handle Airdrop activation (Swift -> Airdrop)
-    console.log("[addLpFromUsdt] Handling Airdrop activation...");
+    
 
     // This will hold the boost bonus entry if it's created
     let boostBonusEntry = null;
@@ -2139,7 +2139,7 @@ const addLpFromUsdt = async (req, res) => {
         walletTo: "AIRDROP",
         narrative: `Airdrop activation for ${amountToMoveFromSwift.toString()} matching LP deposit.${narrativeSuffix}`,
       });
-      console.log("[addLpFromUsdt] Created AIRDROP_ACTIVATION ledger entry.");
+      
     } else {
       console.log(
         "[addLpFromUsdt] No amount to move from Swift, skipping Airdrop activation."
@@ -2147,7 +2147,7 @@ const addLpFromUsdt = async (req, res) => {
     }
 
     // 4. Update all relevant limits
-    console.log("[addLpFromUsdt] Updating limits...");
+    
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     const original5xCap = ledger.limits.fiveXLimit?.cap;
 // --- BOOST LIMIT LOGIC ---
@@ -2198,7 +2198,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       console.log(
         "[addLpFromUsdt] User has a sponsor, processing bonus logic..."
       );
-      console.log(`[addLpFromUsdt] User has sponsor: ${user.sponsorId}`);
+      
       const sponsor = await User.findById(user.sponsorId);
 
       if (!sponsor) {
@@ -2248,7 +2248,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
 
           let bonusPercentage = 0;
           bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
-            console.log(bonusPercentage,"===================bonusPercentage=====================");
+            
           console.log(
             `[addLpFromUsdt] Calculated bonus percentage: ${bonusPercentage}`
           );
@@ -2339,24 +2339,24 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
         }
       }
     } else {
-      console.log("[addLpFromUsdt] User does not have a sponsor.");
+      
     }
 
     // 6. Update Upline Team LP Counters (fire and forget)
-    console.log("[addLpFromUsdt] Triggering Upline Team LP Counter update...");
+    
     updateUplineTeamLp(user.uhid, transferAmountD128).catch((err) => {
       console.error(
         `[BACKGROUND_ERROR] Failed to update team LP for user ${user.uhid}:`,
         err
       );
     });
-    console.log("[addLpFromUsdt] Upline update process initiated.");
+    
 
     // 7. Save all changes and create the primary ledger entry
-    console.log("[addLpFromUsdt] Saving user and ledger...");
+    
     await user.save();
     await ledger.save();
-    console.log("[addLpFromUsdt] User and ledger saved.");
+    
 
     const lpDepositLedgerEntry = await createLedgerEntry({
       userId: userId,
@@ -2382,7 +2382,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       );
     }
 
-    console.log("[addLpFromUsdt] Request successful.");
+    
     res.status(200).json({
       success: true,
       message: `Successfully transferred ${transferAmount} USDT from Usdt to LP wallet.`,
@@ -2531,7 +2531,7 @@ const withdrawUSDT = async (req, res) => {
 
     // --- REVISED WITHDRAWAL VALIDATION LOGIC ---
     if (walletFrom === "ZERO_RISK") {
-      const usdtBalance = ledger.wallets.usdt || Decimal.fromString("0.0");
+      const usdtBalance = ledger.wallets.bnb || Decimal.fromString("0.0");
       const lpBalance = ledger.wallets.lp || Decimal.fromString("0.0");
       const rewardsBalance =
         ledger.wallets.communityRewards || Decimal.fromString("0.0");
@@ -2628,12 +2628,12 @@ const withdrawUSDT = async (req, res) => {
     if (walletFrom === "ZERO_RISK") {
       const amountFromUsdt = minDecimal128(
         amountD128,
-        ledger.wallets.usdt || Decimal.fromString("0.0")
+        ledger.wallets.bnb || Decimal.fromString("0.0")
       );
       const amountFromLp = subtractDecimal128(amountD128, amountFromUsdt);
 
-      ledger.wallets.usdt = subtractDecimal128(
-        ledger.wallets.usdt || "0.0",
+      ledger.wallets.bnb = subtractDecimal128(
+        ledger.wallets.bnb || "0.0",
         amountFromUsdt
       );
 
@@ -2696,7 +2696,7 @@ const withdrawUSDT = async (req, res) => {
         // --- End Sponsor Boost Wallet Reduction Logic ---
       }
 
-      newBalance = addDecimal128(ledger.wallets.usdt, ledger.wallets.lp);
+      newBalance = addDecimal128(ledger.wallets.bnb, ledger.wallets.lp);
     } else if (walletFrom === "COMMUNITY_REWARDS") {
       ledger.wallets.communityRewards = subtractDecimal128(
         ledger.wallets.communityRewards || "0.0",

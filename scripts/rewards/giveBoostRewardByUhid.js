@@ -22,31 +22,31 @@ const FIVE_X_MULTIPLIER = 5;
 // --- MAIN FUNCTION ---
 const giveBoostRewardByUhid = async (uhid, newBoostCap = null, rewardDate = null) => {
   await connectDB();
-  console.log(`🚀 Starting Boost Reward distribution for UHID: ${uhid}`);
+  
 
   const ledger = await Ledger.findOne({ uhid });
   if (!ledger) {
-    console.log(`❌ No ledger found for UHID: ${uhid}`);
+    
     process.exit(1);
   }
 
   try {
     const boostBalance = toFloat(ledger.wallets.boost);
     if (boostBalance <= 0) {
-      console.log(`⚠️ No boost balance for ${uhid}. Skipping.`);
+      
       process.exit(0);
     }
 
-    console.log(`\n--- Processing Boost Reward for User: ${uhid} ---`);
-    console.log(`Current Boost Balance: ${boostBalance}`);
+    
+    
 
     // --- OPTIONAL: Update Boost Limit Cap ---
     if (newBoostCap !== null) {
       ledger.limits.boostLimit.cap = fromFloat(newBoostCap);
-      console.log(`⚙️ Boost limit cap manually set to: ${newBoostCap}`);
+      
     } else if (!ledger.limits.boostLimit.cap || toFloat(ledger.limits.boostLimit.cap) === 0) {
       ledger.limits.boostLimit.cap = fromFloat(boostBalance);
-      console.log(`🧮 Auto-set boost limit cap to current boost balance: ${boostBalance}`);
+      
     }
 
     // Determine reward rate
@@ -64,7 +64,7 @@ const giveBoostRewardByUhid = async (uhid, newBoostCap = null, rewardDate = null
     );
 
     if (cappedBoostReward <= 0) {
-      console.log(`⚠️ Boost limit reached or no eligible reward for ${uhid}.`);
+      
       process.exit(0);
     }
 
@@ -75,12 +75,12 @@ const giveBoostRewardByUhid = async (uhid, newBoostCap = null, rewardDate = null
     const finalReward = Math.min(cappedBoostReward, maxFiveXBenefit);
 
     if (finalReward <= 0) {
-      console.log(`⚠️ 5X Limit exhausted for ${uhid}. No reward granted.`);
+      
       process.exit(0);
     }
 
     // --- Log before balances ---
-    console.log(`Before → communityRewards: ${toFloat(ledger.wallets.communityRewards).toFixed(6)}`);
+    
 
     // Update ledger balances
     ledger.wallets.communityRewards = fromFloat(
@@ -100,9 +100,9 @@ const giveBoostRewardByUhid = async (uhid, newBoostCap = null, rewardDate = null
     await ledger.save();
 
     // --- Log after balances ---
-    console.log(`✅ Ledger updated for ${uhid}`);
-    console.log(`Reward: ${finalReward.toFixed(8)} @ ${(boostRate * 100).toFixed(2)}%`);
-    console.log(`After → communityRewards: ${toFloat(ledger.wallets.communityRewards).toFixed(6)}`);
+    
+    
+    
 
     // --- Custom Date Handling ---
     let ts = new Date(); // default: now
@@ -110,9 +110,9 @@ const giveBoostRewardByUhid = async (uhid, newBoostCap = null, rewardDate = null
       const d = new Date(rewardDate);
       if (!isNaN(d)) {
         ts = d;
-        console.log(`📅 Custom reward date set: ${ts.toISOString()}`);
+        
       } else {
-        console.log(`⚠️ Invalid date provided. Using current UTC time.`);
+        
       }
     }
     const utcDate = ts.toUTCString();
@@ -143,12 +143,12 @@ const giveBoostRewardByUhid = async (uhid, newBoostCap = null, rewardDate = null
       updatedAt: ts,
     });
 
-    console.log(`📘 Boost reward credited and ledger row created for ${uhid} at ${ts.toISOString()}.`);
+    
   } catch (error) {
     console.error(`❌ Error processing ${uhid}:`, error);
   } finally {
     await mongoose.disconnect();
-    console.log(`🔚 Script completed for UHID: ${uhid}`);
+    
   }
 };
 

@@ -47,7 +47,7 @@ async function connectDB() {
     'mongodb://localhost:27017/xrpmigrate';
 
   await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-  console.log('MongoDB connected');
+  
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,12 +90,12 @@ async function revertDoubleAdds() {
     );
 
     await ledger.save();
-    console.log(`User ${userId}: fiveXLimit.used –= ${amount}`);
+    
   }
 
-  console.log(DRY_RUN ? '\nDry-run complete (no writes).' : '\nAll corrections applied.');
+  
   await mongoose.disconnect();
-  console.log('Disconnected');
+  
 }
 
 /* ------------------------------------------------------------------ */

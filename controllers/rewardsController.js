@@ -103,7 +103,7 @@ async function fetchRawCascadeRewards(user, date = null) {
 
     for (const rule of cascadeUnlockRules) {
       const q = await SponsorUnlockAtLevel(user, rule, precomputed);
-      console.log("Level check:", rule.level, q);
+      
 
       if (q.qualified) {
         maxUnlockedLevel = rule.level;
@@ -212,7 +212,7 @@ async function fetchRawBoosterRewards(user, date = null) {
           details: check.details,
         });
       } else {
-        console.log(`[Booster] User ${user.username} failed tier ${tier}: ${check.reason}`);
+        
       }
     }
 

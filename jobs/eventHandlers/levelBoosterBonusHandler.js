@@ -41,7 +41,7 @@ const handleLevelBoosterBonus = async (payload) => {
     // Step 2: Fetch the user who triggered the event (the depositor).
     const depositor = await User.findById(depositorUserId).lean();
     if (!depositor) {
-        console.log(`[LevelBooster] Depositor user ${depositorUserId} not found.`);
+        
         return;
     }
 
@@ -58,7 +58,7 @@ const handleLevelBoosterBonus = async (payload) => {
         // Fetch the full user document for the sponsor.
         const uplineUser = await User.findOne({ uhid: levelRecord.parent }).lean();
         if (!uplineUser) {
-            console.log(`[LevelBooster] Upline user at level ${level} not found. Stopping cascade.`);
+            
             break;
         }
 
@@ -68,7 +68,7 @@ const handleLevelBoosterBonus = async (payload) => {
 
         // This should not happen, but it's a good safeguard.
         if (!requiredQualification) {
-            console.log(`[LevelBooster] No qualification rule found for level ${level}.`);
+            
             level++;
             continue;
         }
@@ -76,7 +76,7 @@ const handleLevelBoosterBonus = async (payload) => {
         // Calculate the sponsor's team and direct referral LP.
         const teamVolume = await getTeamVolume(uplineUser.uhid);
         const directVolume = await getDirectReferralVolume(uplineUser.uhid);
-        console.log(`[LevelBooster] Team Volume: ${teamVolume}, Direct Volume: ${directVolume}`);
+        
         // Check if the sponsor meets the specific requirements for this level.
         const isQualified = (teamVolume >= requiredQualification.teamVolume && directVolume >= requiredQualification.directVolume);
         
@@ -115,12 +115,12 @@ const handleLevelBoosterBonus = async (payload) => {
                     rate: mongoose.Types.Decimal128.fromString(bonusPercent.toString())
                 }
             });
-            console.log(`[LevelBooster] Awarded ${bonusAmount.toString()} to ${uplineUser.username} (Level ${level}).`);
-            console.log(`--- Ledger BEFORE for ${uplineUser.username}: \n${JSON.stringify(ledgerBeforeUpdate, null, 2)}`);
-            console.log(`--- Ledger AFTER for ${uplineUser.username}: \n${JSON.stringify(uplineLedger.toObject(), null, 2)}`);
+            
+            
+            
         } else {
              // Log that the sponsor did not qualify for THIS SPECIFIC LEVEL's requirements.
-             console.log(`[LevelBooster] Upline user ${uplineUser.username} at level ${level} did not meet Level ${level} requirements. Team Volume: ${teamVolume}, Direct Volume: ${directVolume}`);
+             
         }
 
         // Move to the next level up.

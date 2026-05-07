@@ -44,7 +44,7 @@ const rules = [
 
 
 const archiveAndResetDailyRewards = async () => {
-    console.log('Archiving and resetting daily cascade rewards...');
+    
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0); // Use UTC date for consistency
 
@@ -52,7 +52,7 @@ const archiveAndResetDailyRewards = async () => {
     const ledgersToArchive = await Ledger.find({ 'wallets.dailyCascadeRewards': { $gt: Decimal128.fromString('0') } });
 
     if (ledgersToArchive.length === 0) {
-        console.log('No daily cascade rewards to archive.');
+        
         return;
     }
 
@@ -85,7 +85,7 @@ const archiveAndResetDailyRewards = async () => {
     await DailyRewardLog.bulkWrite(archiveOps);
     await Ledger.bulkWrite(resetOps);
 
-    console.log(`Archived and reset daily cascade rewards for ${ledgersToArchive.length} users.`);
+    
 };
 
 
@@ -184,7 +184,7 @@ async function getSponsorStats() {
 
 async function distributeDifferentialCascadeRewards() {
   await connectDB();
-  console.log("Starting DIFFERENTIAL CASCADE distribution script...");
+  
 
   await archiveAndResetDailyRewards();
 
@@ -220,7 +220,7 @@ async function distributeDifferentialCascadeRewards() {
     cascadeProcessed: { $ne: true },
   }).lean();
 
-  console.log(`Found ${lpDepositEvents.length} new LP deposits`);
+  
 
   const payouts = [];
   const processedIds = [];
@@ -291,7 +291,7 @@ async function distributeDifferentialCascadeRewards() {
       }
 
       if (!paid) {
-        console.log(`L${lvl}: No qualified sponsor for depositor ${depositor.uhid}`);
+        
       }
     }
 
@@ -307,14 +307,14 @@ async function distributeDifferentialCascadeRewards() {
     );
   }
 
-  console.log("Cascade distribution finished.");
+  
 
   await mongoose.disconnect();
 }
 
 async function distributeDifferentialCascadeRewardsDebug() {
   await connectDB();
-  console.log("Starting DIFFERENTIAL CASCADE distribution script (DEBUG 10 events)...");
+  
 
   await archiveAndResetDailyRewards();
 
@@ -359,27 +359,27 @@ async function distributeDifferentialCascadeRewardsDebug() {
     cascadeProcessed: { $ne: true },
   }).limit(10).lean();
 
-  console.log(`Found ${lpDepositEvents.length} new LP deposits (limited to 10)`);
+  
 
   for (const event of lpDepositEvents) {
     const depositor = userById.get(String(event.userId));
     if (!depositor) continue;
 
-    console.log(`\n=== Processing depositor ${depositor.username} (${depositor.uhid}) Event: ${event._id} ===`);
+    
 
     const uplines = uplinesByChildUhid.get(depositor.uhid) || [];
-    console.log("Uplines:", uplines.map(u => `${u.parent} (L${u.level})`).join(", "));
+    
 
     for (let lvl = 1; lvl <= 16; lvl++) {
       const rule = rules.find(r => r.level === lvl);
       let paid = false;
       const candidates = uplines.filter(u => u.level >= lvl);
 
-      console.log(`\n--- Checking Level ${lvl} ---`);
+      
       for (const sponsorRecord of candidates) {
         const sponsor = userByUhidAll.get(sponsorRecord.parent);
         if (!sponsor) {
-          console.log(`⚠️  Sponsor ${sponsorRecord.parent} missing from users collection`);
+          
           continue;
         }
 
@@ -389,17 +389,17 @@ async function distributeDifferentialCascadeRewardsDebug() {
         );
 
         if (sponsorUnlock < lvl) {
-          console.log(`❌ Skipped: unlocked only till L${sponsorUnlock}, need >= L${lvl}`);
+          
           continue;
         }
 
-        console.log(`✅ Qualified: ${sponsor.username} (${sponsor.uhid}) can receive for L${lvl}`);
+        
         paid = true;
         break; // stop at first qualified sponsor
       }
 
       if (!paid) {
-        console.log(`🚫 No qualified sponsor found at L${lvl}`);
+        
       }
     }
   }

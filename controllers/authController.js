@@ -32,8 +32,31 @@ const signup = async (req, res) => {
       sponsorId: sponsorUsername,
     } = req.body;
 
+    // --- Strict Character Validation ---
+    const allowedInputRegex = /^[a-zA-Z0-9.@\-_]*$/;
+    if (email && !allowedInputRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Email contains invalid characters.",
+      });
+    }
+
+    if (sponsorUsername && !allowedInputRegex.test(sponsorUsername)) {
+      return res.status(400).json({
+        success: false,
+        message: "Sponsor ID contains invalid characters.",
+      });
+    }
+
+    if (whatsappContact && !/^[0-9+]*$/.test(whatsappContact)) {
+      return res.status(400).json({
+        success: false,
+        message: "WhatsApp contact can only contain numbers and +.",
+      });
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
-    console.log("signup req.body:", req.body);
+    
     // Check for sponsorId first
     if (!sponsorUsername) {
       return res.status(400).json({
@@ -158,6 +181,10 @@ const signup = async (req, res) => {
         `Failed to send welcome email to ${user.email}:`,
         emailError
       );
+      return res.status(500).json({
+        success: false,
+        message: "Account created, but we failed to send the activation email. Please contact support to activate your account.",
+      });
     }
 
     res.status(201).json({
@@ -271,6 +298,16 @@ const login = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Please provide (email/username/UHID) and password",
+    });
+  }
+
+  // --- Strict Character Validation ---
+  const allowedInputRegex = /^[a-zA-Z0-9.@\-_]*$/;
+  const inputToCheck = email || username;
+  if (inputToCheck && !allowedInputRegex.test(inputToCheck)) {
+    return res.status(400).json({
+      success: false,
+      message: "Input contains invalid characters.",
     });
   }
 
@@ -518,6 +555,16 @@ const getMe = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+
+    // --- Strict Character Validation ---
+    const allowedInputRegex = /^[a-zA-Z0-9.@\-_]*$/;
+    if (email && !allowedInputRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Email contains invalid characters.",
+      });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -773,7 +820,7 @@ const sendTransactionSuccessEmail = async (userId, txData) => {
     `;
 
     await sendEmail(user.email, subject, textBody, htmlBody);
-    console.log(`📧 Sent dark-mode transaction email to ${user.email} for ${txHash}`);
+    
   } catch (err) {
     console.error("❌ Error sending transaction success email:", err);
   }
@@ -811,7 +858,7 @@ const sendEmailVerification = async (req, res) => {
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${raw}`;
 
     // Debug log for development/testing
-    console.log("DEBUG verifyUrl:", verifyUrl);
+    
 
     const subject = "Verify your email";
     const textBody = [
@@ -886,7 +933,7 @@ const verifyEmail = async (req, res) => {
     }
 
     // Optional debug
-    console.log("DEBUG verifyEmail success for user:", updated._id);
+    
 
     return res.json({
       success: true,

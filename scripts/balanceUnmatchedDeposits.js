@@ -17,7 +17,7 @@ const LedgerRow       = require('../models/LedgerRow');       // ledgerrows
 const APPLY_CHANGES = process.argv.includes('--apply') ||
                       process.argv.includes('--execute');
 
-console.log(`\n⚙️  balanceUnmatchedDeposits – ${APPLY_CHANGES ? 'APPLY MODE' : 'DRY-RUN'}\n`);
+
 
 (async function main() {
   try {
@@ -52,14 +52,14 @@ console.log(`\n⚙️  balanceUnmatchedDeposits – ${APPLY_CHANGES ? 'APPLY MOD
       { $sort: { uhid: 1 } }, // sort by uhid ascending
     ]).exec();
 
-    console.log(`📝  Found ${unmatchedDeposits.length} deposit(s) without matching ledgerrows.`);
+    
 
     if (!APPLY_CHANGES) {
       // Dry-run – list every unmatched deposit ordered by uhid
       unmatchedDeposits.forEach((d, idx) => {
-        console.log(`  [${idx + 1}] uhid=${d.uhid} txHash=${d.txHash}, userId=${d.userId}, amountXRP=${d.amountXRP}`);
+        
       });
-      console.log('\n💡 Run again with --apply to insert balancing withdrawals.');
+      
       return;
     }
 
@@ -81,12 +81,12 @@ console.log(`\n⚙️  balanceUnmatchedDeposits – ${APPLY_CHANGES ? 'APPLY MOD
     }));
 
     if (bulkOps.length === 0) {
-      console.log('✅  Nothing to insert – database already balanced.');
+      
       return;
     }
 
     const result = await ChainWithdrawal.bulkWrite(bulkOps, { ordered: false });
-    console.log(`✅  Inserted ${result.insertedCount || 0} balancing withdrawal document(s).`);
+    
   } catch (err) {
     console.error('❌  Fatal error:', err);
   } finally {

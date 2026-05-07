@@ -27,7 +27,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -36,7 +36,7 @@ const connectDB = async () => {
 
 const reverseWrongRewards = async () => {
     await connectDB();
-    console.log('Starting rewards reversal script...');
+    
 
     // Use the start of today in UTC as the cutoff to find records from the faulty run.
     const today = new Date();
@@ -51,12 +51,12 @@ const reverseWrongRewards = async () => {
 
         const allRewards = [...lpRewards, ...airdropRewards, ...boostRewards];
         if (allRewards.length === 0) {
-            console.log('No reward records found for today. Nothing to reverse.');
+            
             await mongoose.disconnect();
             return;
         }
 
-        console.log(`Found ${lpRewards.length} LP rewards, ${airdropRewards.length} Airdrop rewards, and ${boostRewards.length} Boost rewards to reverse.`);
+        
 
         // Group rewards by user to process each user's ledger once.
         const userRewards = {};
@@ -74,7 +74,7 @@ const reverseWrongRewards = async () => {
         airdropRewards.forEach(r => processReward(r, 'airdrop'));
         boostRewards.forEach(r => processReward(r, 'boost'));
 
-        console.log(`Processing reversals for ${Object.keys(userRewards).length} unique users.`);
+        
 
         // Reverse ledger values for each affected user
         for (const userId in userRewards) {
@@ -86,8 +86,8 @@ const reverseWrongRewards = async () => {
                 continue;
             }
 
-            console.log(`\n--- Reversing for User: ${ledger.uhid} (ID: ${userId}) ---`);
-            console.log(`Total reward to reverse: ${rewards.total}`);
+            
+            
 
             // Reverse wallet and limit updates
             ledger.wallets.communityRewards = fromFloat(toFloat(ledger.wallets.communityRewards) - rewards.total);
@@ -103,11 +103,11 @@ const reverseWrongRewards = async () => {
             console.warn(`  - User ${ledger.uhid}: zeroRisk wallet restored to ${restoredZeroRisk}. Please manually verify this value if the wallet was depleted during the faulty run.`);
 
             await ledger.save();
-            console.log(`  - Successfully reverted ledger for user ${ledger.uhid}.`);
+            
         }
 
         // Clean up the created documents
-        console.log('\n--- Cleaning up created documents ---');
+        
         
         const lpRewardIds = lpRewards.map(r => r._id);
         const airdropRewardIds = airdropRewards.map(r => r._id);
@@ -116,7 +116,7 @@ const reverseWrongRewards = async () => {
         if(lpRewardIds.length > 0) await LpReward.deleteMany({ _id: { $in: lpRewardIds } });
         if(airdropRewardIds.length > 0) await AirdropReward.deleteMany({ _id: { $in: airdropRewardIds } });
         if(boostRewardIds.length > 0) await BoostReward.deleteMany({ _id: { $in: boostRewardIds } });
-        console.log('Deleted reward documents.');
+        
         
         const userIds = Object.keys(userRewards).map(id => new mongoose.Types.ObjectId(id));
         await LedgerRow.deleteMany({
@@ -124,12 +124,12 @@ const reverseWrongRewards = async () => {
             eventType: { $in: ['DAILY_REWARDS_LP', 'DAILY_REWARDS_AIRDROP', 'DAILY_REWARDS_BOOST'] },
             createdAt: { $gte: today }
         });
-        console.log('Deleted daily reward ledger rows.');
+        
 
     } catch (error) {
         console.error('\nAn error occurred during the reversal process:', error);
     } finally {
-        console.log('\nRewards reversal script finished.');
+        
         await mongoose.disconnect();
     }
 };

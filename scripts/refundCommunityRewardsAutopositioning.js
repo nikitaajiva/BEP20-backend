@@ -73,8 +73,8 @@ if (DATE_SINGLE) {
 ====================================================== */
 async function start() {
   await connectDB();
-  console.log(`✅ MongoDB connected`);
-  console.log(`🧪 MODE: ${DRY_RUN ? "DRY RUN" : "LIVE"}`);
+  
+  
 
   const query = {
     walletFrom: "COMMUNITY_REWARDS",
@@ -85,7 +85,7 @@ async function start() {
   let logs = await WithdrawalErrorLog.find(query).lean();
   if (LIMIT) logs.length = Math.min(logs.length, LIMIT);
 
-  console.log(`📌 Records found: ${logs.length}`);
+  
 
   /* ======================================================
      EXCEL REPORT
@@ -187,8 +187,8 @@ async function start() {
   const filePath = path.join(reportsDir, fileName);
   await workbook.xlsx.writeFile(filePath);
 
-  console.log(`📊 Report generated: ${filePath}`);
-  console.log(`🎯 Done`);
+  
+  
   process.exit(0);
 }
 

@@ -57,7 +57,7 @@ const handleLevelBooster = async (payload) => {
 
     let currentUser = await User.findOne({ userId: depositorUserId }).lean();
     if (!currentUser) {
-        console.log(`[LevelBooster] Depositor user ${depositorUserId} not found.`);
+        
         return;
     }
 
@@ -67,7 +67,7 @@ const handleLevelBooster = async (payload) => {
     while (currentUplineId && level <= 3) {
         const uplineUser = await User.findOne({ userId: currentUplineId }).lean();
         if (!uplineUser) {
-            console.log(`[LevelBooster] Upline user ${currentUplineId} not found. Stopping cascade.`);
+            
             break;
         }
 
@@ -108,10 +108,10 @@ const handleLevelBooster = async (payload) => {
                     }
                 });
 
-                console.log(`[LevelBooster] Awarded ${bonusAmount.toString()} to ${uplineUser.userId} (Level ${level})`);
+                
             }
         } else {
-             console.log(`[LevelBooster] Upline user ${uplineUser.userId} did not qualify for bonus at Level ${level}. Team Volume: ${teamVolume}, Direct Volume: ${directVolume}`);
+             
         }
 
         currentUplineId = uplineUser.referredBy;

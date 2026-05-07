@@ -40,7 +40,7 @@ async function updateUplineTeamLp(user, amountD128, session) {
         
         if (updated) {
             await sponsor.save({ session });
-            console.log(`Updated teamLp counters for sponsor ${sponsor.username} (level ${level} upline) by ${amountD128.toString()}`);
+            
         }
     }
 }
@@ -68,7 +68,7 @@ function getAirdropBonusPercentage(depositTimestamp) {
 
 exports.handleLpDeposit = async (payload, session, event) => {
     const { userId, amount, txHash, depositTimestamp } = payload;
-    console.log(`LP_DEPOSIT Handler: Processing for user ${userId}, amount ${amount}`);
+    
 
     const user = await User.findById(userId).session(session);
     if (!user) {
@@ -96,11 +96,11 @@ exports.handleLpDeposit = async (payload, session, event) => {
     // We check user.counters.selfLp because it only ever increases, unlike limit caps
     // which can be decreased by withdrawals. This prevents limits from being reset.
     const isFirstDeposit = user.counters.selfLp.toString() === '0.0';
-    console.log(`User ${userId} isFirstDeposit: ${isFirstDeposit}, current selfLp total: ${user.counters.selfLp.toString()}`);
+    
 
     if (isFirstDeposit) {
         user.firstLpDepositTs = new Date(depositTimestamp);
-        console.log(`Set firstLpDepositTs for user ${userId} to ${user.firstLpDepositTs}`);
+        
     }
 
     // --- New Time-Sensitive Sponsor Boost Bonus Logic ---
@@ -140,7 +140,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
                     refId: user._id.toString() // Reference the user who made the deposit
                 }, session);
 
-                console.log(`Credited ${bonusAmount.toString()} to sponsor ${sponsor.username}'s Boost wallet.`);
+                
             }
         }
     }
@@ -149,7 +149,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     // This block is for the old, time-since-registration airdrop.
     // It is separate from the new sponsor boost bonus.
     if (isFirstDeposit) {
-        console.log(`Processing first-time deposit bonuses for ${depositAmountD128.toString()} USDT`);
+        
         
         const timeSinceRegistrationMs = new Date(depositTimestamp).getTime() - user.registrationTs.getTime();
         const hoursSinceRegistration = timeSinceRegistrationMs / (1000 * 60 * 60);
@@ -166,7 +166,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
         const actualMatchedAirdrop = Decimal128.min(companyAirdropAvailable, maxAirdropFromDepositPercentage);
 
         if (actualMatchedAirdrop.toFloat() > 0) {
-            console.log(`Airdrop activation for user ${userId}: ${actualMatchedAirdrop.toString()} USDT matched.`);
+            
             // This is the initial airdrop for first deposit, should go to airdrop wallet not LP
             ledger.wallets.airdrop = addDecimal128(ledger.wallets.airdrop, actualMatchedAirdrop);
             
@@ -180,7 +180,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
                 refId: event._id.toString()
             }, session);
         } else {
-            console.log(`No airdrop matched for user ${userId}. Matched percentage: ${matchedPercentage}, Hours: ${hoursSinceRegistration}`);
+            
         }
     }
 
@@ -200,7 +200,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     const bonusPercentage = getAirdropBonusPercentage(depositTimestamp);
     if (bonusPercentage > 0) {
         const bonusAmountD128 = depositAmountD128.multiply(Decimal128.fromString(bonusPercentage.toString()));
-        console.log(`Airdrop promotion: User ${userId} qualifies for a ${bonusPercentage * 100}% bonus of ${bonusAmountD128.toString()} USDT.`);
+        
 
         const swiftBalance = ledger.wallets.swift;
         if (swiftBalance.toFloat() >= bonusAmountD128.toFloat()) {
@@ -217,10 +217,10 @@ exports.handleLpDeposit = async (payload, session, event) => {
                 refId: event._id.toString()
             }, session);
 
-            console.log(`Transferred ${bonusAmountD128.toString()} from Swift to Airdrop wallet for user ${userId}.`);
-            console.log(`New Swift balance: ${ledger.wallets.swift.toString()}, New Airdrop balance: ${ledger.wallets.airdrop.toString()}`);
+            
+            
         } else {
-            console.log(`User ${userId} has insufficient Swift balance (${swiftBalance.toString()}) to cover airdrop bonus of ${bonusAmountD128.toString()}.`);
+            
         }
     }
     // --- End New Airdrop Promotion Logic ---
@@ -228,7 +228,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     // Update LP wallet balance and current LP for all deposits
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, depositAmountD128);
     ledger.currentLp = addDecimal128(ledger.currentLp, depositAmountD128);
-    console.log(`User ${userId} LP wallet updated to: ${ledger.wallets.lp.toString()}, Current LP: ${ledger.currentLp.toString()}`);
+    
 
     await createLedgerEntry({
         userId,
@@ -241,7 +241,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     }, session);
 
     user.counters.selfLp = addDecimal128(user.counters.selfLp, depositAmountD128);
-    console.log(`User ${userId} selfLp counter updated to: ${user.counters.selfLp.toString()}`);
+    
 
     // Update team LP for upline
     if (user.sponsorId) {
@@ -249,7 +249,7 @@ exports.handleLpDeposit = async (payload, session, event) => {
     }
 
     if (user.sponsorId) {
-        console.log(`User ${userId} has sponsor ${user.sponsorId}. Emitting REF_DEPOSIT event.`);
+        
         const refDepositPayload = {
             referralUserId: userId,
             sponsorUserId: user.sponsorId,
@@ -265,11 +265,11 @@ exports.handleLpDeposit = async (payload, session, event) => {
             nextRunTs: new Date()
         });
         await sponsorEvent.save({ session });
-        console.log(`REF_DEPOSIT event for sponsor ${user.sponsorId} enqueued.`);
+        
     }
 
     await user.save({ session });
     await ledger.save({ session });
 
-    console.log(`LP_DEPOSIT for user ${userId} processed successfully.`);
+    
 }; 

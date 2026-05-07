@@ -33,7 +33,7 @@ exports.applyTestLimits = async (req, res) => {
     ledger.limits.zeroRiskLimit.cap = depositAmountD128;
     ledger.limits.zeroRiskLimit.pending = Decimal128.fromString('0.0');
     
-    console.log(`[Temp API] Limits set for user ${userId}: swiftCap=${ledger.limits.swiftLimit.cap}, boostCap=${ledger.limits.boostLimit.cap}, fiveXCap=${ledger.limits.fiveXLimit.cap}, zeroRiskCap=${ledger.limits.zeroRiskLimit.cap}`);
+    
 
     // Simulate Airdrop Activation (Simplified 100% match)
     const actualMatchedAirdrop = depositAmountD128; // For simplicity, 100% of deposit
@@ -49,7 +49,7 @@ exports.applyTestLimits = async (req, res) => {
             narrative: `Test API: Airdrop matched from test deposit (100%)`,
             refId: `test-${Date.now()}` // Mocked refId
         });
-        console.log(`[Temp API] Airdrop activation for user ${userId}: ${actualMatchedAirdrop.toString()} USDT matched to LP.`);
+        
     }
 
     // Simulate Deposit itself
@@ -63,7 +63,7 @@ exports.applyTestLimits = async (req, res) => {
         narrative: `Test API: User LP deposit.`,
         refId: `test-dep-${Date.now()}` // Mocked refId
     });
-    console.log(`[Temp API] User ${userId} LP wallet credited with deposit: ${depositAmountD128.toString()}. New LP Balance: ${ledger.wallets.lp.toString()}`);
+    
 
 
     // Update User Counter
@@ -71,7 +71,7 @@ exports.applyTestLimits = async (req, res) => {
         user.counters.selfLp = Decimal128.fromString(user.counters.selfLp ? user.counters.selfLp.toString() : '0.0');
     }
     user.counters.selfLp = user.counters.selfLp.add(depositAmountD128);
-    console.log(`[Temp API] User ${userId} selfLp counter updated to: ${user.counters.selfLp.toString()}`);
+    
 
     await user.save();
     await ledger.save();
@@ -118,7 +118,7 @@ exports.applyTestSwiftBalance = async (req, res) => {
     // Only set the Swift wallet balance
     ledger.wallets.swift = swiftAmountD128;
     
-    console.log(`[Temp API] Swift wallet for user ${userId} (username: ${username}) set to: ${ledger.wallets.swift.toString()}`);
+    
 
     // Create a simple log entry
     await createLedgerEntry({

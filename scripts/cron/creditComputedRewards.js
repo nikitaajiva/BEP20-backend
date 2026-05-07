@@ -24,8 +24,8 @@ const toDec = (v) =>
 
 async function creditComputedRewards() {
   await connectDB();
-  console.log("✅ MongoDB connected");
-  console.log(DRY_RUN ? "🧪 DRY RUN MODE (NO DATA WILL BE CHANGED)" : "🔥 LIVE MODE");
+  
+  
 
   /* =====================================================
      CURRENT UTC DAY WINDOW (STRICT)
@@ -47,7 +47,7 @@ async function creditComputedRewards() {
     )
   );
 
-  console.log(`📅 Reward Window: ${start.toISOString()} → ${end.toISOString()}`);
+  
 
   /* =====================================================
      STRICT DATE FILTER (CURRENT DAY ONLY)
@@ -61,12 +61,12 @@ async function creditComputedRewards() {
   const pendingAir = await AirdropReward.find(dateFilter);
   const pendingBoost = await BoostReward.find(dateFilter);
 
-  console.log(`📦 Pending LP: ${pendingLP.length}`);
-  console.log(`📦 Pending Airdrop: ${pendingAir.length}`);
-  console.log(`📦 Pending Boost: ${pendingBoost.length}`);
+  
+  
+  
 
   if (!pendingLP.length && !pendingAir.length && !pendingBoost.length) {
-    console.log("⚠️ No pending rewards found.");
+    
     await mongoose.disconnect();
     return;
   }
@@ -209,7 +209,7 @@ async function creditComputedRewards() {
 `);
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected");
+  
 }
 
 creditComputedRewards().catch((err) => {

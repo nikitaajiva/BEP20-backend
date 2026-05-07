@@ -104,20 +104,20 @@ const FIVE_X_MULTIPLIER = 5;
 
 async function distributeRewards() {
   await connectDB();
-  console.log("✅ MongoDB connected successfully");
-  console.log("🚀 Starting rewards distribution (Hybrid UHID + UserID, NaN-safe)...");
+  
+  
 
   // --- Date setup (yesterday UTC) ---
   const today = new Date();
   const utcYest = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1, 0, 0, 0));
-  console.log(`📅 Processing LPs for ${utcYest.toISOString().slice(0, 10)}`);
+  
 
   // --- Load Daily LP Records ---
   const dailyRecords = await DailyUserLp.find({ date: utcYest, lp: { $gt: 0 } });
-  console.log(`📊 Found ${dailyRecords.length} daily LP records with lp > 0`);
+  
 
   if (dailyRecords.length === 0) {
-    console.log("No LP records found for yesterday. Exiting.");
+    
     await mongoose.disconnect();
     return;
   }
@@ -137,7 +137,7 @@ async function distributeRewards() {
   const ledgers = await Ledger.find({
     $or: [{ userId: { $in: userIds } }, { uhid: { $in: uhids } }]
   });
-  console.log(`✅ Cached ${ledgers.length} ledgers in memory`);
+  
 
   // --- Build lookup maps ---
   const ledgerMapByUserId = new Map();
@@ -211,7 +211,7 @@ async function distributeRewards() {
          let blockedBoost = false;
     if (uhidKey && EXCEPTION_UHIDS.includes(uhidKey)) {
       blockedBoost = true;
-      console.log(`🚫 BOOST REMOVED FOR UHID: ${uhidKey}`);
+      
 
       boostReward = 0;
       potentialBoost = 0;
@@ -358,7 +358,7 @@ if (boostReward > 0 && !(uhidKey && EXCEPTION_UHIDS.includes(uhidKey))) {
   // --- Ledger Rows Insert ---
       if (rows.length > 0) {
         await LedgerRow.insertMany(rows);
-        console.log(`✅ Created ${rows.length} ledger rows and rewards for user ${ledger.userId}`);
+        
       } else {
         console.warn(`⚠️ No rewards generated for user ${ledger.userId}`);
       }
@@ -370,15 +370,15 @@ if (boostReward > 0 && !(uhidKey && EXCEPTION_UHIDS.includes(uhidKey))) {
     }
   }
 
-  console.log("\n==================== SUMMARY ====================");
-  console.log(`✅ Processed users: ${processed}`);
-  console.log(`⚠️ Skipped users:   ${skipped}`);
-  console.log(`💰 Total reward sum: ${totalRewardSum.toFixed(8)}`);
-  console.log(`🧾 Skipped list saved to: ${logFile}`);
-  console.log("=================================================\n");
+  
+  
+  
+  
+  
+  
 
   await mongoose.disconnect();
-  console.log("🔌 MongoDB disconnected.");
+  
 }
 
 distributeRewards();

@@ -35,7 +35,7 @@ const X1Reward = require("../models/X1Reward");
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     const Decimal128 = mongoose.Types.Decimal128;
 
@@ -81,7 +81,7 @@ const X1Reward = require("../models/X1Reward");
     ]);
 
     if (!rewardAgg.length) {
-      console.log("⚠️ No XBonus users found.");
+      
       process.exit(0);
     }
 
@@ -289,8 +289,8 @@ const X1Reward = require("../models/X1Reward");
 
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`📁 Report Generated: ${filePath}`);
-    console.log("✅ Done");
+    
+    
 
     process.exit(0);
   } catch (err) {

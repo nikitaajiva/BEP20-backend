@@ -20,9 +20,17 @@ const UsdtDepositIntentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    amountWei: {
+      type: String,
+      index: true,
+    },
     token_contract: {
       type: String,
       trim: true,
+    },
+    asset: {
+      type: String,
+      default: "BNB",
     },
     decimals: {
       type: Number,

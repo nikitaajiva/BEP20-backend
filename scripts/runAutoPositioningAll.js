@@ -10,7 +10,7 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected successfully");
+    
      const BLOCKED_UHIDS = [
       1753898284391,
       1758789312402,
@@ -19,7 +19,7 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
     ];
     
     
-    console.log("🚀 Manual AutoPositioning started");
+    
       //  const users = await User.find({
       //    xRank: null
       //  });
@@ -43,15 +43,15 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
  const users = await User.find({ autopositioning: false });
 
     if (!users.length) {
-      console.log("⚠️ No users found with autopositioning enabled");
+      
       return mongoose.connection.close();
     }
 
 
-    console.log(`📋 Found ${users.length} users with autopositioning enabled`);
+    
 
     // for (const user of users) {
-    //   console.log(`⚙️ Running autopositioning for: ${user.username} (${user._id})`);
+    //   
     //   await runAutopositioningForUser(user);
     // }
 
@@ -63,10 +63,10 @@ const { runAutopositioningForUser } = require("../controllers/ledgerController")
         );
         continue;
       }
-      console.log(`⚙️ Running autopositioning for: ${user.username} (${user._id})`);
+      
       await runAutopositioningForUser(user);
     }
-    console.log("✅ Manual AutoPositioning completed successfully.");
+    
   } catch (err) {
     console.error("❌ Error during manual autopositioning:", err);
   } finally {

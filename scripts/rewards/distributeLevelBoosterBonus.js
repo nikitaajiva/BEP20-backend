@@ -13,7 +13,7 @@ const connectDB = require("../../config/db");
 const distributeLevelBoosterBonuses = async () => {
     // Step 1: Connect to the database.
     await connectDB();
-    console.log('Starting Level Booster Bonus distribution script for all users...');
+    
 
     // Step 2: Build the query to find all unprocessed 'DAILY_REWARDS_LP' events.
     const query = {
@@ -24,12 +24,12 @@ const distributeLevelBoosterBonuses = async () => {
     // Execute the query.
     const lpDepositEvents = await LedgerRow.find(query).lean();
 
-    console.log(`Found ${lpDepositEvents.length} new LP deposits to process.`);
+    
 
     // Step 3: Loop through each event and process it.
     for (const event of lpDepositEvents) {
         try {
-            console.log(`\n--- Processing level booster bonus for event: ${JSON.stringify(event, null, 2)} ---`);
+            
 
             // Step 3a: Create the payload for the event handler.
             const payload = {
@@ -44,7 +44,7 @@ const distributeLevelBoosterBonuses = async () => {
             // Step 3c: Mark this event as processed to prevent double-awarding.
             await LedgerRow.updateOne({ _id: event._id }, { $set: { levelBoosterBonusProcessed: true } });
 
-            console.log(`--- Finished processing level booster bonus for event ${event._id} ---`);
+            
 
         } catch (error) {
             console.error(`Failed to process level booster bonus for user ${event.userId} from event ${event._id}:`, error);
@@ -52,7 +52,7 @@ const distributeLevelBoosterBonuses = async () => {
     }
 
     // Step 4: Disconnect from the database.
-    console.log('\nLevel Booster Bonus distribution script finished.');
+    
     await mongoose.disconnect();
 };
 

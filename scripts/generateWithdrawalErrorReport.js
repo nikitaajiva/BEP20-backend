@@ -31,13 +31,13 @@ if (!FROM || !TO) {
 const FROM_DATE = new Date(`${FROM}T00:00:00Z`);
 const TO_DATE = new Date(`${TO}T23:59:59Z`);
 
-console.log(`📌 Generating report from ${FROM} to ${TO}\n`);
+
 
 async function generateReport() {
   try {
     // CONNECT MONGODB (WAIT FOR CONNECTION)
      await connectDB();
-    console.log("✅ MongoDB connected\n");
+    
 
     // RUN AGGREGATION
     const records = await WithdrawalError.aggregate([
@@ -77,7 +77,7 @@ async function generateReport() {
       { $sort: { createdAt: 1 } }
     ]);
 
-    console.log(`📌 Records found: ${records.length}`);
+    
 
     // CREATE REPORT FOLDER IF MISSING
     const reportsDir = path.join(__dirname, "../reports");
@@ -128,8 +128,8 @@ async function generateReport() {
     // SAVE FILE
     await workbook.xlsx.writeFile(filePath);
 
-    console.log(`\n✅ Excel Report Generated Successfully`);
-    console.log(`📁 Saved at: ${filePath}\n`);
+    
+    
 
     await mongoose.disconnect();
     process.exit(0);

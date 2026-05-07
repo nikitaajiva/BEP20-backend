@@ -93,14 +93,14 @@ const distributeX1 = async (options = {}) => {
     : null;
   const concurrency = options.concurrency || 20;
 
-  console.log(`Running in ${isDryRun ? "DRY RUN" : "LIVE"} mode`);
-  if (fromDate) console.log(`From date: ${fromDate.toISOString()}`);
-  if (toDate) console.log(`To date: ${toDate.toISOString()}`);
-  console.log(`Concurrency: ${concurrency}`);
+  
+  if (fromDate) 
+  if (toDate) 
+  
 
   try {
     await connectDB();
-    console.log("🚀 Starting X1–X5 reward distribution...");
+    
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -144,7 +144,7 @@ const distributeX1 = async (options = {}) => {
         try {
           const depositor = await User.findById(event.userId).lean();
           if (!depositor) {
-            console.log(`⚠️ Depositor ${event.userId} not found`);
+            
             return null;
           }
 
@@ -165,7 +165,7 @@ const distributeX1 = async (options = {}) => {
             qualifiedCount++;
             totalRewardsAmount += Number(event.amount);
           } else {
-            console.log(`No qualified uplines for ${depositor.username}`);
+            
           }
 
           processedCount++;
@@ -189,7 +189,7 @@ const distributeX1 = async (options = {}) => {
       const ops = updates.filter(Boolean);
       if (ops.length > 0) {
         const result = await LedgerRow.bulkWrite(ops, { ordered: false });
-        console.log(`✅ Marked ${result.modifiedCount} events as processed`);
+        
       }
     }
 
@@ -201,8 +201,8 @@ const distributeX1 = async (options = {}) => {
       totalRewardsAmount,
     };
 
-    console.log("\n📋 Processing Summary:");
-    console.log(JSON.stringify(summary, null, 2));
+    
+    
     console.log(
       `\n✅ X1–X5 distribution finished in ${
         isDryRun ? "DRY RUN" : "LIVE"
@@ -252,7 +252,7 @@ if (require.main === module) {
   const options = parseArgs();
   distributeX1(options)
     .then(() => {
-      console.log("✅ Script completed successfully");
+      
       process.exit(0);
     })
     .catch((err) => {

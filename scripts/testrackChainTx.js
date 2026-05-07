@@ -60,7 +60,7 @@ const systemClaimed = new Map();
 /* ---------------- PROCESS SINGLE USER ---------------- */
 async function processUser(user) {
   try {
-    console.log(`Fetching tx for ${user.xrpAddress} (UHID: ${user.uhid})`);
+    
 
     // --- Fetch DB verified totals ---
     const onchainDepositAgg = await Deposit.aggregate([
@@ -201,17 +201,17 @@ async function processUser(user) {
       Withdrawal.collection.createIndex({ txHash: 1 }, { unique: true }),
     ]);
 
-    console.log("→ Querying users …");
+    
     const target = process.argv[2];
     let userMatch = { xrpAddress: { $exists: true, $ne: "" } };
 
     if (target) {
       if (/^r[1-9A-HJ-NP-Za-km-z]{25,35}$/.test(target)) {
         userMatch.xrpAddress = target;
-        console.log("→ Single-user mode (XRP address):", target);
+        
       } else {
         userMatch.uhid = target;
-        console.log("→ Single-user mode (UHID):", target);
+        
       }
     }
 
@@ -252,12 +252,12 @@ pipeline.push(
 const users = await User.aggregate(pipeline).allowDiskUse(true);
 
     if (!users.length) {
-      console.log("⚠️  No users matched the provided filter. Exiting.");
+      
       await mongoose.disconnect();
       process.exit(0);
     }
 
-    console.log(`→ Found ${users.length} users with LP > 0 and XRP address`);
+    
 
     if (target) {
       await processUser(users[0]);
@@ -265,16 +265,16 @@ const users = await User.aggregate(pipeline).allowDiskUse(true);
       let processed = 0;
       for (const user of users) {
         processed++;
-        console.log(`[${processed}/${users.length}]`);
+        
         await processUser(user);
       }
     }
 
-    console.log("✅ Processing done.");
+    
 
     /* ---------------- Scenario Calculation Section ---------------- */
-    console.log("→ zeroRisk balances updated for", userTotals.size, "users");
-    console.log("\n📊 User Totals (Deposits vs Withdrawals):");
+    
+    
 
     let userc = 1;
     for await (const [userId, tot] of userTotals.entries()) {
@@ -300,10 +300,10 @@ const users = await User.aggregate(pipeline).allowDiskUse(true);
       const addAutoPositioningZeroRisk = autoPositioningWithoutECO;
       const autopositioningForLP = autopositioningToAddOnLP - autoPositioningWithoutECO;
 
-      console.log(`  Creditted (XAMAN): ${tot.deposit.toFixed(6)}`);
-      console.log(`  withdrawal (XAMAN): ${tot.withdrawal.toFixed(6)}`);
+      
+      
     const claimedvalue = systemClaimed.get(userId);
-    console.log("System Claimed for user:", claimedvalue); // 884
+     // 884
       const totalDeposits = tot.deposit + addAutoPositioningZeroRisk;
       const totalWithdrawals = tot.withdrawal + totalredeemedEcofee;
       const claim = (totalWithdrawals - redeemed)-totalredeemedEcofee;
@@ -334,43 +334,43 @@ const users = await User.aggregate(pipeline).allowDiskUse(true);
         //     },
         //   }
         // );
-        console.log(`✅ Sr ${userc}: ${userId} Updated (Deposits > Withdrawals)`);
+        
   //    } else {
-      //   console.log(`⏭️  Sr ${userc}: ${userId} skipped (Deposits <= Withdrawals)`);
+      //   
       // }
 
-      console.log(`  Sr ${userc}: ${userId} Updated`);
-      console.log(`  LP: ${lp.toFixed(6)}\n`);
+      
+      
 
       console.log(
         `User: ${ledger.uhid} | Deposits: ${totalDeposits.toFixed(
           6
         )} XRP | Withdrawals: ${totalWithdrawals.toFixed(6)} XRP`
       );
-      console.log(`  Available (XAMAN): ${available.toFixed(6)}`);
-      console.log(`  Total Reward: ${rewardsUsed.toFixed(6)}`);
-      console.log(`  TotalRedeemed: ${redeemed.toFixed(6)}`);
-      console.log(`  RedeemedEcofee: ${totalredeemedEcofee.toFixed(6)}`);
-      console.log(`  Autopositioning: ${cal_autopositioning.toFixed(6)}`);
+      
+      
+      
+      
+      
       console.log(
         `  Autopositioning Without applied Fee: ${autopositioningWithoutFee.toFixed(6)}`
       );
       console.log(
         `  Autopositioning Fee applied on: ${autoPositioningWithoutECO.toFixed(6)}`
       );
-      console.log(`  Autopositioning Fee charged: ${autoPosEcosystemFee.toFixed(6)}`);
+      
       console.log(
         `  Autopositioning to be add on LP: ${autopositioningToAddOnLP.toFixed(6)}`
       );
       console.log(
         `  Autopositioning to be add on Zerorisk: ${addAutoPositioningZeroRisk.toFixed(6)}`
       );
-      console.log(`  Zero Risk: ${zeroRisk.toFixed(6)}`);
-      console.log(`  Zero Risk Negative: ${zeroRiskNegativeBalance.toFixed(6)}`);
-      console.log(`  Claim: ${claim.toFixed(6)}`);
-      console.log(`  SystemClaim: ${claimedvalue.toFixed(6)}`)
       
-      console.log(`  LP: ${lp.toFixed(6)}\n`);
+      
+      
+      
+      
+      
 
       userc++;
     }

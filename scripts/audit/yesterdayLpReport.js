@@ -49,7 +49,7 @@ async function generateYesterdayLpReport() {
   const { start, end } = getYesterdayRangeUTC();
    const { tstart, tend } = getTodayRangeUTC();
   getTodayRangeUTC
-  console.log("📅 Report date (UTC):", tstart.toISOString().slice(0, 10));
+  
 
   /* =====================================================
      STEP 1: DAILY LP (YESTERDAY)
@@ -305,7 +305,7 @@ const withdrawalMap = Object.fromEntries(
   );
 
   await workbook.xlsx.writeFile(filePath);
-  console.log("✅ Excel report generated:", filePath);
+  
 }
 
 /* =====================================================
@@ -316,7 +316,7 @@ const withdrawalMap = Object.fromEntries(
     await connectDB();
     await generateYesterdayLpReport();
     await mongoose.disconnect();
-    console.log("🎉 Report completed successfully");
+    
     process.exit(0);
   } catch (err) {
     console.error("❌ Report failed:", err);

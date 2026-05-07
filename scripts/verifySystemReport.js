@@ -13,8 +13,8 @@ const { getSystemReport } = require('../controllers/supportController');
         return this;
       },
       json(payload) {
-        console.log('Status:', this.statusCode || 200);
-        console.log('System Report:\n', JSON.stringify(payload.data, null, 2));
+        
+        
         mongoose.disconnect().then(() => process.exit(0));
       },
     };

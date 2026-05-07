@@ -3,7 +3,7 @@ const Ledger = require('../models/Ledger');
 
 const migrateLedgers = async () => {
   try {
-    console.log('Starting migration to add transaction tracking fields...');
+    
 
     // Connect to MongoDB
     await mongoose.connect(process.env.MONGODB_URI, {
@@ -13,7 +13,7 @@ const migrateLedgers = async () => {
 
     // Find all ledgers
     const ledgers = await Ledger.find({});
-    console.log(`Found ${ledgers.length} ledgers to update`);
+    
 
     let updated = 0;
     let errors = 0;
@@ -38,9 +38,9 @@ const migrateLedgers = async () => {
       }
     }
 
-    console.log(`Migration completed:`);
-    console.log(`- Successfully updated: ${updated}`);
-    console.log(`- Errors: ${errors}`);
+    
+    
+    
 
   } catch (err) {
     console.error('Migration failed:', err);
@@ -52,7 +52,7 @@ const migrateLedgers = async () => {
 // Run migration if this script is run directly
 if (require.main === module) {
   migrateLedgers().then(() => {
-    console.log('Migration script completed');
+    
     process.exit(0);
   }).catch(err => {
     console.error('Migration script failed:', err);

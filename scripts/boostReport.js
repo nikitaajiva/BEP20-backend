@@ -21,7 +21,7 @@ function writeCsv(filename, rows) {
   const out = header + lines;
   const outPath = path.join(REPORTS_DIR, filename);
   fs.writeFileSync(outPath, out);
-  console.log(`\n✅ Wrote summary: ${outPath}`);
+  
 }
 
 /* ----------------------------- HELPERS --------------------------------- */
@@ -178,7 +178,7 @@ async function computeChildrenClosingBalance(parentUhid, startDate) {
 //     );
 
 //     // 👇 progress log for each parent
-//     console.log(`Running for parent UHID=${parent.uhid} ... ClosingBalance=${closingBalance}`);
+//     
 
 //     results.push({ uhid: parent.uhid, closingBalance });
 //       await Ledger.updateOne(
@@ -202,7 +202,7 @@ async function computeChildrenClosingBalance(parentUhid, startDate) {
   const results = [];
 
   if (argUhid) {
-    console.log(`▶ Running for single UHID: ${argUhid}`);
+    
 
     const parent = await User.findOne({ uhid: argUhid })
       .select("_id uhid firstLpDepositTs")
@@ -233,7 +233,7 @@ async function computeChildrenClosingBalance(parentUhid, startDate) {
       { $set: { "wallets.boost": closingBalance } }
     );
   } else {
-    console.log("▶ No UHID provided — running for all parent UHIDs...");
+    
     const parentUhids = await Level.distinct("parent", { level: 1 });
 
     for (const parentUhid of parentUhids) {

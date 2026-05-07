@@ -33,10 +33,10 @@ const CLONE_TS = new Date();
 // --------------------------------------------------
 
 async function run() {
-  console.log("⏳ Connecting to MongoDB...");
+  
   await connectDB();
 
-  console.log("📅 Fetching X1 Rewards for test user:", TARGET_USER);
+  
 
   const start = new Date(`${CLONE_SOURCE_DATE}T00:00:00.000Z`);
   const end = new Date(`${CLONE_SOURCE_DATE}T23:59:59.999Z`);
@@ -47,11 +47,11 @@ async function run() {
   });
 
   if (!records.length) {
-    console.log("❌ No X1 rewards found for 4th Dec for this user.");
+    
     process.exit(0);
   }
 
-  console.log(`📦 Found ${records.length} X1 reward records — cloning...`);
+  
 
   let insertPayload = [];
   let totalAmount = 0;
@@ -75,17 +75,17 @@ async function run() {
 
   await X1Rewards.insertMany(insertPayload);
 
-  console.log(`✅ Cloned ${records.length} X1 records`);
-  console.log("💰 Total reward amount to credit:", totalAmount);
+  
+  
 
   // --------------------------------------------------
   // UPDATE LEDGER WALLETS + fiveXLimit.used
   // --------------------------------------------------
-  console.log("🔄 Updating ledger...");
+  
 
   const ledger = await Ledger.findOne({ userId: TARGET_USER });
   if (!ledger) {
-    console.log("❌ Ledger not found");
+    
     process.exit(1);
   }
 
@@ -107,12 +107,12 @@ async function run() {
 
   await ledger.save();
 
-  console.log("🎉 Ledger updated successfully!");
-  console.log("➡️ New xBonus:", ledger.wallets.xBonus.toString());
-  console.log("➡️ New communityRewards:", ledger.wallets.communityRewards.toString());
-  console.log("➡️ New fiveXLimit.used:", ledger.limits.fiveXLimit.used.toString());
+  
+  
+  
+  
 
-  console.log("🚀 Script Completed Successfully.");
+  
   process.exit(0);
 }
 

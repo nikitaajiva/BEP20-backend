@@ -7,7 +7,7 @@ const Outbox = require('../models/Outbox');
 
 function scheduleDailyRoiBatchJob() {
     if (process.env.DISABLE_CRON_JOBS === 'true') {
-        console.log('Cron jobs are disabled via DISABLE_CRON_JOBS env variable.');
+        
         return;
     }
 
@@ -18,7 +18,7 @@ function scheduleDailyRoiBatchJob() {
     }
 
     cron.schedule('5 0 * * *', async () => {
-        console.log('Cron job triggered: Enqueuing DAILY_ROI_BATCH at', new Date().toISOString());
+        
         try {
             const outboxEvent = new Outbox({
                 eventType: 'DAILY_ROI_BATCH',
@@ -30,7 +30,7 @@ function scheduleDailyRoiBatchJob() {
                 nextRunTs: new Date() // Process ASAP
             });
             await outboxEvent.save();
-            console.log(`DAILY_ROI_BATCH event enqueued with ID: ${outboxEvent._id}`);
+            
         } catch (error) {
             console.error('Error enqueuing DAILY_ROI_BATCH event:', error);
         }
@@ -39,7 +39,7 @@ function scheduleDailyRoiBatchJob() {
         timezone: "UTC"
     });
 
-    console.log('Daily ROI Batch Job scheduled to run at 00:05 UTC every day.');
+    
 }
 
 module.exports = {

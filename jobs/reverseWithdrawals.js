@@ -16,11 +16,11 @@ const { subtractDecimal128 } = require('../utils/decimal128Utils');
 async function reverseWithdrawals() {
   const rows = await LedgerRow.find({ status: 'REFUNDED' });
   if (!rows.length) {
-    console.log('No REFUNDED withdrawals found – nothing to reverse.');
+    
     return;
   }
 
-  console.log(`Reversing ${rows.length} rows…`);
+  
 
   let processed = 0;
   let errors = 0;
@@ -44,7 +44,7 @@ async function reverseWithdrawals() {
               break;
             case 'ZERO_RISK':
             default:
-              ledger.wallets.usdt = subtractDecimal128(ledger.wallets.usdt || '0.0', amt);
+              ledger.wallets.bnb = subtractDecimal128(ledger.wallets.bnb || '0.0', amt);
               break;
           }
           await ledger.save();
@@ -59,14 +59,14 @@ async function reverseWithdrawals() {
 
       await row.save();
       processed += 1;
-      if (processed % 50 === 0) console.log(`Processed ${processed}/${rows.length}`);
+      if (processed % 50 === 0) 
     } catch (err) {
       errors += 1;
       console.error('Failed to reverse row', row._id, err);
     }
   }
 
-  console.log(`Reversal complete. Success: ${processed}, Errors: ${errors}`);
+  
 }
 
 module.exports = reverseWithdrawals; 

@@ -40,7 +40,7 @@ async function sendXrp() {
     const client = new xrpl.Client('wss://xrplcluster.com/');
     await client.connect();
 
-    console.log("\nConnected to mainnet");
+    
 
     const sourceWallet = xrpl.Wallet.fromSeed(sourceSeed);
 
@@ -52,13 +52,13 @@ async function sendXrp() {
     });
     
     const signed = sourceWallet.sign(prepared);
-    console.log("Signing transaction...");
+    
 
     const tx = await client.submitAndWait(signed.tx_blob);
-    console.log("Transaction sent!");
+    
 
-    console.log("\nTransaction result:", tx.result.meta.TransactionResult);
-    console.log("Balance changes:", JSON.stringify(xrpl.getBalanceChanges(tx.result.meta), null, 2));
+    
+    
 
     await client.disconnect();
   } catch (error) {

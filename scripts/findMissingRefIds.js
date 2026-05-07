@@ -112,17 +112,17 @@ function calculateEcoFee({ amount, totalDeposits, totalWithdrawals, alreadyPaid 
 async function run() {
   const dateArg = process.argv[2];
   if (!dateArg) {
-    console.log("❌ Usage: node file.js YYYY-MM-DD [--dry]");
+    
     process.exit(1);
   }
 
   const targetDate = new Date(dateArg);
   if (isNaN(targetDate.getTime())) {
-    console.log("❌ Invalid date format");
+    
     process.exit(1);
   }
 
-  console.log(isDryRun ? "🧪 DRY RUN MODE (no DB writes)" : "🔥 LIVE MODE (will write/delete)");
+  
 
   const start = new Date(Date.UTC(
     targetDate.getUTCFullYear(),
@@ -143,12 +143,12 @@ async function run() {
   const effectiveEnd = fiveMinAgo < endOfDay ? fiveMinAgo : endOfDay;
 
   if (effectiveEnd <= start) {
-    console.log("⛔ No valid time window (all rows within last 5 min).");
+    
     process.exit(0);
   }
 
   await connectDB();
-  console.log("⚡ DB Connected");
+  
 
   const targetEvents = ["WITHDRAWAL", "REWARDS_REDEEMED"];
 
@@ -161,7 +161,7 @@ async function run() {
     .lean();
 
   if (!rows.length) {
-    console.log("👍 No matching ledger rows.");
+    
     process.exit(0);
   }
 
@@ -181,7 +181,7 @@ async function run() {
     if (list.length === 1) filteredRows.push(list[0]);
     else {
       skippedMulti++;
-      console.log(`⛔ SKIP USER ${userId} → ${list.length} rows`);
+      
     }
   }
 
@@ -310,7 +310,7 @@ async function run() {
       ecoFee = toNumber(existingEcoLedger.amount);
       finalAmount = +(originalAmount - ecoFee).toFixed(6);
 
-      console.log(`♻️ USING EXISTING ECOFEE for ${row.uniqueTransactionId}: ${ecoFee}`);
+      
     } else if (isCR) {
       // Calculate fresh eco fee (base logic)
       const { totalDeposits, totalWithdrawals } = await getUserChainTotals(row.userId);
@@ -456,21 +456,21 @@ async function run() {
   }
 
   // ---------------------- SUMMARY -----------------------
-  console.log("\n================ SUMMARY ================");
-  console.log("Mode:", isDryRun ? "DRY" : "LIVE");
-  console.log("Inserted:", inserted);
-  console.log("Updated:", updated);
-  console.log("Unchanged:", skippedNoChange);
-  console.log("Skipped - multi rows:", skippedMulti);
-  console.log("Skipped - dup (no refId):", skippedDuplicateNoRef);
-  console.log("Deleted dup LedgerRows:", deletedDuplicate);
-  console.log("Deleted dup WithdrawalErrorLogs:", deletedDuplicateLogs);
-  console.log("=========================================\n");
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   console.table(results);
 
   await mongoose.disconnect();
-  console.log("🔌 DB Disconnected");
+  
 }
 
 run();

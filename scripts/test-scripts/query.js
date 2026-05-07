@@ -36,10 +36,10 @@ async function run() {
               status: '1',
               parent: parentUhid,
             });
-            console.log(`${childUhid} - ${parentUhid} - ${level}`);
+            
           }
           else {
-            console.log(`${childUhid} - ${parentUhid} - ${level} - already exists`);
+            
           }
           // stop at root uhid or if sponsor has no further sponsor
           if (parentUhid === '786000786') break;

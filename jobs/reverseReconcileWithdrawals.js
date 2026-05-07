@@ -28,7 +28,7 @@ const ReversalLog = mongoose.model('ReversalLog', reversalLogSchema);
 
 async function reverseReconcileWithdrawals() {
   const scriptRunId = new Date().toISOString();
-  console.log(`Starting reversal process - Run ID: ${scriptRunId}`);
+  
 
   try {
     // Find all LedgerRows that were likely affected by the reconciliation script
@@ -40,7 +40,7 @@ async function reverseReconcileWithdrawals() {
       ]
     });
 
-    console.log(`Found ${affectedRows.length} potentially affected LedgerRows`);
+    
 
     let processedCount = 0;
     let errorCount = 0;
@@ -111,7 +111,7 @@ async function reverseReconcileWithdrawals() {
                 break;
               case 'ZERO_RISK':
               default:
-                ledger.wallets.usdt = subtractDecimal128(ledger.wallets.usdt || '0.0', amt);
+                ledger.wallets.bnb = subtractDecimal128(ledger.wallets.bnb || '0.0', amt);
                 break;
             }
 
@@ -137,7 +137,7 @@ async function reverseReconcileWithdrawals() {
         }
 
         processedCount++;
-        console.log(`Processed ${processedCount}/${affectedRows.length} - Reverted ${row.userId} from ${originalStatus} to INITIATED`);
+        
 
       } catch (error) {
         errorCount++;
@@ -156,10 +156,10 @@ async function reverseReconcileWithdrawals() {
       }
     }
 
-    console.log(`Reversal complete - Run ID: ${scriptRunId}`);
-    console.log(`Successfully processed: ${processedCount}`);
-    console.log(`Errors: ${errorCount}`);
-    console.log(`Total affected rows: ${affectedRows.length}`);
+    
+    
+    
+    
 
     // Create summary log
     await new ReversalLog({

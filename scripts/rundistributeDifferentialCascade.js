@@ -53,7 +53,7 @@ function getYesterdayUtcDate() {
 
 // -------- archive & reset (same as before) --------
 const archiveAndResetDailyRewards = async () => {
-  console.log('Archiving and resetting daily cascade rewards...');
+  
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0); // Use UTC date for consistency
 
@@ -61,7 +61,7 @@ const archiveAndResetDailyRewards = async () => {
   const ledgersToArchive = await Ledger.find({ 'wallets.dailyCascadeRewards': { $gt: Decimal128.fromString('0') } });
 
   if (ledgersToArchive.length === 0) {
-    console.log('No daily cascade rewards to archive.');
+    
     return;
   }
 
@@ -94,7 +94,7 @@ const archiveAndResetDailyRewards = async () => {
   await DailyRewardLog.bulkWrite(archiveOps);
   await Ledger.bulkWrite(resetOps);
 
-  console.log(`Archived and reset daily cascade rewards for ${ledgersToArchive.length} users.`);
+  
 };
 
 
@@ -195,7 +195,7 @@ async function getSponsorStats() {
 // -------- REAL RUN (same logic, just sets createdAt/updatedAt to yesterday 23:58) --------
 async function distributeDifferentialCascadeRewards() {
   await connectDB();
-  console.log("Starting DIFFERENTIAL CASCADE distribution script...");
+  
 
   await archiveAndResetDailyRewards();
 
@@ -233,7 +233,7 @@ async function distributeDifferentialCascadeRewards() {
     cascadeProcessed: { $ne: true },
   }).lean();
 
-  console.log(`Found ${lpDepositEvents.length} new LP deposits`);
+  
 
   const payouts = [];
   const processedIds = [];
@@ -337,7 +337,7 @@ for (const event of lpDepositEvents) {
     );
   }
 
-  console.log("Cascade distribution finished.");
+  
 
   await mongoose.disconnect();
 }
@@ -346,7 +346,7 @@ for (const event of lpDepositEvents) {
 // -------- DRY RUN: no writes, only simulate & time --------
 async function distributeDifferentialCascadeRewardsDryRun() {
   await connectDB();
-  console.log("Starting DIFFERENTIAL CASCADE DRY RUN (NO DB WRITES)...");
+  
 
   const start = Date.now();
 
@@ -388,7 +388,7 @@ async function distributeDifferentialCascadeRewardsDryRun() {
     cascadeProcessed: { $ne: true },
   }).lean();
 
-  console.log(`DRY RUN: Found ${lpDepositEvents.length} new LP deposits`);
+  
 
   let payoutCount = 0;
   let totalPayoutAmount = 0;
@@ -452,13 +452,13 @@ async function distributeDifferentialCascadeRewardsDryRun() {
   }
 
   const seconds = ((Date.now() - start) / 1000).toFixed(2);
-  console.log("----------------------------------------------------");
-  console.log("DRY RUN COMPLETE (NO DB WRITES)");
-  console.log(`Events processed: ${lpDepositEvents.length}`);
-  console.log(`Payout entries (simulated): ${payoutCount}`);
-  console.log(`Total payout amount (simulated): ${totalPayoutAmount.toFixed(8)} XRP`);
-  console.log(`Time Taken: ${seconds}s`);
-  console.log("----------------------------------------------------");
+  
+  
+  
+  
+  
+  
+  
 
   await mongoose.disconnect();
 }
@@ -467,7 +467,7 @@ async function distributeDifferentialCascadeRewardsDryRun() {
 // --------- (Optional) your existing debug function, unchanged ----------
 async function distributeDifferentialCascadeRewardsDebug() {
   await connectDB();
-  console.log("Starting DIFFERENTIAL CASCADE distribution script (DEBUG 10 events)...");
+  
 
   await archiveAndResetDailyRewards();
 
@@ -512,7 +512,7 @@ async function distributeDifferentialCascadeRewardsDebug() {
     cascadeProcessed: { $ne: true },
   }).limit(10).lean();
 
-  console.log(`Found ${lpDepositEvents.length} new LP deposits (limited to 10)`);
+  
 const totalEvents = lpDepositEvents.length;
 let processed = 0;
 const startedAt = Date.now();

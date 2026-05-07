@@ -204,7 +204,7 @@ const limit = pLimit(CONCURRENT_ADDR_LIMIT);
 
     if (target && /^r[1-9A-HJ-NP-Za-km-z]{25,35}$/.test(target)) {
       isXrpAddress = true;
-      console.log('→ Single XRP address mode:', target);
+      
     }
 
   let query = {};
@@ -220,14 +220,14 @@ const users = await User.find(query)
   .select('_id uhid xrpAddress')
   .lean();
 
-    console.log(`→ Found ${users.length} XRP addresses`);
+    
 
     let processed = 0;
     await Promise.all(
       users.map((user) =>
         limit(async () => {
           try {
-            console.log(`[${++processed}/${users.length}] Fetching tx for`, user.xrpAddress);
+            
             const txs = await fetchAccountTx(user.xrpAddress);
 
             for (const item of txs) {
@@ -250,13 +250,13 @@ const users = await User.find(query)
                 const existing = await Deposit.findOne({ txHash: doc.txHash });
                 if (!existing) {
                   await Deposit.create(doc);
-                  console.log(`💾 Created deposit row for ${doc.txHash}`);
+                  
                 }
               } else if (cls.kind === 'withdrawal') {
                 const existing = await Withdrawal.findOne({ txHash: doc.txHash });
                 if (!existing) {
                   await Withdrawal.create(doc);
-                  console.log(`💾 Created withdrawal row for ${doc.txHash}`);
+                  
                 }
               }
             }
@@ -267,7 +267,7 @@ const users = await User.find(query)
       )
     );
 
-    console.log('✅ Done.');
+    
   } catch (err) {
     console.error('Fatal error:', err);
   } finally {

@@ -35,7 +35,7 @@ const trackChainScript = path.join(__dirname, 'trackChainTx.js');
 function callTrackChainTx(xrpAddress) {
   try {
     if (!xrpAddress) {
-      console.log(`⚠️ No XRP address provided for trackChainTx`);
+      
       return;
     }
 
@@ -46,21 +46,21 @@ function callTrackChainTx(xrpAddress) {
 
     // Event handlers
     child.on('error', (error) => {
-      console.log(`⚠️ trackChainTx spawn error for ${xrpAddress}:`, error.message);
+      
     });
 
     child.on('exit', (code) => {
       if (code === 0) {
-        console.log(`✅ trackChainTx completed successfully for ${xrpAddress}`);
+        
       } else {
-        console.log(`⚠️ trackChainTx exited with code ${code} for ${xrpAddress}`);
+        
       }
     });
 
-    console.log(`🔄 trackChainTx started for user: ${xrpAddress}`);
+    
     return child;
   } catch (error) {
-    console.log(`❌ trackChainTx function error for ${xrpAddress}:`, error.message);
+    
   }
 }
 
@@ -212,9 +212,9 @@ if (RECORD_ID) {
   const cursor = WithdrawalErrorLog.find(match, {}).sort({ createdAt: -1, _id: -1 }).limit(LIMIT);
   const docs = await cursor.lean();
 
-  console.log(`Window: ${start.toISOString()} → ${end.toISOString()}`);
-  console.log(`Filter: /${REGEX}/  |  Limit: ${LIMIT}${USER ? `  |  userId=${USER}` : ''}`);
-  console.log(`Found: ${docs.length} record(s)\n`);
+  
+  
+  
 
   const rows = [];
   let totalAttempted = 0;
@@ -236,7 +236,7 @@ if (RECORD_ID) {
             d.ledgerRowId
           );
           xrpTxHash = txResult.hash; 
-           console.log(txResult, d.destinationAddress, d.ledgerRowId);
+           
   if (xrpTxHash) {
   try {
     await updateWithNewTxHash({
@@ -291,7 +291,7 @@ if (RECORD_ID) {
   fs.writeFileSync(csvPath, csv, 'utf8');
   fs.writeFileSync(jsonPath, JSON.stringify(docs, null, 2), 'utf8');
 
-  console.log(`Files written:\n  CSV : ${csvPath}\n  JSON: ${jsonPath}`);
+  
 
   await mongoose.disconnect();
   process.exit(0);

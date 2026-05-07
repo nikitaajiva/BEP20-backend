@@ -46,7 +46,7 @@ const createLedgerEntry = async ({
 async function getOrCreateLedger(userId) {
     let ledger = await Ledger.findById(userId);
     if (!ledger) {
-        console.log(`No ledger for user ${userId}, creating one.`);
+        
         // Note: The User.post('save') hook that also creates a ledger will not
         // be part of this session, so creating it here explicitly is necessary
         // for operations on users who might not have had a ledger before.
@@ -58,12 +58,12 @@ async function getOrCreateLedger(userId) {
                 swift: Decimal128.fromString('0.0'),
                 lp: Decimal128.fromString('0.0'),
                 boost: Decimal128.fromString('0.0'),
-                usdt: Decimal128.fromString('0.0'),
+                bnb: Decimal128.fromString('0.0'),
                 zeroRisk: Decimal128.fromString('0.0'),
                 communityRewards: Decimal128.fromString('0.0'),
                 airdrop: Decimal128.fromString('0.0'),
                 cascadeRewards:Decimal128.fromString('0.0'),
-                rankRewards: Decimal128('0.0'),
+                rankRewards: Decimal128.fromString('0.0'),
                 dailyCascadeRewards: Decimal128.fromString('0.0'),
                 dailyLevelBoosterBonus: Decimal128.fromString('0.0'),
                 dailyRankBonus:Decimal128.fromString('0.0'),

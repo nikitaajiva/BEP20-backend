@@ -2,6 +2,11 @@ require("dotenv").config(); // Ensure .env is loaded first
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const hpp = require("hpp");
+// const mongoSanitize = require("express-mongo-sanitize"); // Removed due to Express 5 incompatibility
+// const xss = require("xss-clean"); // Removed due to incompatibility
 
 // --- Database Connection ---
 // Assuming db.js is in project-merged/config/db.js and handles the connection
@@ -25,7 +30,65 @@ app.use(
 );
 //    process.env.FRONTEND_URL_STAGING || 'https://staging.example.com',
 
-app.use(express.json()); // To parse JSON request bodies
+app.use(express.json({ limit: '10kb' })); // Body parser, limit data size
+
+// --- Advanced Security Middleware ---
+// 1. Set Security HTTP headers
+app.use(helmet());
+
+// 2. Custom NoSQL Sanitization (Express 5 Compatible)
+app.use((req, res, next) => {
+  const sanitize = (obj) => {
+    if (obj && typeof obj === "object") {
+      Object.keys(obj).forEach((key) => {
+        if (key.startsWith("$") || key.includes(".")) {
+          delete obj[key];
+        } else if (obj[key] && typeof obj[key] === "object") {
+          sanitize(obj[key]);
+        }
+      });
+    }
+  };
+
+  // We clone to avoid read-only property errors in Express 5
+  if (req.query) {
+    const cleanQuery = { ...req.query };
+    sanitize(cleanQuery);
+    Object.defineProperty(req, 'query', { value: cleanQuery, writable: true });
+  }
+  if (req.params) {
+    const cleanParams = { ...req.params };
+    sanitize(cleanParams);
+    Object.defineProperty(req, 'params', { value: cleanParams, writable: true });
+  }
+  if (req.body) {
+    sanitize(req.body);
+  }
+  next();
+});
+
+// 3. Data Sanitization against XSS (Handled by custom sanitizers and React)
+// app.use(xss()); // Removed
+
+// 4. Prevent Parameter Pollution
+app.use(hpp());
+
+// 5. Rate Limiting
+const globalLimiter = rateLimit({
+  max: 1000,
+  windowMs: 60 * 60 * 1000, // 1 hour
+  message: 'Too many requests from this IP, please try again in an hour!',
+  validate: { trustProxy: false } // Fix for ERR_ERL_PERMISSIVE_TRUST_PROXY
+});
+app.use('/api', globalLimiter);
+
+const authLimiter = rateLimit({
+  max: 20, // Limit to 20 attempts per 10 minutes
+  windowMs: 10 * 60 * 1000,
+  message: 'Too many authentication attempts, please try again in 10 minutes!',
+  validate: { trustProxy: false } // Fix for ERR_ERL_PERMISSIVE_TRUST_PROXY
+});
+app.use('/api/auth', authLimiter);
 
 // --- Import Routes ---
 // Auth System Routes
@@ -55,6 +118,7 @@ const {
 } = require("./controllers/ledgerController.js"); // ⬅️ NEW
 
 const depositPoller = require("./jobs/depositPoller"); // Import the new deposit poller
+const bep20Watcher = require("./jobs/bep20Watcher");
 const withdrawalReconciler = require("./jobs/withdrawalReconciler"); // ⬅️ NEW: Import withdrawal reconciler job
 const reconcilePendingWithdrawals = require("./jobs/reconcilePendingWithdrawals"); // Pending-withdrawal reconciler
 
@@ -103,23 +167,21 @@ if (process.env.NODE_ENV !== "test") {
     .then(() => {
       server = app.listen(PORT, () => {
         console.log(
-          `Unified Server running in ${
-            process.env.NODE_ENV || "development"
+          `Unified Server running in ${process.env.NODE_ENV || "development"
           } mode on port ${PORT}`
         );
 
         app.locals.db = mongoose.connection.db;
-        console.log("MongoDB native db object set to app.locals.db");
 
-     //   depositPoller.start();
-      //  startAutoPositioningCron(); // ✅ NEW: Cron for autopositioning
-     //   reconcilePendingWithdrawals.start(); // Start new pending-withdrawal reconciler
-     //   console.log("Cron jobs scheduled.");
 
+        const bscWatcher = require("./services/BscWatcherService");
+        bscWatcher.start().catch(err => console.error("Failed to start BSC Watcher:", err));
+
+        depositPoller.start();
       });
     });
 } else {
-  console.log("Running in test mode - server listener handled by test suite.");
+
 }
 
 
@@ -130,7 +192,7 @@ const gracefulShutdown = async (signal) => {
   );
   if (server) {
     server.close(async () => {
-      console.log("HTTP server closed.");
+
       await shutdownServices();
     });
   } else {
@@ -140,13 +202,13 @@ const gracefulShutdown = async (signal) => {
 
 const shutdownServices = async () => {
   if (outboxProcessor) {
-    console.log("Stopping Outbox Processor...");
+
     outboxProcessor.stop();
-    console.log("Outbox Processor stopped.");
+
   }
   try {
     await mongoose.disconnect();
-    console.log("MongoDB connection closed gracefully.");
+
   } catch (err) {
     console.error("Error during MongoDB disconnection:", err);
   }

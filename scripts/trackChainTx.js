@@ -106,7 +106,7 @@ async function updateWithdrawalSources() {
     // Fetch all distinct source accounts from previous XRP logs
     const newAccounts = await XrpTxLog.distinct("response.quicknode.tx_json.Account");
 
-    console.log("🌿 Found new XRPL source accounts from xrp_tx_logs:", newAccounts.length);
+    
 
     // Merge old + new, remove duplicates
     const updatedSources = Array.from(new Set([...OUR_WITHDRAWAL_SOURCES, ...newAccounts]));
@@ -114,7 +114,7 @@ async function updateWithdrawalSources() {
     OUR_WITHDRAWAL_SOURCES.length = 0; // Clear old array
     OUR_WITHDRAWAL_SOURCES.push(...updatedSources); // Repopulate
 
-    console.log("✅ Updated OUR_WITHDRAWAL_SOURCES count:", OUR_WITHDRAWAL_SOURCES.length);
+    
   } catch (error) {
     console.error("❌ Error updating withdrawal sources:", error);
   }
@@ -289,7 +289,7 @@ const limit = pLimit(CONCURRENT_ADDR_LIMIT);
 
     if (target && /^r[1-9A-HJ-NP-Za-km-z]{25,35}$/.test(target)) {
       isXrpAddress = true;
-      console.log('→ Single XRP address mode:', target);
+      
     }
 
   let query = {};
@@ -305,14 +305,14 @@ const users = await User.find(query)
   .select('_id uhid xrpAddress')
   .lean();
 
-    console.log(`→ Found ${users.length} XRP addresses`);
+    
 
     let processed = 0;
     await Promise.all(
       users.map((user) =>
         limit(async () => {
           try {
-            console.log(`[${++processed}/${users.length}] Fetching tx for`, user.xrpAddress);
+            
             const txs = await fetchAccountTx(user.xrpAddress);
 
             for (const item of txs) {
@@ -335,13 +335,13 @@ const users = await User.find(query)
                 const existing = await Deposit.findOne({ txHash: doc.txHash });
                 if (!existing) {
                   await Deposit.create(doc);
-                  console.log(`💾 Created deposit row for ${doc.txHash}`);
+                  
                 }
               } else if (cls.kind === 'withdrawal') {
                 const existing = await Withdrawal.findOne({ txHash: doc.txHash });
                 if (!existing) {
                   await Withdrawal.create(doc);
-                  console.log(`💾 Created withdrawal row for ${doc.txHash}`);
+                  
                 }
               }
             }
@@ -352,7 +352,7 @@ const users = await User.find(query)
       )
     );
 
-    console.log('✅ Done.');
+    
   } catch (err) {
     console.error('Fatal error:', err);
   } finally {

@@ -17,7 +17,7 @@ const resetUserLedger = async (uhid) => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('MongoDB connected successfully.');
+    
 
     const user = await User.findOne({ uhid: uhid });
     if (!user) {
@@ -26,7 +26,7 @@ const resetUserLedger = async (uhid) => {
       return;
     }
 
-    console.log(`Found user ${user.username} with ID: ${user._id}`);
+    
     
     const userId = user._id;
 
@@ -62,16 +62,16 @@ const resetUserLedger = async (uhid) => {
     );
 
     if (ledgerUpdateResult.nModified > 0 || userUpdateResult.nModified > 0) {
-      console.log(`Successfully reset ledger and counters for user with UHID "${uhid}".`);
+      
     } else {
-      console.log(`No changes were needed for user with UHID "${uhid}". They might have been in the default state already.`);
+      
     }
 
   } catch (error) {
     console.error('An error occurred:', error);
   } finally {
     await mongoose.disconnect();
-    console.log('MongoDB connection closed.');
+    
   }
 };
 

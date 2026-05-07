@@ -36,7 +36,7 @@ async function main() {
     }
 
     await connectDB();
-    console.log("Connected to DB");
+    
 
     // Find user by UHID
     const user = await User.findOne({ uhid }).lean();
@@ -44,12 +44,12 @@ async function main() {
       console.error(`No user found with UHID: ${uhid}`);
       process.exit(1);
     }
-    console.log(`User: ${user.username || "N/A"} (UHID: ${user.uhid})`);
+    
 
     // On-chain deposit & withdrawal totals
     const { totalDeposits, totalWithdrawals } = await getUserChainTotals(user._id);
-    console.log(`\nOn-chain Deposit Total: ${totalDeposits}`);
-    console.log(`On-chain Withdrawal Total: ${totalWithdrawals}`);
+    
+    
 
     // Ledger & balances
     const ledger = await Ledger.findOne({ userId: user._id }).lean();
@@ -66,22 +66,22 @@ async function main() {
     const totalRewardsWithdrawal = ledger.totalRewardsWithdrawal?.toString() || "0.0";
     const rewardsUsed = ledger.limits?.fiveXLimit?.used?.toString() || "0.0";
 
-    console.log(`LP Balance: ${lpBalance}`);
-    console.log(`XAMAN Balance: ${xamanBalance}`);
-    console.log(`Zero Risk Balance: ${zeroRiskBalance}`);
-    console.log(`Current Balance: ${communityRewardsBalance}`);
-    console.log(`Redeemed: ${totalRewardsWithdrawal}`);
-    console.log(`Rewards: ${rewardsUsed}`);
+    
+    
+    
+    
+    
+    
 
     // Autopositioning total
     const totalAutopositioning = await LedgerRow.aggregate([
       { $match: { userId: user._id, eventType: "AUTOPOSITIONING" } },
       { $group: { _id: null, total: { $sum: { $toDouble: "$amount" } } } }
     ]);
-    console.log(`Autopositioning Total: ${(totalAutopositioning[0]?.total || 0).toFixed(6)}`);
+    
 
     await mongoose.disconnect();
-    console.log("Done");
+    
   } catch (err) {
     console.error("Error:", err);
     process.exit(1);

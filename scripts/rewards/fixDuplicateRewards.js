@@ -27,7 +27,7 @@ const END   = new Date("2025-12-11T00:00:00.000Z");
 
 const fixDuplicateRewards = async () => {
     await connectDB();
-    console.log('🚀 Starting duplicate rewards correction for 06-12-2025...\n');
+    
 
     const rewardTypes = [
         { model: LpReward, name: 'lp', eventType: 'DAILY_REWARDS_LP' },
@@ -39,7 +39,7 @@ const fixDuplicateRewards = async () => {
         for (const rewardType of rewardTypes) {
             const { model, name, eventType } = rewardType;
 
-            console.log(`\n--- Checking for duplicate ${name} rewards ---`);
+            
 
             const usersWithDuplicates = await model.aggregate([
                 { $match: { createdAt: { $gte: START, $lt: END } } },
@@ -48,11 +48,11 @@ const fixDuplicateRewards = async () => {
             ]);
 
             if (usersWithDuplicates.length === 0) {
-                console.log(`No duplicate ${name} rewards found.`);
+                
                 continue;
             }
 
-            console.log(`Found ${usersWithDuplicates.length} users with duplicate ${name} rewards.`);
+            
 
             for (const user of usersWithDuplicates) {
                 const userId = user._id;
@@ -63,7 +63,7 @@ const fixDuplicateRewards = async () => {
                     continue;
                 }
 
-                console.log(`\n➡ Correcting user ${ledger.uhid} (${userId})`);
+                
 
                 // Fetch all reward documents
                 const allRewards = await model
@@ -80,7 +80,7 @@ const fixDuplicateRewards = async () => {
                     0
                 );
 
-                console.log(`🔁 Reversing ${rewardsToDelete.length} rewards = ${amountToReverse}`);
+                
 
                 // --- LEDGER UPDATES ---
                 ledger.wallets.communityRewards = fromFloat(
@@ -101,11 +101,11 @@ const fixDuplicateRewards = async () => {
                 );
 
                 await ledger.save();
-                console.log(`✔ Ledger updated for ${ledger.uhid}.`);
+                
 
                 // Delete duplicate reward docs
                 await model.deleteMany({ _id: { $in: rewardsToDelete.map(r => r._id) } });
-                console.log(`🗑 Deleted ${rewardsToDelete.length} duplicate reward records.`);
+                
 
                 // Delete duplicate LedgerRow docs
                 const ledgerRows = await LedgerRow.find({
@@ -130,7 +130,7 @@ const fixDuplicateRewards = async () => {
     } catch (error) {
         console.error('\n❌ ERROR:', error);
     } finally {
-        console.log('\n🎯 Duplicate rewards correction completed.');
+        
         await mongoose.disconnect();
     }
 };

@@ -29,9 +29,9 @@ async function generateDailyRewardsReport() {
   const lpStart = new Date(Date.UTC(lpDate.getUTCFullYear(), lpDate.getUTCMonth(), lpDate.getUTCDate(), 0, 0, 0));
   const lpEnd = new Date(Date.UTC(lpDate.getUTCFullYear(), lpDate.getUTCMonth(), lpDate.getUTCDate() + 1, 0, 0, 0));
 
-  console.log(`📅 Generating Daily Rewards Report for ${startOfDay.toISOString().slice(0, 10)}`);
-  console.log(`🕒 Ledger Range: ${startOfDay.toISOString()} → ${endOfDay.toISOString()}`);
-  console.log(`💧 LP Range (previous day): ${lpStart.toISOString()} → ${lpEnd.toISOString()}`);
+  
+  
+  
 
   const eventTypes = [
     "DAILY_REWARDS_LP",
@@ -45,7 +45,7 @@ async function generateDailyRewardsReport() {
     ts: { $gte: startOfDay, $lt: endOfDay },
   });
 
-  console.log(`📊 Found ${rows.length} reward entries.`);
+  
 
   // --- 📦 Group rewards by user ---
   const grouped = {};
@@ -79,7 +79,7 @@ async function generateDailyRewardsReport() {
     lpMap[item.userId.toString()] = parseFloat(item.lp || 0);
   });
 
-  console.log(`💧 Fetched LP data for ${dailyLps.length} users.`);
+  
 
   // --- 📘 Create Excel workbook ---
   const workbook = new ExcelJS.Workbook();
@@ -126,7 +126,7 @@ async function generateDailyRewardsReport() {
   const filePath = path.join(reportDir, `daily_rewards_${fileDate}.xlsx`);
   await workbook.xlsx.writeFile(filePath);
 
-  console.log(`✅ Report generated successfully at: ${filePath}`);
+  
   process.exit(0);
 }
 

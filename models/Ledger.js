@@ -56,7 +56,7 @@ const LedgerSchema = new Schema({
       type: Schema.Types.Decimal128,
       default: '0.0'
     },
-    usdt: { // New wallet to hold on-chain deposits
+    bnb: { // Native BNB deposits
       type: Schema.Types.Decimal128,
       default: '0.0'
     },
@@ -183,7 +183,7 @@ const LedgerSchema = new Schema({
     index: true
   },
   processedTransactions: [{
-    transactionId: { type: String, required: true, unique: true },
+    transactionId: { type: String, required: true },
     timestamp: { type: Date, required: true },
     amount: { type: Schema.Types.Decimal128, required: true },
     walletFrom: { type: String, required: true },
@@ -249,5 +249,11 @@ LedgerSchema.pre('save', function(next) {
 LedgerSchema.methods.hasProcessedTransaction = function(transactionId) {
   return this.processedTransactions.some(tx => tx.transactionId === transactionId);
 };
+
+// Ensure unique transaction IDs without blocking null/missing values
+LedgerSchema.index(
+  { "processedTransactions.transactionId": 1 },
+  { unique: true, sparse: true }
+);
 
 module.exports = mongoose.models.Ledger || mongoose.model('Ledger', LedgerSchema); 

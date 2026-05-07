@@ -26,7 +26,7 @@ const Country = mongoose.models.Country || mongoose.model('Country', CountrySche
 
 
 async function testEnrichUserData() {
-  console.log('Starting user data enrichment test for 10 users...');
+  
 
   // 1. Create a pipeline to find 10 eligible users and their new data
   const enrichmentPipeline = [
@@ -58,17 +58,17 @@ async function testEnrichUserData() {
   const usersToUpdate = await UserSignUp.aggregate(enrichmentPipeline);
 
   if (usersToUpdate.length === 0) {
-    console.log('Could not find any users to test with. Please check your `usersignups` data.');
+    
     return;
   }
 
   const uhids = usersToUpdate.map(u => u.uhid);
-  console.log(`Found ${usersToUpdate.length} users to test. UHIDs:`, uhids);
+  
   
   // 2. Fetch and log the "before" state
   const usersBefore = await User.find({ uhid: { $in: uhids } }).select('uhid country cell');
-  console.log('\n--- DATA BEFORE UPDATE ---');
-  console.log(usersBefore);
+  
+  
 
   // 3. Perform the update
   const bulkOps = usersToUpdate.map(user => ({
@@ -85,13 +85,13 @@ async function testEnrichUserData() {
 
   if (bulkOps.length > 0) {
     await User.bulkWrite(bulkOps);
-    console.log('\nUpdate operation completed.');
+    
   }
 
   // 4. Fetch and log the "after" state
   const usersAfter = await User.find({ uhid: { $in: uhids } }).select('uhid country cell');
-  console.log('\n--- DATA AFTER UPDATE ---');
-  console.log(usersAfter);
+  
+  
 }
 
 
@@ -99,13 +99,13 @@ async function run() {
     const mongoURI = 'mongodb://localhost:27017/xrp2';
     try {
         await mongoose.connect(mongoURI);
-        console.log('MongoDB connected successfully.');
+        
         await testEnrichUserData();
     } catch (error) {
         console.error('Database connection or script execution failed:', error);
     } finally {
         await mongoose.disconnect();
-        console.log('MongoDB connection closed.');
+        
     }
 }
 

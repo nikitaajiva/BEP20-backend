@@ -22,7 +22,7 @@ async function connectDB() {
     useNewUrlParser: true,
     useUnifiedTopology: true
   });
-  console.log('MongoDB connected');
+  
 }
 
 async function rollbackDailyRewards() {
@@ -39,11 +39,11 @@ async function rollbackDailyRewards() {
   }).lean();
 
   if (rows.length === 0) {
-    console.log('No daily-reward ledger rows found for today. Exiting.');
+    
     return mongoose.disconnect();
   }
 
-  console.log(`Found ${rows.length} ledger rows to rollback.`);
+  
 
   let successCount = 0;
   for (const row of rows) {
@@ -71,14 +71,14 @@ async function rollbackDailyRewards() {
     successCount += 1;
   }
 
-  console.log(`Rollback completed. Ledgers updated: ${successCount}/${rows.length}`);
+  
 
   // Optionally delete the processed ledger rows
   // await LedgerRow.deleteMany({ _id: { $in: rows.map(r => r._id) } });
-  // console.log('Deleted processed ledger rows.');
+  // 
 
   await mongoose.disconnect();
-  console.log('MongoDB disconnected.');
+  
 }
 
 rollbackDailyRewards().catch(err => {

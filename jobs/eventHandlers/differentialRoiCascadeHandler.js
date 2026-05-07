@@ -326,7 +326,7 @@ exports.handleDifferentialRoiCascade = async (payload) => {
     while (sponsorRecord) {
       const sponsor = byUhid.get(sponsorRecord.parent);
       if (!sponsor) {
-        console.log(`L${lvl}: sponsor ${sponsorRecord.parent} not found`);
+        
         // try next higher parent
         sponsorRecord = uplines.find((u) => u.level === sponsorRecord.level + 1);
         continue;
@@ -355,7 +355,7 @@ exports.handleDifferentialRoiCascade = async (payload) => {
         sLedger.limits.fiveXLimit.used
       );
       if (Number(remaining5x.toString()) <= 0) {
-        console.log(`L${lvl}: ${sponsor.username} has no 5X room`);
+        
         sponsorRecord = uplines.find(
           (u) => u.level === sponsorRecord.level + 1
         );
@@ -418,7 +418,7 @@ exports.handleDifferentialRoiCascade = async (payload) => {
     }
 
     if (!paid) {
-      console.log(`L${lvl}: No qualified sponsor found → reward lost`);
+      
     }
   }
 

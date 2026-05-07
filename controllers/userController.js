@@ -58,7 +58,7 @@ const updateNotificationSettings = async (req, res) => {
 //     try {
 //         // The field from the frontend will be 'wallet_address'
 //         const { wallet_address } = req.body;
-//         console.log('wallet_address', wallet_address);
+//         
 //         const userId = req.user._id;
 
 //         if (!wallet_address || typeof wallet_address !== 'string') {
@@ -107,7 +107,7 @@ const updateWalletAddress = async (req, res) => {
       return res.status(400).json({ message: "Invalid wallet address provided." });
     }
 
-    const newAddress = wallet_address.trim();
+    const newAddress = wallet_address.trim().toLowerCase();
 
     // 🔍 Check if another user already uses this address
     const existingUserWithWallet = await User.findOne({
@@ -128,7 +128,7 @@ const updateWalletAddress = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    const currentAddress = user.wallet_address ? user.wallet_address.trim() : "";
+    const currentAddress = user.wallet_address ? user.wallet_address.trim().toLowerCase() : "";
 
     // ✅ If already same, return success
     if (currentAddress === newAddress) {

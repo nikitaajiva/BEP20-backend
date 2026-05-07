@@ -96,7 +96,7 @@ async function findDepositTx(destination, tag) {
 function callTrackChainTx(xrpAddress) {
   return new Promise((resolve) => {
     if (!xrpAddress) {
-      console.log(`⚠️ No XRP address provided for trackChainTx`);
+      
       return resolve();
     }
 
@@ -107,23 +107,23 @@ function callTrackChainTx(xrpAddress) {
       });
 
       child.on('error', (error) => {
-        console.log(`⚠️ trackChainTx spawn error for ${xrpAddress}:`, error.message);
+        
         resolve();
       });
 
       child.on('exit', (code) => {
         if (code === 0) {
-          console.log(`✅ trackChainTx completed successfully for ${xrpAddress}`);
+          
         } else {
-          console.log(`⚠️ trackChainTx exited with code ${code} for ${xrpAddress}`);
+          
         }
         resolve();
       });
 
-      console.log(`🔄 trackChainTx started for user: ${xrpAddress}`);
+      
       child.unref();
     } catch (error) {
-      console.log(`❌ trackChainTx function error for ${xrpAddress}:`, error.message);
+      
       resolve();
     }
   });
@@ -132,16 +132,16 @@ function callTrackChainTx(xrpAddress) {
 // ====== RUN FINAL SCRIPT (ONCE) ======
 function runCheckMissingDeposits() {
   try {
-    console.log('🚀 Running checkMissingDeposits.js (once)...');
+    
     const child = spawn('node', [checkMissingDepositsScript], {
       stdio: 'inherit',
     });
 
     child.on('exit', (code) => {
       if (code === 0) {
-        console.log('✅ checkMissingDeposits.js completed successfully.');
+        
       } else {
-        console.log(`⚠️ checkMissingDeposits.js exited with code ${code}.`);
+        
       }
     });
   } catch (error) {
@@ -160,16 +160,16 @@ function runCheckMissingDeposits() {
       createdAt: { $gte: fiveMinutesAgo },
     }).lean();
 
-    console.log(`🔍 Found ${recentAddresses.length} active deposit addresses (last 5 mins)`);
+    
 
     for (const addr of recentAddresses) {
       const { wallet_address, destination_tag, _id } = addr;
 
-      console.log(`→ Checking address: ${wallet_address} | Tag: ${destination_tag}`);
+      
       const tx = await findDepositTx(wallet_address, destination_tag);
 
       if (tx) {
-        console.log(`✅ Found deposit TX: ${tx.txHash} | ${tx.amountXRP} XRP`);
+        
           await callTrackChainTx(tx.sender);
         await DepositAddress.updateOne(
           { _id },
@@ -184,11 +184,11 @@ function runCheckMissingDeposits() {
           }
         );
       } else {
-        console.log("⚠️ No deposit found for this tag yet.");
+        
       }
     }
 
-    console.log("✅ Done checking all recent addresses.");
+    
     await mongoose.disconnect();
       runCheckMissingDeposits();
     process.exit(0);
@@ -229,7 +229,7 @@ function runCheckMissingDeposits() {
 // function callTrackChainTx(xrpAddress) {
 //   return new Promise((resolve) => {
 //     if (!xrpAddress) {
-//       console.log(`⚠️ No XRP address provided for trackChainTx`);
+//       
 //       return resolve();
 //     }
 
@@ -240,23 +240,23 @@ function runCheckMissingDeposits() {
 //       });
 
 //       child.on('error', (error) => {
-//         console.log(`⚠️ trackChainTx spawn error for ${xrpAddress}:`, error.message);
+//         
 //         resolve();
 //       });
 
 //       child.on('exit', (code) => {
 //         if (code === 0) {
-//           console.log(`✅ trackChainTx completed successfully for ${xrpAddress}`);
+//           
 //         } else {
-//           console.log(`⚠️ trackChainTx exited with code ${code} for ${xrpAddress}`);
+//           
 //         }
 //         resolve();
 //       });
 
-//       console.log(`🔄 trackChainTx started for user: ${xrpAddress}`);
+//       
 //       child.unref();
 //     } catch (error) {
-//       console.log(`❌ trackChainTx function error for ${xrpAddress}:`, error.message);
+//       
 //       resolve();
 //     }
 //   });
@@ -265,16 +265,16 @@ function runCheckMissingDeposits() {
 // // ====== RUN FINAL SCRIPT (ONCE) ======
 // function runCheckMissingDeposits() {
 //   try {
-//     console.log('🚀 Running checkMissingDeposits.js (once)...');
+//     
 //     const child = spawn('node', [checkMissingDepositsScript], {
 //       stdio: 'inherit',
 //     });
 
 //     child.on('exit', (code) => {
 //       if (code === 0) {
-//         console.log('✅ checkMissingDeposits.js completed successfully.');
+//         
 //       } else {
-//         console.log(`⚠️ checkMissingDeposits.js exited with code ${code}.`);
+//         
 //       }
 //     });
 //   } catch (error) {
@@ -289,7 +289,7 @@ function runCheckMissingDeposits() {
 //   const now = new Date();
 //   const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
 
-//   console.log(`🕒 Checking LedgerRows (last 10 minutes): ${tenMinutesAgo.toISOString()} → ${now.toISOString()}`);
+//   
 
 //   try {
 //     const filter = {
@@ -300,12 +300,12 @@ function runCheckMissingDeposits() {
 //     const recentRows = await LedgerRow.find(filter).limit(500); // optional safety limit
 
 //     if (recentRows.length === 0) {
-//       console.log('⚠️ No matching LedgerRows found in the last 10 minutes.');
+//       
 //       mongoose.connection.close();
 //       return runCheckMissingDeposits();
 //     }
 
-//     console.log(`✅ Found ${recentRows.length} matching LedgerRows.`);
+//     
 
 //     // Get all unique userIds
 //     const userIds = [...new Set(recentRows.map((r) => r.userId?.toString()).filter(Boolean))];
@@ -318,14 +318,14 @@ function runCheckMissingDeposits() {
 //       ...new Set(users.map((u) => u.xrpAddress).filter(Boolean)),
 //     ];
 
-//     console.log(`🔹 Found ${distinctAddresses.length} unique XRP addresses to process.`);
+//     
 
 //     // Run each trackChainTx sequentially
 //     for (const addr of distinctAddresses) {
 //       await callTrackChainTx(addr);
 //     }
 
-//     console.log('✅ All trackChainTx jobs finished.');
+//     
 //   } catch (err) {
 //     console.error('❌ Error fetching LedgerRows:', err);
 //   } finally {

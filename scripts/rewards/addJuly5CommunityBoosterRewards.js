@@ -38,7 +38,7 @@ async function connectDB() {
         'mongodb://localhost:27017/xrpmigrate';
 
     await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-    console.log('MongoDB connected');
+    
 }
 
 /* 3.  Migration                                                       */
@@ -49,13 +49,13 @@ async function addJuly5BoosterRewards() {
     const start = new Date(Date.UTC(2025, 6, 5));
     const end = new Date(Date.UTC(2025, 6, 6));
 
-    console.log('Aggregating CommunityBoosterReward totals for 2025-07-05…');
+    
     const perUser = await CommunityBoosterReward.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end } } },
         { $group: { _id: '$userId', total: { $sum: '$amount' } } },
     ]);
 
-    console.log(`Found ${perUser.length} users with July-5 booster rewards`);
+    
 
     for (const { _id: userId, total } of perUser) {
         const ledger = await Ledger.findOne({ userId });
@@ -72,7 +72,7 @@ async function addJuly5BoosterRewards() {
         const increment = parseFloat(total.toString());
         const newUsed = usedNow + increment;
         if (DRY_RUN) {
-            console.log(`  User ${userId} – current ${usedNow} ➜ new ${newUsed} (+= ${increment})`);
+            
             continue;                               // skip write
         }
         else {
@@ -84,13 +84,13 @@ async function addJuly5BoosterRewards() {
             );
 
             await ledger.save();
-            console.log(`User ${userId}: fiveXLimit.used += ${increment}`);
+            
         }
     }
 
-    console.log('Done.');
+    
     await mongoose.disconnect();
-    console.log('Disconnected');
+    
 }
 
 /* 4.  CLI runner                                                      */

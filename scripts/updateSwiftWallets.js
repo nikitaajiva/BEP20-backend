@@ -15,21 +15,21 @@ const UserWalletBalance = mongoose.model('UserWalletBalance', userWalletBalanceS
 
 const updateSwiftWallets = async () => {
   const dbURI = 'mongodb://localhost:27017/xrpmigrate';
-  console.log(`Connecting to the database at ${dbURI}...`);
+  
   
   try {
     await mongoose.connect(dbURI);
-    console.log('Database connected successfully.');
+    
 
-    console.log('Fetching all documents from userWalletBalance collection...');
+    
     const walletBalances = await UserWalletBalance.find({}).lean();
 
     if (walletBalances.length === 0) {
-      console.log('No documents found in userWalletBalance. No updates to perform.');
+      
       return;
     }
 
-    console.log(`Found ${walletBalances.length} total entries in userWalletBalance.`);
+    
 
     // Deduplicate based on uhid, keeping the first-seen entry.
     const uniqueWalletBalances = new Map();
@@ -43,7 +43,7 @@ const updateSwiftWallets = async () => {
         }
     });
 
-    console.log(`Found ${uniqueWalletBalances.size} unique wallet balance entries. Preparing bulk update...`);
+    
 
     // Prepare the bulk write operations for efficiency.
     const bulkOps = Array.from(uniqueWalletBalances.values()).map(balance => {
@@ -53,7 +53,7 @@ const updateSwiftWallets = async () => {
         return null;
       }
       if (balance.uhid === '17469855250636') {
-        console.log(`Preparing update for ledger with uhid: ${balance.uhid} with airdrop_wallet: ${balance.airdrop_wallet}`);
+        
       }
       return {
         updateOne: {
@@ -68,19 +68,19 @@ const updateSwiftWallets = async () => {
     }).filter(op => op !== null); // Filter out any null operations from skipped entries
 
     if (bulkOps.length > 0) {
-      console.log(`Executing bulk update for ${bulkOps.length} ledgers...`);
+      
       const result = await Ledger.bulkWrite(bulkOps);
-      console.log('Bulk update finished.');
-      console.log(`Successfully matched ${result.matchedCount} ledgers and modified ${result.modifiedCount}.`);
+      
+      
     } else {
-      console.log('No valid update operations to perform.');
+      
     }
 
   } catch (error) {
     console.error('An unexpected error occurred during the script execution:', error);
   } finally {
     await mongoose.disconnect();
-    console.log('Database connection closed.');
+    
   }
 };
 

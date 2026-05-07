@@ -39,10 +39,10 @@ async function getAllUHIDs(root) {
 
 async function main() {
   await connectDB();
-  console.log("✅ DB Connected");
+  
 
   const uhids = await getAllUHIDs(ROOT);
-  console.log("👥 Total team size:", uhids.length);
+  
 
   const users = await User.find({ uhid: { $in: uhids } }).select("_id uhid");
   const userIds = users.map(u => u._id);
@@ -66,9 +66,9 @@ async function main() {
     }
   );
 
-  console.log("🔒 Withdrawals locked");
-  console.log("💣 Wallets reset to 0.0");
-  console.log("🧾 Ledgers modified:", result.modifiedCount);
+  
+  
+  
 
   process.exit(0);
 }

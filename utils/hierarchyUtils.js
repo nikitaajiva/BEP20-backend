@@ -9,7 +9,8 @@ async function fetchAndMergeReferralData(
   uhidList,
   level,
   viewerUhid,
-  parentUhid
+  parentUhid,
+  search = null
 ) {
   if (!uhidList || uhidList.length === 0) {
     return [];
@@ -37,8 +38,13 @@ async function fetchAndMergeReferralData(
     projection.whatsappContact = { $ifNull: [null, "N/A"] }; // Ensure it's always N/A otherwise
   }
 
+  const matchQuery = { uhid: { $in: uhidList } };
+  if (search && search.trim() !== "") {
+    matchQuery.username = { $regex: search.trim(), $options: "i" };
+  }
+
   const users = await User.aggregate([
-    { $match: { uhid: { $in: uhidList } } },
+    { $match: matchQuery },
     {
       $lookup: {
         from: "ledgers",
@@ -75,12 +81,12 @@ async function fetchAndMergeReferralData(
  * @param {string} uhid - The UHID of the parent.
  * @returns {Promise<object[]>} - Array of full user objects for descendants.
  */
-async function descendants(uhid, viewerUhid) {
+async function descendants(uhid, viewerUhid, search = null) {
   const descendantUhids = await Level.find({ parent: uhid, level: 1 })
     .select("child -_id")
     .lean()
     .then((results) => results.map((d) => d.child));
-  return fetchAndMergeReferralData(descendantUhids, 1, viewerUhid, uhid);
+  return fetchAndMergeReferralData(descendantUhids, 1, viewerUhid, uhid, search);
 }
 
 /**
@@ -110,21 +116,21 @@ async function searchUsername(username, currentUserId) {
 
     while (currentSponsor) {
       if (currentSponsor.toString() === c_sponsorUser._id.toString()) {
-        console.log("before result");
+        
         return {
           _id: user._id,
           username: user.username,
           email: user.email,
           uhid: user.uhid,
         };
-        console.log("after result");
+        
       }
 
       const sponsorUser = await User.findById(currentSponsor)
         .select("sponsorId")
         .lean();
       if (!sponsorUser) break;
-      console.log("sponsorUser user", sponsorUser);
+      
       currentSponsor = sponsorUser.sponsorId;
     }
 
@@ -156,7 +162,7 @@ async function getSelfLpSumUpToLevel(targetUhid, levelN, viewerUhid) {
 
   return levelSelfLpSum.toFixed(4);
 }
-async function descendantsAtLevel(uhid, levelN, viewerUhid) {
+async function descendantsAtLevel(uhid, levelN, viewerUhid, search = null) {
   const level = parseInt(levelN, 10);
   if (isNaN(level) || level <= 0) {
     return [];
@@ -165,7 +171,7 @@ async function descendantsAtLevel(uhid, levelN, viewerUhid) {
     .select("child -_id")
     .lean()
     .then((results) => results.map((d) => d.child));
-  return fetchAndMergeReferralData(descendantUhids, level, viewerUhid, uhid);
+  return fetchAndMergeReferralData(descendantUhids, level, viewerUhid, uhid, search);
 }
 
 /**

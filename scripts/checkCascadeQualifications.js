@@ -163,7 +163,7 @@ async function getSponsorStats() {
 
 async function run() {
   await connectDB();
-  console.log("Checking cascade qualifications...");
+  
 
   const { statsMap, userByUhid } = await getSponsorStats();
   const results = [];
@@ -221,7 +221,7 @@ async function run() {
 
   const outFile = path.join(reportsDir, "cascade_qualifications.xlsx");
   await wb.xlsx.writeFile(outFile);
-  console.log(`✅ Report written to ${outFile}`);
+  
 
   await mongoose.disconnect();
 }

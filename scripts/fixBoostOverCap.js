@@ -83,7 +83,7 @@ const run = async () => {
   try {
     await connectDB();
 
-    console.log("🚀 Checking ledgers where wallets.boost > limits.boostLimit.cap ...");
+    
 
     // Count before update (excluding exceptions)
     const beforeCount = await Ledger.countDocuments({
@@ -91,10 +91,10 @@ const run = async () => {
       uhid: { $nin: EXCEPTION_UHIDS },
     });
 
-    console.log(`⚠️ Found ${beforeCount} ledgers exceeding boost cap (excluding exceptions).`);
+    
 
     if (beforeCount === 0) {
-      console.log("✅ No fixes needed.");
+      
       process.exit(0);
     }
 
@@ -113,7 +113,7 @@ const run = async () => {
       ]
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} ledgers.`);
+    
 
     // Double check after update
     const afterCount = await Ledger.countDocuments({
@@ -121,7 +121,7 @@ const run = async () => {
       uhid: { $nin: EXCEPTION_UHIDS },
     });
 
-    console.log(`📊 Remaining records exceeding cap (excluding exceptions): ${afterCount}`);
+    
 
     await mongoose.disconnect();
     process.exit(0);

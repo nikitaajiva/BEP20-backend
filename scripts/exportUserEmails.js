@@ -15,11 +15,11 @@ const User = require('../models/User');
   try {
     await connectDB();
 
-    console.log('→ Fetching user emails…');
+    
     const users = await User.find({}, { email: 1, username: 1 }).lean();
 
     if (!users.length) {
-      console.log('⚠️ No users found');
+      
       process.exit(0);
     }
 
@@ -37,7 +37,7 @@ const User = require('../models/User');
     const fileName = 'users-emails.csv';
     fs.writeFileSync(fileName, csvContent);
 
-    console.log(`✅ Exported ${users.length} emails to ${fileName}`);
+    
   } catch (err) {
     console.error('Fatal error:', err);
   } finally {

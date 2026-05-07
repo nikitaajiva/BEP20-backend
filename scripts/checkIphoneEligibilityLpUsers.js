@@ -20,7 +20,7 @@ const RANGE_END   = new Date("2026-01-15T23:59:59.999Z");
 (async () => {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
+    
 
     /* =========================================
        FIND TARGET USERS
@@ -35,7 +35,7 @@ const RANGE_END   = new Date("2026-01-15T23:59:59.999Z");
       .select("_id uhid username")
       .lean();
 
-    console.log(`🔍 Users found: ${users.length}`);
+    
 
     /* =========================================
        EXCEL SETUP
@@ -183,9 +183,9 @@ const RANGE_END   = new Date("2026-01-15T23:59:59.999Z");
 
     await workbook.xlsx.writeFile(reportPath);
 
-    console.log(`📊 Report generated`);
-    console.log(`📍 Location: ${reportPath}`);
-    console.log(`🧾 Rows written: ${rowCount}`);
+    
+    
+    
 
     process.exit(0);
   } catch (err) {

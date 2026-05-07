@@ -8,7 +8,7 @@ const connectDB = async () => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB Connected...');
+        
     } catch (err) {
         console.error(err.message);
         process.exit(1);
@@ -18,7 +18,7 @@ const connectDB = async () => {
 const migrateCommunityBoosterProcessedField = async () => {
     try {
         await connectDB();
-        console.log('Starting migration...');
+        
 
         // Find all LedgerRow documents that don't have the communityBoosterProcessed field
         const result = await LedgerRow.updateMany(
@@ -26,13 +26,13 @@ const migrateCommunityBoosterProcessedField = async () => {
             { $set: { communityBoosterProcessed: false } }
         );
 
-        console.log(`Migration completed. Updated ${result.modifiedCount} documents.`);
+        
 
     } catch (error) {
         console.error('Error during migration:', error);
     } finally {
         await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        
     }
 };
 
