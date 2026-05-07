@@ -22,6 +22,7 @@ const UsdtDepositIntentSchema = new mongoose.Schema(
     },
     amountWei: {
       type: String,
+      index: true,
     },
     token_contract: {
       type: String,

@@ -59,8 +59,7 @@ async function pollUsdtDeposits() {
 // Schedule the poller to run every 2 minutes.
 // The cron string '*/2 * * * *' means "at every 2nd minute".
 function start() {
-    
-    cron.schedule("* * * * *", pollUsdtDeposits);
+    setInterval(pollUsdtDeposits, 5000);
 }
 
 module.exports = { start }; 

@@ -292,6 +292,7 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     minlength: [3, "Username must be at least 3 characters long"],
+    match: [/^[a-zA-Z0-9.\-_]+$/, "Username can only contain letters, numbers, and . - _"],
   },
   uhid: {
     type: String,

@@ -32,6 +32,29 @@ const signup = async (req, res) => {
       sponsorId: sponsorUsername,
     } = req.body;
 
+    // --- Strict Character Validation ---
+    const allowedInputRegex = /^[a-zA-Z0-9.@\-_]*$/;
+    if (email && !allowedInputRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Email contains invalid characters.",
+      });
+    }
+
+    if (sponsorUsername && !allowedInputRegex.test(sponsorUsername)) {
+      return res.status(400).json({
+        success: false,
+        message: "Sponsor ID contains invalid characters.",
+      });
+    }
+
+    if (whatsappContact && !/^[0-9+]*$/.test(whatsappContact)) {
+      return res.status(400).json({
+        success: false,
+        message: "WhatsApp contact can only contain numbers and +.",
+      });
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
     
     // Check for sponsorId first
@@ -275,6 +298,16 @@ const login = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Please provide (email/username/UHID) and password",
+    });
+  }
+
+  // --- Strict Character Validation ---
+  const allowedInputRegex = /^[a-zA-Z0-9.@\-_]*$/;
+  const inputToCheck = email || username;
+  if (inputToCheck && !allowedInputRegex.test(inputToCheck)) {
+    return res.status(400).json({
+      success: false,
+      message: "Input contains invalid characters.",
     });
   }
 
@@ -522,6 +555,16 @@ const getMe = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+
+    // --- Strict Character Validation ---
+    const allowedInputRegex = /^[a-zA-Z0-9.@\-_]*$/;
+    if (email && !allowedInputRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Email contains invalid characters.",
+      });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {

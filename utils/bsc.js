@@ -1,9 +1,5 @@
 const { ethers } = require("ethers");
-
-const BSC_CHAIN_ID = 56;
-const RPC_URL = process.env.BSC_MAINNET_RPC_URL;
-const USDT_CONTRACT_ADDRESS = process.env.USDT_CONTRACT_ADDRESS_MAINNET;
-const BSC_CONFIRMATIONS = Number(process.env.BSC_CONFIRMATIONS || "3");
+const { getHttpProvider, BSC_CHAIN_ID, USDT_CONTRACT_ADDRESS, BSC_CONFIRMATIONS } = require("../config/blockchain");
 
 const ERC20_ABI = [
   "function decimals() view returns (uint8)",
@@ -13,10 +9,7 @@ const ERC20_ABI = [
 ];
 
 function getProvider() {
-  if (!RPC_URL) {
-    throw new Error("BSC RPC URL is not configured");
-  }
-  return new ethers.JsonRpcProvider(RPC_URL);
+  return getHttpProvider();
 }
 
 async function assertMainnet(provider) {

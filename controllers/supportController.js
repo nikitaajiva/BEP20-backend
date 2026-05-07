@@ -52,16 +52,34 @@ const toNumber = (value) => {
 // GET /api/support/users
 exports.getUsers = async (req, res) => {
   try {
-    const { filterField, filterValue, page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, status, ...filters } = req.query;
 
-    // Ensure page and limit are valid numbers, providing safe defaults.
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 10;
     const skip = (pageNum - 1) * limitNum;
 
     let matchStage = {};
-    if (filterField && filterValue) {
-      matchStage[filterField] = { $regex: filterValue, $options: "i" };
+
+    // 1. Handle Status Filter
+    if (status && status !== "all") {
+      if (status === "active") {
+        matchStage.status = { $in: ["active", "verified", null, ""] };
+      } else if (status === "inactive") {
+        matchStage.status = { $nin: ["active", "verified", null, ""] };
+      }
+    }
+
+    // 2. Handle Search Filters (uhid, email, username, etc.)
+    const searchFields = ["uhid", "email", "username", "wallet_address"];
+    searchFields.forEach(field => {
+      if (filters[field]) {
+        matchStage[field] = { $regex: filters[field], $options: "i" };
+      }
+    });
+
+    // Handle legacy/frontend field name mappings
+    if (filters.xrpAddress) {
+      matchStage.wallet_address = { $regex: filters.xrpAddress, $options: "i" };
     }
 
     const usersPipeline = [
@@ -93,6 +111,8 @@ exports.getUsers = async (req, res) => {
                 username: 1,
                 email: 1,
                 wallet_address: 1,
+                userType: 1,
+                status: 1,
                 createdAt: 1,
                 sponsorUserName: "$sponsorInfo.username",
               },
@@ -6043,14 +6063,10 @@ exports.getSystemReport = async (req, res) => {
     const now = new Date();
 
     const todayStart = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(), 0, 0, 0, 0
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0
     ));
     const todayEnd = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(), 23, 59, 59, 999
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999
     ));
 
     const yesterdayStart = new Date(todayStart);
@@ -6059,14 +6075,16 @@ exports.getSystemReport = async (req, res) => {
     const yesterdayEnd = new Date(todayEnd);
     yesterdayEnd.setUTCDate(yesterdayEnd.getUTCDate() - 1);
 
+    // Look back 90 days for last distribution to avoid scanning entire collection
+    const distLookback = new Date(todayStart);
+    distLookback.setUTCDate(distLookback.getUTCDate() - 90);
+
     /* =======================
-     * PARALLEL QUERIES
+     * ALL QUERIES IN PARALLEL - Single Promise.all
      * ======================= */
     const [
       ledgerTotalsArr,
-      userCountusdt,
-      userCountzeroRisk,
-      userCountcommunityRewards,
+      userCountsAgg,
       autopositioningCount,
       activeLPUsers,
 
@@ -6084,7 +6102,12 @@ exports.getSystemReport = async (req, res) => {
       ecosystemFeeLifetimeAgg,
 
       totalAutopositioningAgg,
-      autopositioningWalletAgg
+      autopositioningWalletAgg,
+
+      // Previously sequential - now parallel
+      depositsAgg,
+      withdrawalsAgg,
+      ledgerRowAgg,
     ] = await Promise.all([
 
       /* Ledger Totals */
@@ -6106,10 +6129,25 @@ exports.getSystemReport = async (req, res) => {
         }
       ]),
 
-      /* User counts */
-      Ledger.distinct("userId", { "wallets.bnb": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
-      Ledger.distinct("userId", { "wallets.zeroRisk": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
-      Ledger.distinct("userId", { "wallets.communityRewards": { $gt: Decimal128.fromString("0") } }).then(r => r.length),
+      /* User counts via single aggregation facet (replaces 3 slow .distinct() calls) */
+      Ledger.aggregate([
+        {
+          $facet: {
+            usdtUsers: [
+              { $match: { "wallets.bnb": { $gt: Decimal128.fromString("0") } } },
+              { $count: "count" }
+            ],
+            zeroRiskUsers: [
+              { $match: { "wallets.zeroRisk": { $gt: Decimal128.fromString("0") } } },
+              { $count: "count" }
+            ],
+            communityRewardsUsers: [
+              { $match: { "wallets.communityRewards": { $gt: Decimal128.fromString("0") } } },
+              { $count: "count" }
+            ]
+          }
+        }
+      ]),
 
       User.countDocuments({ autopositioning: true }),
       Ledger.countDocuments({ "wallets.lp": { $gt: Decimal128.fromString("0") } }),
@@ -6165,99 +6203,94 @@ exports.getSystemReport = async (req, res) => {
         { $match: { eventType: "AUTOPOSITIONING" } },
         { $group: { _id: null, totalAutopositioning: { $sum: "$amount" } } }
       ]),
+
       /* Wallet Autopositioning (count + sum) */
       Ledger.aggregate([
+        { $match: { "wallets.autopositionting": { $gt: Decimal128.fromString("0") } } },
+        { $group: { _id: null, userCount: { $sum: 1 }, totalAmount: { $sum: "$wallets.autopositionting" } } }
+      ]),
+
+      /* Deposits per user - previously sequential, now parallel */
+      ChainDeposit.aggregate([
+        { $group: { _id: "$userId", total: { $sum: "$amount" } } }
+      ]),
+
+      /* Withdrawals per user - previously sequential, now parallel */
+      ChainWithdrawal.aggregate([
+        { $group: { _id: "$userId", total: { $sum: "$amount" } } }
+      ]),
+
+      /* LedgerRow facet (lifetime + last 90 days dist) - previously two sequential calls, now one */
+      LedgerRow.aggregate([
         {
-          $match: {
-            "wallets.autopositionting": { $gt: Decimal128.fromString("0") }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            userCount: { $sum: 1 },
-            totalAmount: { $sum: "$wallets.autopositionting" }
+          $facet: {
+            lastDistribution: [
+              { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] }, ts: { $gte: distLookback } } },
+              { $sort: { ts: -1 } },
+              { $limit: 1 }
+            ],
+            lifetimeRewards: [
+              { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] } } },
+              { $group: { _id: "$eventType", total: { $sum: "$amount" } } }
+            ],
+            // Get last-distribution-day totals in same query (covers last 90 days on same facet)
+            distDayRewards: [
+              { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] }, ts: { $gte: distLookback } } },
+              { $sort: { ts: -1 } },
+              { $limit: 5000 }, // generous limit to capture all of the most recent distribution day
+              { $group: { _id: { eventType: "$eventType", day: { $dateToString: { format: "%Y-%m-%d", date: "$ts", timezone: "UTC" } } }, total: { $sum: "$amount" } } }
+            ]
           }
         }
       ]),
-
-
     ]);
-
-    const ledgerTotals = ledgerTotalsArr?.[0] || {};
 
     /* =======================
-     * LEDGERROW – last distribution + lifetime distributed
+     * PROCESS PARALLEL RESULTS
      * ======================= */
-    const autopositioningWalletUsers =
-      autopositioningWalletAgg?.[0]?.userCount || 0;
+    const ledgerTotals = ledgerTotalsArr?.[0] || {};
 
-    const autopositioningWalletTotal =
-      autopositioningWalletAgg?.[0]?.totalAmount || Decimal128.fromString("0");
+    // User counts from single facet
+    const userCountusdt = userCountsAgg?.[0]?.usdtUsers?.[0]?.count || 0;
+    const userCountzeroRisk = userCountsAgg?.[0]?.zeroRiskUsers?.[0]?.count || 0;
+    const userCountcommunityRewards = userCountsAgg?.[0]?.communityRewardsUsers?.[0]?.count || 0;
 
-    const depositsAgg = await ChainDeposit.aggregate([
-      { $group: { _id: "$userId", total: { $sum: "$amount" } } }
-    ]);
+    // Autopositioning wallet
+    const autopositioningWalletUsers = autopositioningWalletAgg?.[0]?.userCount || 0;
+    const autopositioningWalletTotal = autopositioningWalletAgg?.[0]?.totalAmount || Decimal128.fromString("0");
 
+    // On-chain balance analysis (now from parallel deposits/withdrawals)
     const depositMap = Object.fromEntries(
       depositsAgg.map(d => [d._id.toString(), toNumber(d.total)])
     );
-
-    const withdrawalsAgg = await ChainWithdrawal.aggregate([
-      { $group: { _id: "$userId", total: { $sum: "$amount" } } }
-    ]);
-
     const withdrawalMap = Object.fromEntries(
       withdrawalsAgg.map(w => [w._id.toString(), toNumber(w.total)])
     );
 
-    let negativeUserCount = 0;
-    let totalExtraWithdrawal = 0;
-
+    let negativeUserCount = 0, totalExtraWithdrawal = 0;
     for (const [userId, withdrawalTotal] of Object.entries(withdrawalMap)) {
       const depositTotal = depositMap[userId] || 0;
-
       if (withdrawalTotal > depositTotal) {
         negativeUserCount++;
         totalExtraWithdrawal += (withdrawalTotal - depositTotal);
       }
     }
 
-    const onChainNegativeUsers = negativeUserCount;
-    const onChainExtraWithdrawal = totalExtraWithdrawal;
-    let positiveUserCount = 0;
-    let totalExtraDeposit = 0;
-
+    let positiveUserCount = 0, totalExtraDeposit = 0;
     for (const [userId, depositTotal] of Object.entries(depositMap)) {
       const withdrawalTotal = withdrawalMap[userId] || 0;
-
       if (depositTotal > withdrawalTotal) {
         positiveUserCount++;
         totalExtraDeposit += (depositTotal - withdrawalTotal);
       }
     }
 
+    const onChainNegativeUsers = negativeUserCount;
+    const onChainExtraWithdrawal = totalExtraWithdrawal;
     const onChainPositiveUsers = positiveUserCount;
     const onChainExtraDeposit = totalExtraDeposit;
 
-
-
-    const ledgerRowAgg = await LedgerRow.aggregate([
-      {
-        $facet: {
-          lastDistribution: [
-            { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] } } },
-            { $sort: { ts: -1 } },
-            { $limit: 1 }
-          ],
-          lifetimeRewards: [
-            { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] } } },
-            { $group: { _id: "$eventType", total: { $sum: "$amount" } } }
-          ]
-        }
-      }
-    ]);
-
+    // LedgerRow results (all from single parallel query)
     const lastDistribution = ledgerRowAgg[0]?.lastDistribution?.[0] || null;
 
     const lifetimeMap = {};
@@ -6267,12 +6300,7 @@ exports.getSystemReport = async (req, res) => {
     const distributedAirdropRewards = lifetimeMap["DAILY_REWARDS_AIRDROP"] || Decimal128.fromString("0");
     const distributedBoosterRewards = lifetimeMap["DAILY_REWARDS_BOOST"] || Decimal128.fromString("0");
 
-
-
-
-    /* =======================
-     * Distribution-day totals (LP / Airdrop / Boost)
-     * ======================= */
+    /* Distribution day totals from pre-fetched distDayRewards facet */
     let lpTotal = Decimal128.fromString("0");
     let airdropTotal = Decimal128.fromString("0");
     let boostTotal = Decimal128.fromString("0");
@@ -6280,46 +6308,27 @@ exports.getSystemReport = async (req, res) => {
 
     if (lastDistribution?.ts) {
       distDate = lastDistribution.ts;
+      const distDayStr = new Date(distDate).toISOString().slice(0, 10);
 
-      const distStart = new Date(distDate);
-      distStart.setUTCHours(0, 0, 0, 0);
-
-      const distEnd = new Date(distDate);
-      distEnd.setUTCHours(23, 59, 59, 999);
-
-      const distAgg = await LedgerRow.aggregate([
-        {
-          $match: {
-            eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] },
-            ts: { $gte: distStart, $lte: distEnd }
-          }
-        },
-        { $group: { _id: "$eventType", total: { $sum: "$amount" } } }
-      ]);
-
-      for (const r of distAgg) {
-        if (r._id === "DAILY_REWARDS_LP") lpTotal = r.total;
-        if (r._id === "DAILY_REWARDS_AIRDROP") airdropTotal = r.total;
-        if (r._id === "DAILY_REWARDS_BOOST") boostTotal = r.total;
+      const distDayRewards = ledgerRowAgg[0]?.distDayRewards || [];
+      for (const r of distDayRewards) {
+        if (r._id.day !== distDayStr) continue;
+        if (r._id.eventType === "DAILY_REWARDS_LP") lpTotal = r.total;
+        if (r._id.eventType === "DAILY_REWARDS_AIRDROP") airdropTotal = r.total;
+        if (r._id.eventType === "DAILY_REWARDS_BOOST") boostTotal = r.total;
       }
     }
 
     /* =======================
-     * Today/Yesterday totals (same as original logic)
+     * Today/Yesterday totals
      * ======================= */
     const x1Today = x1TodayAgg[0]?.total || Decimal128.fromString("0");
-    const boosterToday = boosterYesterdayAgg[0]?.total || Decimal128.fromString("0"); // yesterday (as per your original)
+    const boosterToday = boosterYesterdayAgg[0]?.total || Decimal128.fromString("0");
     const xPowerToday = xPowerTodayAgg[0]?.total || Decimal128.fromString("0");
     const dailyCascadeTotal = cascadeYesterdayAgg[0]?.total || Decimal128.fromString("0");
 
     const dailyTotal = addDecimal128(
-      x1Today,
-      boosterToday,
-      xPowerToday,
-      lpTotal,
-      airdropTotal,
-      boostTotal,
-      dailyCascadeTotal
+      x1Today, boosterToday, xPowerToday, lpTotal, airdropTotal, boostTotal, dailyCascadeTotal
     );
 
     /* =======================
@@ -6327,13 +6336,11 @@ exports.getSystemReport = async (req, res) => {
      * ======================= */
     const onChainDeposits = chainDepositLifetimeAgg[0]?.total || 0;
     const onChainWithdrawals = chainWithdrawalLifetimeAgg[0]?.total || 0;
-
     const totalEcosystemFee = ecosystemFeeLifetimeAgg[0]?.total || Decimal128.fromString("0");
-
     const totalAutopositioning = totalAutopositioningAgg?.[0]?.totalAutopositioning || Decimal128.fromString("0");
 
     /* =======================
-     * REPORT (UNCHANGED KEYS)
+     * REPORT
      * ======================= */
     const report = {
       totalPositiveLP: ledgerTotals.totalPositiveLP?.toString() || "0.0",
@@ -6394,7 +6401,6 @@ exports.getSystemReport = async (req, res) => {
         extraDeposited: onChainExtraDeposit.toString()
       },
 
-
       activeLPUsers
     };
 
@@ -6408,7 +6414,7 @@ exports.getSystemReport = async (req, res) => {
   }
 };
 
-// GET /api/support/system-report
+
 exports.getEcofeeReport = async (req, res) => {
   try {
     const {

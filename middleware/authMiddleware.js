@@ -31,7 +31,7 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ msg: 'Not authorized, user not found' });
       }
       const userIp = getClientIP(req);
-      
+
 
       // ✅ Check if tokenVersion matches (for logout after maintenance activation)
       if (user.tokenVersion !== decoded.user.tokenVersion) {
@@ -76,7 +76,7 @@ const isInBlockedWindow = () => {
 
   const blockStart = 23 * 60 + 34;  // 23:34 UTC = 1414 minutes
   //const blockEnd = 0 * 60 + 55;     // 00:25 UTC (next day) = 25 minutes
-  const blockEnd   = 1 * 60 + 30; 
+  const blockEnd = 1 * 60 + 30;
 
   // If time is between 23:34 and 23:59, or between 00:00 and 00:25
   return totalMinutes >= blockStart || totalMinutes < blockEnd;
@@ -155,9 +155,10 @@ const isSupportOrAdmin = (req, res, next) => {
     return next();
   }
 
+
   return res.status(403).json({
     msg: "Forbidden: Access is restricted to support or admin users.",
   });
 };
 
-module.exports = { protect, isSupportOrAdmin,blockDuringCron };
+module.exports = { protect, isSupportOrAdmin, blockDuringCron };

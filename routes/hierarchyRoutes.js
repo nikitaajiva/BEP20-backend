@@ -7,6 +7,7 @@ const {
   uplineAtLevel,
   searchUsername,
   getSelfLpSumUpToLevel,
+  fetchAndMergeReferralData,
 } = require("../utils/hierarchyUtils.js"); // CommonJS require
 
 // Middleware for common UHID validation
@@ -36,38 +37,23 @@ router.get("/users/:uhid/descendants", validateUhId, async (req, res, next) => {
     const { uhid: paramUhid } = req.params;
     const { viewerUhid, search } = req.query;
 
-    
-    
-    
-
     let targetUhid = paramUhid;
     let user = null;
     let result = [];
 
     if (search && search.trim() !== "") {
-      
-
+      // 1. Try to find the user globally in this user's tree first (drill-down support)
       user = await searchUsername(search.trim(), paramUhid);
       
-
       if (user && user.uhid) {
         targetUhid = user.uhid;
         
-
-        // 1. Get descendants under searched user
+        // Fetch direct descendants of the found user
         const descendantsList = await descendants(targetUhid, viewerUhid);
-        console.log(
-          "📥 Descendants fetched for searched user:",
-          descendantsList.length
-        );
-
-        // 2. Get full list from original parent to extract full user data
-        const fullTree = await descendants(paramUhid, viewerUhid);
-
-        // 3. Try to find complete descendant object for the searched user
-        const fullUserData = fullTree.find((d) => d.uhid === targetUhid);
-
-        let mergedUserData = {
+        
+        // Also fetch the searched user's own data to include at the top
+        const searchedUserData = await fetchAndMergeReferralData([targetUhid], 0, viewerUhid, paramUhid);
+        const mergedUserData = searchedUserData[0] || {
           _id: user._id,
           uhid: user.uhid,
           username: user.username,
@@ -75,50 +61,21 @@ router.get("/users/:uhid/descendants", validateUhId, async (req, res, next) => {
           teamSize: 0,
           selfLp: 0,
           teamLp: 0,
-          country: user.country || "N/A",
-          sponsorUsername: user.sponsorUsername || "N/A",
-          whatsappContact: user.whatsappContact || "N/A",
+          country: "N/A",
+          sponsorUsername: "N/A",
+          whatsappContact: "N/A"
         };
 
-        if (fullUserData) {
-          mergedUserData = {
-            ...mergedUserData,
-            teamSize: fullUserData.teamSize || 0,
-            selfLp: fullUserData.selfLp || 0,
-            teamLp: fullUserData.teamLp || 0,
-            country:
-              fullUserData.country?.name || fullUserData.country || "N/A",
-            sponsorUsername: fullUserData.sponsorUsername || "N/A",
-            whatsappContact: fullUserData.whatsappContact || "N/A",
-          };
-        } else {
-          console.warn("⚠️ Full user data not found in parent descendants.");
-        }
-
-        // 4. Merge with current descendants list
-        const isAlreadyIncluded = descendantsList.some(
-          (d) => d.uhid === targetUhid
-        );
-
-        const updatedDescendants = isAlreadyIncluded
-          ? descendantsList.map((d) =>
-              d.uhid === targetUhid ? mergedUserData : d
-            )
-          : [mergedUserData, ...descendantsList];
-
-        result = updatedDescendants;
-        
+        // Put searched user at the top, then their direct team
+        result = [mergedUserData, ...descendantsList];
       } else {
-        console.warn("⚠️ User not found or not in team.");
-        return res.json({ user: null, uhid: null, descendants: [] });
+        // If not found in tree, try filtering direct descendants by username
+        result = await descendants(paramUhid, viewerUhid, search);
       }
     } else {
-      
       result = await descendants(paramUhid, viewerUhid);
-      
     }
 
-    
     res.json({
       user,
       uhid: targetUhid,
@@ -142,23 +99,11 @@ router.get(
       const { viewerUhid, search } = req.query;
 
       let targetUhid = paramUhid;
-      let user = null;
-
-      if (search && search.trim() !== "") {
-        user = await searchUsername(search.trim());
-        if (user && user.uhid) {
-          targetUhid = user.uhid;
-        } else {
-          // if not found, send empty result or error
-          return res.json({
-            user: null,
-            uhid: null,
-            level: levelN,
-            descendants_at_level: [],
-          });
-        }
-      }
-      const result = await descendantsAtLevel(targetUhid, levelN, viewerUhid);
+      
+      // If search is provided, we filter descendants at this level
+      // Note: We don't do drill-down for specific level requests as it's confusing
+      const result = await descendantsAtLevel(targetUhid, levelN, viewerUhid, search);
+      
       const levelSelfLpSum = await getSelfLpSumUpToLevel(
         targetUhid,
         levelN,

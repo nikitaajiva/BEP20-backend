@@ -489,8 +489,11 @@ exports.createDepositIntent = async (req, res) => {
     const tokenDecimals = 18;
     let amountWei;
     try {
-      amountWei = toBnbWei(rawAmount);
-      if (amountWei <= 0n) {
+      const baseAmountWei = toBnbWei(rawAmount);
+      // Unique variation in WEI (1000 to 999999) for watcher matching
+      const randomOffset = BigInt(Math.floor(Math.random() * 999000) + 1000);
+      amountWei = (baseAmountWei + randomOffset).toString();
+      if (baseAmountWei <= 0n) {
         return res.status(400).json({ success: false, message: "Invalid amount." });
       }
     } catch (error) {
