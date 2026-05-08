@@ -6108,6 +6108,7 @@ exports.getSystemReport = async (req, res) => {
       depositsAgg,
       withdrawalsAgg,
       ledgerRowAgg,
+      withdrawalErrorCount,
     ] = await Promise.all([
 
       /* Ledger Totals */
@@ -6243,6 +6244,7 @@ exports.getSystemReport = async (req, res) => {
           }
         }
       ]),
+      WithdrawalErrorLog.countDocuments({}),
     ]);
 
     /* =======================
@@ -6400,7 +6402,7 @@ exports.getSystemReport = async (req, res) => {
         userCount: onChainPositiveUsers,
         extraDeposited: onChainExtraDeposit.toString()
       },
-
+      withdrawalErrorCount,
       activeLPUsers
     };
 
@@ -7395,6 +7397,8 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
       page = 1,
       pageSize = 100,
       sortDir = -1,
+      search,
+      parent,
     } = { ...req.query, ...req.body };
 
     const _page = Math.max(1, Number(page) || 1);
@@ -7408,16 +7412,48 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
       if (end) match.ts.$lte = new Date(end);
     }
 
+    // 1. Filter by Parent/Team if provided
+    if (parent) {
+      const parentUser = await User.findOne({ uhid: parent }).select("uhid").lean();
+      if (!parentUser) {
+        return res.status(200).json({ success: true, data: { rows: [], totalUsers: 0, grandTotal: "0", page: _page, pageSize: _pageSize } });
+      }
+      const hierarchy = await Levels.find({ parent: parentUser.uhid }).select("child").lean();
+      const childUhids = hierarchy.map(h => h.child);
+      childUhids.push(parentUser.uhid);
+
+      const teamUsers = await User.find({ uhid: { $in: childUhids } }).select("_id").lean();
+      const teamUserIds = teamUsers.map(u => u._id);
+      match.userId = { $in: teamUserIds };
+    }
+
+    // 2. Filter by Search (Entity/UHID) if provided
+    if (search) {
+      const searchUsers = await User.find({
+        $or: [
+          { username: { $regex: search, $options: "i" } },
+          { uhid: { $regex: search, $options: "i" } }
+        ]
+      }).select("_id").lean();
+      const searchUserIds = searchUsers.map(u => u._id);
+      
+      if (match.userId) {
+        const teamSet = new Set(match.userId.$in.map(id => id.toString()));
+        const intersection = searchUserIds.filter(id => teamSet.has(id.toString()));
+        match.userId = { $in: intersection };
+      } else {
+        match.userId = { $in: searchUserIds };
+      }
+    }
+
     const agg = await EcosystemFee.aggregate([
       { $match: match },
-
       {
         $group: {
           _id: "$userId",
           totalAmount: { $sum: "$amount" },
         },
       },
-
       {
         $lookup: {
           from: "users",
@@ -7427,18 +7463,16 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
         },
       },
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
-
       {
         $project: {
           userId: "$_id",
           _id: 0,
           username: "$user.username",
+          uhid: "$user.uhid",
           totalAmount: 1,
         },
       },
-
       { $sort: { totalAmount: Number(sortDir) === 1 ? 1 : -1 } },
-
       {
         $facet: {
           rows: [{ $skip: skip }, { $limit: _pageSize }],
@@ -7459,6 +7493,7 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
     const rows = (facet.rows || []).map((r) => ({
       userId: r.userId,
       username: r.username || "(unknown)",
+      uhid: r.uhid || "",
       amountStr: r.totalAmount?.toString?.() ?? "0",
     }));
 
@@ -7481,6 +7516,114 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
       success: false,
       message: "Internal server error: " + (err?.message || "Unknown error"),
     });
+  }
+};
+
+/**
+ * EXPORT Ecosystem Fee Report to Excel
+ */
+exports.exportEcosystemFeeReport = async (req, res) => {
+  try {
+    const { start, end, search, parent, sortDir = -1 } = req.query;
+
+    const match = {};
+    if (start || end) {
+      match.ts = {};
+      if (start) match.ts.$gte = new Date(start);
+      if (end) match.ts.$lte = new Date(end);
+    }
+
+    if (parent) {
+      const parentUser = await User.findOne({ uhid: parent }).select("uhid").lean();
+      if (parentUser) {
+        const hierarchy = await Levels.find({ parent: parentUser.uhid }).select("child").lean();
+        const childUhids = hierarchy.map(h => h.child);
+        childUhids.push(parentUser.uhid);
+        const teamUsers = await User.find({ uhid: { $in: childUhids } }).select("_id").lean();
+        match.userId = { $in: teamUsers.map(u => u._id) };
+      }
+    }
+
+    if (search) {
+      const searchUsers = await User.find({
+        $or: [
+          { username: { $regex: search, $options: "i" } },
+          { uhid: { $regex: search, $options: "i" } }
+        ]
+      }).select("_id").lean();
+      const searchUserIds = searchUsers.map(u => u._id);
+      if (match.userId) {
+        const teamSet = new Set(match.userId.$in.map(id => id.toString()));
+        match.userId = { $in: searchUserIds.filter(id => teamSet.has(id.toString())) };
+      } else {
+        match.userId = { $in: searchUserIds };
+      }
+    }
+
+    const rows = await EcosystemFee.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$userId",
+          totalAmount: { $sum: "$amount" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          username: "$user.username",
+          uhid: "$user.uhid",
+          totalAmount: 1,
+        },
+      },
+      { $sort: { totalAmount: Number(sortDir) === 1 ? 1 : -1 } },
+    ]);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Ecosystem Fee Report");
+
+    worksheet.columns = [
+      { header: "Entity Name", key: "username", width: 25 },
+      { header: "UHID", key: "uhid", width: 20 },
+      { header: "Ecosystem Fee (USDT)", key: "totalAmount", width: 25 },
+      { header: "Status", key: "status", width: 15 },
+    ];
+
+    rows.forEach(row => {
+      worksheet.addRow({
+        username: row.username || "Unknown",
+        uhid: row.uhid || "N/A",
+        totalAmount: parseFloat(row.totalAmount?.toString() || "0"),
+        status: "SETTLED",
+      });
+    });
+
+    // Formatting
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=" + `Ecosystem_Fee_Report_${new Date().toISOString().split("T")[0]}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error("❌ Error in exportEcosystemFeeReport:", err);
+    res.status(500).json({ success: false, message: "Export failed" });
   }
 };
 
