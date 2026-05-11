@@ -20,6 +20,14 @@ const WithdrawalErrorLog = require("../models/WithdrawalErrorLog");
 const ExcelJS = require("exceljs");
 const WithdrawalDepositAdjustment = require("../models/WithdrawalDepositAdjustment");
 
+/* ─────────────────────────────────────────────────────────
+ * In-memory cache for getSystemReport (TTL: 2 minutes)
+ * Eliminates redundant heavy DB queries on repeated visits
+ * ───────────────────────────────────────────────────────── */
+let _systemReportCache = null;
+let _systemReportCacheAt = 0;
+const SYSTEM_REPORT_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
 // Utility to sanitize Decimal128 fields for JSON serialization
 const sanitizeDecimals = (obj) => {
   if (obj instanceof mongoose.Types.Decimal128) {
@@ -6054,6 +6062,14 @@ exports.exportAirdroprewards = async (req, res) => {
 // };
 
 exports.getSystemReport = async (req, res) => {
+  /* ── Serve from cache if still fresh ── */
+  const forceRefresh = req.query.refresh === "1";
+  if (!forceRefresh && _systemReportCache && (Date.now() - _systemReportCacheAt) < SYSTEM_REPORT_TTL_MS) {
+    res.set("X-Cache", "HIT");
+    res.set("Cache-Control", "public, max-age=120");
+    return res.status(200).json({ success: true, data: _systemReportCache });
+  }
+
   try {
     const Decimal128 = mongoose.Types.Decimal128;
 
@@ -6104,11 +6120,11 @@ exports.getSystemReport = async (req, res) => {
       totalAutopositioningAgg,
       autopositioningWalletAgg,
 
-      // Previously sequential - now parallel
-      depositsAgg,
-      withdrawalsAgg,
+      // Optimized: single MongoDB-side $lookup join instead of two large JS arrays
+      onChainBalanceAgg,
       ledgerRowAgg,
       withdrawalErrorCount,
+      newUsersToday,
     ] = await Promise.all([
 
       /* Ledger Totals */
@@ -6211,17 +6227,62 @@ exports.getSystemReport = async (req, res) => {
         { $group: { _id: null, userCount: { $sum: 1 }, totalAmount: { $sum: "$wallets.autopositionting" } } }
       ]),
 
-      /* Deposits per user - previously sequential, now parallel */
+      /* ── ON-CHAIN BALANCE ANALYSIS ──────────────────────────────────────
+       * Previously: two separate $group aggregations loading ALL records into
+       * JS memory, then a nested JS loop. Now: single MongoDB $lookup join
+       * that computes positive/negative user counts server-side.
+       * ─────────────────────────────────────────────────────────────────── */
       ChainDeposit.aggregate([
-        { $group: { _id: "$userId", total: { $sum: "$amount" } } }
+        // Group deposits by user
+        { $group: { _id: "$userId", depositTotal: { $sum: "$amount" } } },
+        // Left-join withdrawals for the same user
+        {
+          $lookup: {
+            from: "chainwithdrawals",
+            localField: "_id",
+            foreignField: "userId",
+            as: "wdDocs"
+          }
+        },
+        // Compute per-user withdrawal total inside the pipeline
+        {
+          $addFields: {
+            withdrawalTotal: { $sum: "$wdDocs.amount" }
+          }
+        },
+        // Summarise into a single document with the four KPIs we need
+        {
+          $group: {
+            _id: null,
+            negativeUserCount: {
+              $sum: { $cond: [{ $gt: ["$withdrawalTotal", "$depositTotal"] }, 1, 0] }
+            },
+            totalExtraWithdrawal: {
+              $sum: {
+                $cond: [
+                  { $gt: ["$withdrawalTotal", "$depositTotal"] },
+                  { $subtract: ["$withdrawalTotal", "$depositTotal"] },
+                  0
+                ]
+              }
+            },
+            positiveUserCount: {
+              $sum: { $cond: [{ $gt: ["$depositTotal", "$withdrawalTotal"] }, 1, 0] }
+            },
+            totalExtraDeposit: {
+              $sum: {
+                $cond: [
+                  { $gt: ["$depositTotal", "$withdrawalTotal"] },
+                  { $subtract: ["$depositTotal", "$withdrawalTotal"] },
+                  0
+                ]
+              }
+            }
+          }
+        }
       ]),
 
-      /* Withdrawals per user - previously sequential, now parallel */
-      ChainWithdrawal.aggregate([
-        { $group: { _id: "$userId", total: { $sum: "$amount" } } }
-      ]),
-
-      /* LedgerRow facet (lifetime + last 90 days dist) - previously two sequential calls, now one */
+      /* LedgerRow facet (lifetime + last 90 days dist) */
       LedgerRow.aggregate([
         {
           $facet: {
@@ -6234,17 +6295,18 @@ exports.getSystemReport = async (req, res) => {
               { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] } } },
               { $group: { _id: "$eventType", total: { $sum: "$amount" } } }
             ],
-            // Get last-distribution-day totals in same query (covers last 90 days on same facet)
             distDayRewards: [
               { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] }, ts: { $gte: distLookback } } },
               { $sort: { ts: -1 } },
-              { $limit: 5000 }, // generous limit to capture all of the most recent distribution day
+              { $limit: 5000 },
               { $group: { _id: { eventType: "$eventType", day: { $dateToString: { format: "%Y-%m-%d", date: "$ts", timezone: "UTC" } } }, total: { $sum: "$amount" } } }
             ]
           }
         }
       ]),
       WithdrawalErrorLog.countDocuments({}),
+      /* New users registered today */
+      User.countDocuments({ createdAt: { $gte: todayStart, $lte: todayEnd } }),
     ]);
 
     /* =======================
@@ -6261,36 +6323,12 @@ exports.getSystemReport = async (req, res) => {
     const autopositioningWalletUsers = autopositioningWalletAgg?.[0]?.userCount || 0;
     const autopositioningWalletTotal = autopositioningWalletAgg?.[0]?.totalAmount || Decimal128.fromString("0");
 
-    // On-chain balance analysis (now from parallel deposits/withdrawals)
-    const depositMap = Object.fromEntries(
-      depositsAgg.map(d => [d._id.toString(), toNumber(d.total)])
-    );
-    const withdrawalMap = Object.fromEntries(
-      withdrawalsAgg.map(w => [w._id.toString(), toNumber(w.total)])
-    );
-
-    let negativeUserCount = 0, totalExtraWithdrawal = 0;
-    for (const [userId, withdrawalTotal] of Object.entries(withdrawalMap)) {
-      const depositTotal = depositMap[userId] || 0;
-      if (withdrawalTotal > depositTotal) {
-        negativeUserCount++;
-        totalExtraWithdrawal += (withdrawalTotal - depositTotal);
-      }
-    }
-
-    let positiveUserCount = 0, totalExtraDeposit = 0;
-    for (const [userId, depositTotal] of Object.entries(depositMap)) {
-      const withdrawalTotal = withdrawalMap[userId] || 0;
-      if (depositTotal > withdrawalTotal) {
-        positiveUserCount++;
-        totalExtraDeposit += (depositTotal - withdrawalTotal);
-      }
-    }
-
-    const onChainNegativeUsers = negativeUserCount;
-    const onChainExtraWithdrawal = totalExtraWithdrawal;
-    const onChainPositiveUsers = positiveUserCount;
-    const onChainExtraDeposit = totalExtraDeposit;
+    // On-chain balance analysis (computed server-side via $lookup, no JS loops)
+    const onChainBalance = onChainBalanceAgg[0] || {};
+    const onChainNegativeUsers = onChainBalance.negativeUserCount || 0;
+    const onChainExtraWithdrawal = onChainBalance.totalExtraWithdrawal || 0;
+    const onChainPositiveUsers = onChainBalance.positiveUserCount || 0;
+    const onChainExtraDeposit = onChainBalance.totalExtraDeposit || 0;
 
     // LedgerRow results (all from single parallel query)
     const lastDistribution = ledgerRowAgg[0]?.lastDistribution?.[0] || null;
@@ -6403,9 +6441,16 @@ exports.getSystemReport = async (req, res) => {
         extraDeposited: onChainExtraDeposit.toString()
       },
       withdrawalErrorCount,
-      activeLPUsers
+      activeLPUsers,
+      newUsersToday,
     };
 
+    /* Store in cache */
+    _systemReportCache = report;
+    _systemReportCacheAt = Date.now();
+
+    res.set("X-Cache", "MISS");
+    res.set("Cache-Control", "public, max-age=120");
     return res.status(200).json({ success: true, data: report });
   } catch (error) {
     console.error("API System Report Error:", error);
