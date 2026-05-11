@@ -73,7 +73,7 @@ const decreaseUplineTeamLp = async (userUhid, lpAmountRemoved) => {
         
         // To decrement, we increment by a negative value.
         const amountToDecrement = mongoose.Types.Decimal128.fromString(
-            (parseFloat(lpAmountRemoved.toString()) * -1).toString()
+            "-" + lpAmountRemoved.toString()
         );
 
         const result = await User.updateMany(

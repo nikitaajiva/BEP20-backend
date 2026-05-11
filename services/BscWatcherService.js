@@ -88,8 +88,10 @@ class BscWatcherService {
       console.log(`⛓️  ${isSyncing ? '[Syncing]' : '[Real-time]'} Processing block: ${blockNumber}`);
       
       // Use eth_getBlockByNumber directly to ensure we get full transaction objects across all RPCs
+      // Convert block number to hex without leading zeros (strict JSON-RPC spec)
+      const blockHex = "0x" + blockNumber.toString(16);
       const block = await this.httpProvider.send("eth_getBlockByNumber", [
-        ethers.toBeHex(blockNumber),
+        blockHex,
         true
       ]);
       

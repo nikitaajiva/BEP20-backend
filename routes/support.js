@@ -25,6 +25,7 @@ const {
   addFailedUsdtDepositsToUsdt,
   getUsersAutopositioningTotals,
   getUsersEcosystemFeeTotals,
+  exportEcosystemFeeReport,
   getUsdtTransactionDetails,
   getUsersx1reawards,
   getpositivelp,
@@ -111,6 +112,7 @@ router.get("/system-report-x1reawards-users", getUserX1Rewards);
 
 router.get("/system-report-ecofee", getEcofeeReport);
 router.get("/system-report-ecofee-users", getUsersEcosystemFeeTotals);
+router.get("/system-report-ecofee-users/export", exportEcosystemFeeReport);
 
 router.post("/usdt-deposits/transaction", getUsdtTransactionDetails);
 

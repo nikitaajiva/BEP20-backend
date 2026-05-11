@@ -484,7 +484,7 @@ const UserSchema = new mongoose.Schema({
   },
   userType: {
     type: String,
-    enum: ["user", "support", "admin"],
+    enum: ["user", "support", "admin", "superadmin"],
     default: "user",
   },
   totalReferrals: {

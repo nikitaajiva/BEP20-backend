@@ -20,6 +20,14 @@ const WithdrawalErrorLog = require("../models/WithdrawalErrorLog");
 const ExcelJS = require("exceljs");
 const WithdrawalDepositAdjustment = require("../models/WithdrawalDepositAdjustment");
 
+/* ─────────────────────────────────────────────────────────
+ * In-memory cache for getSystemReport (TTL: 2 minutes)
+ * Eliminates redundant heavy DB queries on repeated visits
+ * ───────────────────────────────────────────────────────── */
+let _systemReportCache = null;
+let _systemReportCacheAt = 0;
+const SYSTEM_REPORT_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
 // Utility to sanitize Decimal128 fields for JSON serialization
 const sanitizeDecimals = (obj) => {
   if (obj instanceof mongoose.Types.Decimal128) {
@@ -6054,6 +6062,14 @@ exports.exportAirdroprewards = async (req, res) => {
 // };
 
 exports.getSystemReport = async (req, res) => {
+  /* ── Serve from cache if still fresh ── */
+  const forceRefresh = req.query.refresh === "1";
+  if (!forceRefresh && _systemReportCache && (Date.now() - _systemReportCacheAt) < SYSTEM_REPORT_TTL_MS) {
+    res.set("X-Cache", "HIT");
+    res.set("Cache-Control", "public, max-age=120");
+    return res.status(200).json({ success: true, data: _systemReportCache });
+  }
+
   try {
     const Decimal128 = mongoose.Types.Decimal128;
 
@@ -6104,10 +6120,11 @@ exports.getSystemReport = async (req, res) => {
       totalAutopositioningAgg,
       autopositioningWalletAgg,
 
-      // Previously sequential - now parallel
-      depositsAgg,
-      withdrawalsAgg,
+      // Optimized: single MongoDB-side $lookup join instead of two large JS arrays
+      onChainBalanceAgg,
       ledgerRowAgg,
+      withdrawalErrorCount,
+      newUsersToday,
     ] = await Promise.all([
 
       /* Ledger Totals */
@@ -6210,17 +6227,62 @@ exports.getSystemReport = async (req, res) => {
         { $group: { _id: null, userCount: { $sum: 1 }, totalAmount: { $sum: "$wallets.autopositionting" } } }
       ]),
 
-      /* Deposits per user - previously sequential, now parallel */
+      /* ── ON-CHAIN BALANCE ANALYSIS ──────────────────────────────────────
+       * Previously: two separate $group aggregations loading ALL records into
+       * JS memory, then a nested JS loop. Now: single MongoDB $lookup join
+       * that computes positive/negative user counts server-side.
+       * ─────────────────────────────────────────────────────────────────── */
       ChainDeposit.aggregate([
-        { $group: { _id: "$userId", total: { $sum: "$amount" } } }
+        // Group deposits by user
+        { $group: { _id: "$userId", depositTotal: { $sum: "$amount" } } },
+        // Left-join withdrawals for the same user
+        {
+          $lookup: {
+            from: "chainwithdrawals",
+            localField: "_id",
+            foreignField: "userId",
+            as: "wdDocs"
+          }
+        },
+        // Compute per-user withdrawal total inside the pipeline
+        {
+          $addFields: {
+            withdrawalTotal: { $sum: "$wdDocs.amount" }
+          }
+        },
+        // Summarise into a single document with the four KPIs we need
+        {
+          $group: {
+            _id: null,
+            negativeUserCount: {
+              $sum: { $cond: [{ $gt: ["$withdrawalTotal", "$depositTotal"] }, 1, 0] }
+            },
+            totalExtraWithdrawal: {
+              $sum: {
+                $cond: [
+                  { $gt: ["$withdrawalTotal", "$depositTotal"] },
+                  { $subtract: ["$withdrawalTotal", "$depositTotal"] },
+                  0
+                ]
+              }
+            },
+            positiveUserCount: {
+              $sum: { $cond: [{ $gt: ["$depositTotal", "$withdrawalTotal"] }, 1, 0] }
+            },
+            totalExtraDeposit: {
+              $sum: {
+                $cond: [
+                  { $gt: ["$depositTotal", "$withdrawalTotal"] },
+                  { $subtract: ["$depositTotal", "$withdrawalTotal"] },
+                  0
+                ]
+              }
+            }
+          }
+        }
       ]),
 
-      /* Withdrawals per user - previously sequential, now parallel */
-      ChainWithdrawal.aggregate([
-        { $group: { _id: "$userId", total: { $sum: "$amount" } } }
-      ]),
-
-      /* LedgerRow facet (lifetime + last 90 days dist) - previously two sequential calls, now one */
+      /* LedgerRow facet (lifetime + last 90 days dist) */
       LedgerRow.aggregate([
         {
           $facet: {
@@ -6233,16 +6295,18 @@ exports.getSystemReport = async (req, res) => {
               { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] } } },
               { $group: { _id: "$eventType", total: { $sum: "$amount" } } }
             ],
-            // Get last-distribution-day totals in same query (covers last 90 days on same facet)
             distDayRewards: [
               { $match: { eventType: { $in: ["DAILY_REWARDS_LP", "DAILY_REWARDS_AIRDROP", "DAILY_REWARDS_BOOST"] }, ts: { $gte: distLookback } } },
               { $sort: { ts: -1 } },
-              { $limit: 5000 }, // generous limit to capture all of the most recent distribution day
+              { $limit: 5000 },
               { $group: { _id: { eventType: "$eventType", day: { $dateToString: { format: "%Y-%m-%d", date: "$ts", timezone: "UTC" } } }, total: { $sum: "$amount" } } }
             ]
           }
         }
       ]),
+      WithdrawalErrorLog.countDocuments({}),
+      /* New users registered today */
+      User.countDocuments({ createdAt: { $gte: todayStart, $lte: todayEnd } }),
     ]);
 
     /* =======================
@@ -6259,36 +6323,12 @@ exports.getSystemReport = async (req, res) => {
     const autopositioningWalletUsers = autopositioningWalletAgg?.[0]?.userCount || 0;
     const autopositioningWalletTotal = autopositioningWalletAgg?.[0]?.totalAmount || Decimal128.fromString("0");
 
-    // On-chain balance analysis (now from parallel deposits/withdrawals)
-    const depositMap = Object.fromEntries(
-      depositsAgg.map(d => [d._id.toString(), toNumber(d.total)])
-    );
-    const withdrawalMap = Object.fromEntries(
-      withdrawalsAgg.map(w => [w._id.toString(), toNumber(w.total)])
-    );
-
-    let negativeUserCount = 0, totalExtraWithdrawal = 0;
-    for (const [userId, withdrawalTotal] of Object.entries(withdrawalMap)) {
-      const depositTotal = depositMap[userId] || 0;
-      if (withdrawalTotal > depositTotal) {
-        negativeUserCount++;
-        totalExtraWithdrawal += (withdrawalTotal - depositTotal);
-      }
-    }
-
-    let positiveUserCount = 0, totalExtraDeposit = 0;
-    for (const [userId, depositTotal] of Object.entries(depositMap)) {
-      const withdrawalTotal = withdrawalMap[userId] || 0;
-      if (depositTotal > withdrawalTotal) {
-        positiveUserCount++;
-        totalExtraDeposit += (depositTotal - withdrawalTotal);
-      }
-    }
-
-    const onChainNegativeUsers = negativeUserCount;
-    const onChainExtraWithdrawal = totalExtraWithdrawal;
-    const onChainPositiveUsers = positiveUserCount;
-    const onChainExtraDeposit = totalExtraDeposit;
+    // On-chain balance analysis (computed server-side via $lookup, no JS loops)
+    const onChainBalance = onChainBalanceAgg[0] || {};
+    const onChainNegativeUsers = onChainBalance.negativeUserCount || 0;
+    const onChainExtraWithdrawal = onChainBalance.totalExtraWithdrawal || 0;
+    const onChainPositiveUsers = onChainBalance.positiveUserCount || 0;
+    const onChainExtraDeposit = onChainBalance.totalExtraDeposit || 0;
 
     // LedgerRow results (all from single parallel query)
     const lastDistribution = ledgerRowAgg[0]?.lastDistribution?.[0] || null;
@@ -6400,10 +6440,17 @@ exports.getSystemReport = async (req, res) => {
         userCount: onChainPositiveUsers,
         extraDeposited: onChainExtraDeposit.toString()
       },
-
-      activeLPUsers
+      withdrawalErrorCount,
+      activeLPUsers,
+      newUsersToday,
     };
 
+    /* Store in cache */
+    _systemReportCache = report;
+    _systemReportCacheAt = Date.now();
+
+    res.set("X-Cache", "MISS");
+    res.set("Cache-Control", "public, max-age=120");
     return res.status(200).json({ success: true, data: report });
   } catch (error) {
     console.error("API System Report Error:", error);
@@ -7395,6 +7442,8 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
       page = 1,
       pageSize = 100,
       sortDir = -1,
+      search,
+      parent,
     } = { ...req.query, ...req.body };
 
     const _page = Math.max(1, Number(page) || 1);
@@ -7408,16 +7457,48 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
       if (end) match.ts.$lte = new Date(end);
     }
 
+    // 1. Filter by Parent/Team if provided
+    if (parent) {
+      const parentUser = await User.findOne({ uhid: parent }).select("uhid").lean();
+      if (!parentUser) {
+        return res.status(200).json({ success: true, data: { rows: [], totalUsers: 0, grandTotal: "0", page: _page, pageSize: _pageSize } });
+      }
+      const hierarchy = await Levels.find({ parent: parentUser.uhid }).select("child").lean();
+      const childUhids = hierarchy.map(h => h.child);
+      childUhids.push(parentUser.uhid);
+
+      const teamUsers = await User.find({ uhid: { $in: childUhids } }).select("_id").lean();
+      const teamUserIds = teamUsers.map(u => u._id);
+      match.userId = { $in: teamUserIds };
+    }
+
+    // 2. Filter by Search (Entity/UHID) if provided
+    if (search) {
+      const searchUsers = await User.find({
+        $or: [
+          { username: { $regex: search, $options: "i" } },
+          { uhid: { $regex: search, $options: "i" } }
+        ]
+      }).select("_id").lean();
+      const searchUserIds = searchUsers.map(u => u._id);
+      
+      if (match.userId) {
+        const teamSet = new Set(match.userId.$in.map(id => id.toString()));
+        const intersection = searchUserIds.filter(id => teamSet.has(id.toString()));
+        match.userId = { $in: intersection };
+      } else {
+        match.userId = { $in: searchUserIds };
+      }
+    }
+
     const agg = await EcosystemFee.aggregate([
       { $match: match },
-
       {
         $group: {
           _id: "$userId",
           totalAmount: { $sum: "$amount" },
         },
       },
-
       {
         $lookup: {
           from: "users",
@@ -7427,18 +7508,16 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
         },
       },
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
-
       {
         $project: {
           userId: "$_id",
           _id: 0,
           username: "$user.username",
+          uhid: "$user.uhid",
           totalAmount: 1,
         },
       },
-
       { $sort: { totalAmount: Number(sortDir) === 1 ? 1 : -1 } },
-
       {
         $facet: {
           rows: [{ $skip: skip }, { $limit: _pageSize }],
@@ -7459,6 +7538,7 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
     const rows = (facet.rows || []).map((r) => ({
       userId: r.userId,
       username: r.username || "(unknown)",
+      uhid: r.uhid || "",
       amountStr: r.totalAmount?.toString?.() ?? "0",
     }));
 
@@ -7481,6 +7561,114 @@ exports.getUsersEcosystemFeeTotals = async (req, res) => {
       success: false,
       message: "Internal server error: " + (err?.message || "Unknown error"),
     });
+  }
+};
+
+/**
+ * EXPORT Ecosystem Fee Report to Excel
+ */
+exports.exportEcosystemFeeReport = async (req, res) => {
+  try {
+    const { start, end, search, parent, sortDir = -1 } = req.query;
+
+    const match = {};
+    if (start || end) {
+      match.ts = {};
+      if (start) match.ts.$gte = new Date(start);
+      if (end) match.ts.$lte = new Date(end);
+    }
+
+    if (parent) {
+      const parentUser = await User.findOne({ uhid: parent }).select("uhid").lean();
+      if (parentUser) {
+        const hierarchy = await Levels.find({ parent: parentUser.uhid }).select("child").lean();
+        const childUhids = hierarchy.map(h => h.child);
+        childUhids.push(parentUser.uhid);
+        const teamUsers = await User.find({ uhid: { $in: childUhids } }).select("_id").lean();
+        match.userId = { $in: teamUsers.map(u => u._id) };
+      }
+    }
+
+    if (search) {
+      const searchUsers = await User.find({
+        $or: [
+          { username: { $regex: search, $options: "i" } },
+          { uhid: { $regex: search, $options: "i" } }
+        ]
+      }).select("_id").lean();
+      const searchUserIds = searchUsers.map(u => u._id);
+      if (match.userId) {
+        const teamSet = new Set(match.userId.$in.map(id => id.toString()));
+        match.userId = { $in: searchUserIds.filter(id => teamSet.has(id.toString())) };
+      } else {
+        match.userId = { $in: searchUserIds };
+      }
+    }
+
+    const rows = await EcosystemFee.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$userId",
+          totalAmount: { $sum: "$amount" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          username: "$user.username",
+          uhid: "$user.uhid",
+          totalAmount: 1,
+        },
+      },
+      { $sort: { totalAmount: Number(sortDir) === 1 ? 1 : -1 } },
+    ]);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Ecosystem Fee Report");
+
+    worksheet.columns = [
+      { header: "Entity Name", key: "username", width: 25 },
+      { header: "UHID", key: "uhid", width: 20 },
+      { header: "Ecosystem Fee (USDT)", key: "totalAmount", width: 25 },
+      { header: "Status", key: "status", width: 15 },
+    ];
+
+    rows.forEach(row => {
+      worksheet.addRow({
+        username: row.username || "Unknown",
+        uhid: row.uhid || "N/A",
+        totalAmount: parseFloat(row.totalAmount?.toString() || "0"),
+        status: "SETTLED",
+      });
+    });
+
+    // Formatting
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=" + `Ecosystem_Fee_Report_${new Date().toISOString().split("T")[0]}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error("❌ Error in exportEcosystemFeeReport:", err);
+    res.status(500).json({ success: false, message: "Export failed" });
   }
 };
 

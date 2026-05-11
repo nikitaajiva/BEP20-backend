@@ -492,29 +492,25 @@ if (!locked) {
           // --- Sponsor Boost Wallet Reduction Logic ---
           if (user.sponsorId) {
             try {
-              const sponsorLedger = await getOrCreateLedger(user.sponsorId);
-              // The reduction amount is 50% of the amount taken from LP
               const reductionAmount = multiplyDecimal128(amountFromLp, "0.5");
-
-              const oldSponsorBoost =
-                sponsorLedger.wallets.boost || Decimal.fromString("0.0");
-              sponsorLedger.wallets.boost = subtractDecimal128(
-                oldSponsorBoost,
-                reductionAmount
+              const amountToDecrement = Decimal128.fromString(
+                (parseFloat(reductionAmount.toString()) * -1).toString()
               );
 
-              if (compareDecimal128(sponsorLedger.wallets.boost, "0.0") < 0) {
-                sponsorLedger.wallets.boost = Decimal.fromString("0.0");
-              }
-              await sponsorLedger.save();
+              // ✅ Atomic update to prevent race conditions
+              await Ledger.updateOne(
+                { userId: user.sponsorId },
+                { $inc: { "wallets.boost": amountToDecrement } }
+              );
+
               console.log(
-                `[Sponsor Update] Successfully reduced sponsor ${
+                `[Sponsor Update] Successfully queued atomic reduction for sponsor ${
                   user.sponsorId
                 }'s boost wallet by ${reductionAmount.toString()} (based on LP withdrawal of ${amountFromLp.toString()}).`
               );
             } catch (e) {
               console.error(
-                `[Sponsor Update] CRITICAL ERROR: Failed to update sponsor's boost wallet for sponsor ${user.sponsorId}. Error:`,
+                `[Sponsor Update] CRITICAL ERROR: Failed to atomically update sponsor's boost wallet for sponsor ${user.sponsorId}. Error:`,
                 e
               );
             }
@@ -582,28 +578,25 @@ if (!locked) {
         // --- Sponsor Boost Wallet Reduction Logic (copy of ZERO_RISK) ---
         if (user.sponsorId) {
           try {
-            const sponsorLedger = await getOrCreateLedger(user.sponsorId);
             const reductionAmount = multiplyDecimal128(amountD128, "0.5");
-
-            const oldSponsorBoost =
-              sponsorLedger.wallets.boost || Decimal.fromString("0.0");
-            sponsorLedger.wallets.boost = subtractDecimal128(
-              oldSponsorBoost,
-              reductionAmount
+            const amountToDecrement = Decimal128.fromString(
+              (parseFloat(reductionAmount.toString()) * -1).toString()
             );
 
-            if (compareDecimal128(sponsorLedger.wallets.boost, "0.0") < 0) {
-              sponsorLedger.wallets.boost = Decimal.fromString("0.0");
-            }
-            await sponsorLedger.save();
+            // ✅ Atomic update to prevent race conditions
+            await Ledger.updateOne(
+              { userId: user.sponsorId },
+              { $inc: { "wallets.boost": amountToDecrement } }
+            );
+
             console.log(
-              `[Sponsor Update] Successfully reduced sponsor ${
+              `[Sponsor Update] Successfully queued atomic reduction for sponsor ${
                 user.sponsorId
               }'s boost wallet by ${reductionAmount.toString()} (based on LP withdrawal).`
             );
           } catch (e) {
             console.error(
-              `[Sponsor Update] CRITICAL ERROR: Failed to update sponsor's boost wallet for sponsor ${user.sponsorId}. Error:`,
+              `[Sponsor Update] CRITICAL ERROR: Failed to atomically update sponsor's boost wallet for sponsor ${user.sponsorId}. Error:`,
               e
             );
           }
