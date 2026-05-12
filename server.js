@@ -21,7 +21,9 @@ app.use(
     // Example origins, adjust as per your frontend setup
     origin: [
       "http://localhost:3000",
-      "http://localhost:3001" //,
+      "http://localhost:3001",
+      "http://192.168.1.24:3000"
+      //,
       //  process.env.FRONTEND_URL_PROD,
       //  process.env.FRONTEND_URL
     ],

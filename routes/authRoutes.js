@@ -24,6 +24,8 @@ const {
   walletlogin,
 
   verifyEmail,
+  createPhantomChallenge,
+  verifyAndConnectPhantom,
 } = require("../controllers/authController");
 
 // Helper function to extract username from email
@@ -96,5 +98,16 @@ router.post("/logout", protect, logout);
 // @desc    Support/Admin impersonates another user
 // @access  Private (Support/Admin only)
 router.post("/impersonate", protect, isSupportOrAdmin, impersonateUser);
+
+// ✅ NEW: Phantom Wallet Routes
+// @route   POST /api/auth/phantom/challenge
+// @desc    Create a challenge for Phantom wallet verification
+// @access  Private
+router.post("/phantom/challenge", protect, createPhantomChallenge);
+
+// @route   POST /api/auth/phantom/connect
+// @desc    Verify and connect Phantom wallet
+// @access  Private
+router.post("/phantom/connect", protect, verifyAndConnectPhantom);
 
 module.exports = router;

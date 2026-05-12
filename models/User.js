@@ -491,6 +491,24 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  phantomWalletAddress: {
+    type: String,
+    trim: true,
+    default: null,
+    index: true,
+  },
+  phantomWalletConnectedAt: {
+    type: Date,
+    default: null,
+  },
+  walletAuthNonce: {
+    type: String,
+    default: null,
+  },
+  walletAuthNonceExpiresAt: {
+    type: Date,
+    default: null,
+  },
   // Note: Wallets and Limits might be handled by a separate Ledger document as per USDT model's original comment.
 });
 

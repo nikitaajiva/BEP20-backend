@@ -11,6 +11,10 @@ const mongoose = require("mongoose"); // Added for diagnostic
 const { processReferral } = require("../services/referralService");
 const axios = require("axios");
 const { ethers } = require("ethers");
+const nacl = require("tweetnacl");
+const bs58 = require("bs58");
+const { PublicKey } = require("@solana/web3.js");
+const { TextEncoder } = require("util");
 
 // Define these URLs, possibly from .env or config files
 const LOGO_URL =
@@ -429,6 +433,8 @@ const login = async (req, res) => {
       balanceUSDT: user.balanceUSDT,
       usdtBalance: user.usdtBalance,
       wallet_address: user.wallet_address,
+      phantomWalletAddress: user.phantomWalletAddress,
+      phantomWalletConnectedAt: user.phantomWalletConnectedAt,
       createdAt: user.createdAt,
     };
 
@@ -497,6 +503,8 @@ const walletlogin = async (req, res) => {
       balanceUSDT: user.balanceUSDT,
       usdtBalance: user.usdtBalance,
       wallet_address: user.wallet_address,
+      phantomWalletAddress: user.phantomWalletAddress,
+      phantomWalletConnectedAt: user.phantomWalletConnectedAt,
       createdAt: user.createdAt,
     };
 
@@ -512,6 +520,161 @@ const walletlogin = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error during wallet login",
+    });
+  }
+};
+const createPhantomChallenge = async (req, res) => {
+  try {
+    const { walletAddress } = req.body;
+
+    if (!walletAddress) {
+      return res.status(400).json({
+        success: false,
+        message: "walletAddress is required.",
+      });
+    }
+
+    try {
+      new PublicKey(walletAddress);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Solana wallet address.",
+      });
+    }
+
+    const nonce = crypto.randomBytes(32).toString("hex");
+
+    const message = [
+      "BEPVault Phantom Wallet Verification",
+      `Wallet: ${walletAddress}`,
+      `User ID: ${req.user._id}`,
+      `Nonce: ${nonce}`,
+      `Issued At: ${new Date().toISOString()}`,
+      "Only sign this message if you are connecting your wallet to BEPVault.",
+    ].join("\n");
+
+    req.user.walletAuthNonce = nonce;
+    req.user.walletAuthNonceExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await req.user.save();
+
+    return res.json({
+      success: true,
+      message,
+      nonce,
+    });
+  } catch (error) {
+    console.error("Create Phantom challenge error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create Phantom challenge.",
+    });
+  }
+};
+
+const verifyAndConnectPhantom = async (req, res) => {
+  try {
+    const { walletAddress, signature, message } = req.body;
+
+    if (!walletAddress || !signature || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "walletAddress, signature, and message are required.",
+      });
+    }
+
+    if (
+      !req.user.walletAuthNonce ||
+      !req.user.walletAuthNonceExpiresAt ||
+      req.user.walletAuthNonceExpiresAt < new Date()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet verification expired. Please try again.",
+      });
+    }
+
+    if (!message.includes(`Wallet: ${walletAddress}`)) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet address mismatch in signed message.",
+      });
+    }
+
+    if (!message.includes(`User ID: ${req.user._id}`)) {
+      return res.status(400).json({
+        success: false,
+        message: "User mismatch in signed message.",
+      });
+    }
+
+    if (!message.includes(`Nonce: ${req.user.walletAuthNonce}`)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid wallet verification nonce.",
+      });
+    }
+
+    let publicKey;
+
+    try {
+      publicKey = new PublicKey(walletAddress);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Solana wallet address.",
+      });
+    }
+
+    const messageBytes = new TextEncoder().encode(message);
+
+    const bs58Module = bs58.default || bs58;
+    const signatureBytes = bs58Module.decode(signature);
+
+    const publicKeyBytes = publicKey.toBytes();
+
+    const isValid = nacl.sign.detached.verify(
+      messageBytes,
+      signatureBytes,
+      publicKeyBytes
+    );
+
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Phantom signature verification failed.",
+      });
+    }
+
+    const walletUsedByAnotherUser = await User.findOne({
+      phantomWalletAddress: walletAddress,
+      _id: { $ne: req.user._id },
+    });
+
+    if (walletUsedByAnotherUser) {
+      return res.status(409).json({
+        success: false,
+        message: "This Phantom wallet is already connected to another account.",
+      });
+    }
+
+    req.user.phantomWalletAddress = walletAddress;
+    req.user.phantomWalletConnectedAt = new Date();
+    req.user.walletAuthNonce = null;
+    req.user.walletAuthNonceExpiresAt = null;
+
+    await req.user.save();
+
+    return res.json({
+      success: true,
+      message: "Phantom wallet connected successfully.",
+      phantomWalletAddress: req.user.phantomWalletAddress,
+    });
+  } catch (error) {
+    console.error("Verify Phantom wallet error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify Phantom wallet.",
     });
   }
 };
@@ -539,9 +702,16 @@ const getMe = async (req, res) => {
     }
 
     // Return all non-sensitive user data
+    const userToReturn = {
+      ...user.toObject(),
+      phantomWalletAddress: user.phantomWalletAddress,
+      phantomWalletConnectedAt: user.phantomWalletConnectedAt,
+    };
+    delete userToReturn.password;
+
     res.status(200).json({
       success: true,
-      user,
+      user: userToReturn,
     });
   } catch (error) {
     console.error("GetMe error:", error);
@@ -1213,4 +1383,6 @@ module.exports = {
   sendEmailVerification,
   sendTransactionSuccessEmail,
   impersonateUser,
+  createPhantomChallenge,
+  verifyAndConnectPhantom,
 };

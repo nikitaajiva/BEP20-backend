@@ -105,12 +105,12 @@ const getLedgerDetails = async (req, res) => {
       eventType: "AUTOPOSITIONING",
     });
 
-  
+
     rewardBreakdownByType["DAILY_REWARDS_AIRDROP"] =
       toNumber(ledger.dailyRewards?.dailyRewardsAirdrop);
     rewardBreakdownByType["DAILY_REWARDS_BOOST"] =
       toNumber(ledger.dailyRewards?.dailyRewardsBoost);
-      rewardBreakdownByType["DAILY_REWARDS_LP"] =
+    rewardBreakdownByType["DAILY_REWARDS_LP"] =
       toNumber(ledger.dailyRewards?.dailyRewardsLp);
 
     rewardBreakdownByType["XPOWER"] =
@@ -190,7 +190,7 @@ const getLedgerDetails = async (req, res) => {
 
       communityBoosterBonus:
         ledger.limits.boosterLimit?.used?.toString() || "0.0",
-       xBonus:  ledger.limits.xBonusLimit?.used?.toString() || "0.0",
+      xBonus: ledger.limits.xBonusLimit?.used?.toString() || "0.0",
     };
 
     return res.status(200).json({
@@ -243,28 +243,28 @@ const runAutopositioningForUser = async (user) => {
   let ecosystemFeeDeduction = ensureDecimal128("0.0");
   let boostBonusEntry = null;
 
-  
+
 
   try {
     if (!user) {
-      
+
       return;
     }
 
     const ledger = await getOrCreateLedger(userId);
-    
+
 
     // ---- compute gross, fee, net (no mutations yet)
     const grossCR = ensureDecimal128(ledger.wallets.communityRewards?.toString() || "0.0");
-    
 
-   if (
-    !grossCR ||
-    isNaN(parseFloat(grossCR.toString())) ||
-    compareDecimal128(grossCR, "0.0") <= 0
+
+    if (
+      !grossCR ||
+      isNaN(parseFloat(grossCR.toString())) ||
+      compareDecimal128(grossCR, "0.0") <= 0
     ) {
-    
-    return;
+
+      return;
     }
 
     const { totalDeposits, totalWithdrawals } = await getUserChainTotals(userId);
@@ -276,15 +276,15 @@ const runAutopositioningForUser = async (user) => {
     }
 
     const netToLP = subtractDecimal128(grossCR, ecosystemFeeDeduction);
-// 🔥 If 10% eco-fee charged → credit same amount to ZERO_RISK wallet
-if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
-  const originalZeroRisk = ledger.wallets.zeroRisk;
-  ledger.wallets.zeroRisk = addDecimal128(
-    ledger.wallets.zeroRisk || "0.0",
-    netToLP
-  );
-  
-}
+    // 🔥 If 10% eco-fee charged → credit same amount to ZERO_RISK wallet
+    if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
+      const originalZeroRisk = ledger.wallets.zeroRisk;
+      ledger.wallets.zeroRisk = addDecimal128(
+        ledger.wallets.zeroRisk || "0.0",
+        netToLP
+      );
+
+    }
 
     // ---- apply wallet mutations in consistent order
     // 1) Deduct GROSS from COMMUNITY_REWARDS
@@ -296,26 +296,26 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
 
     if (wasFirstDeposit) {
       user.firstLpDepositTs = new Date();
-      
+
     }
 
     const originalLp = ledger.wallets.lp;
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, netToLP);
-    
+
 
     // 3) Limits based on NET
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     ledger.limits.boostLimit.cap = addDecimal128(ledger.limits.boostLimit.cap || "0.0", netToLP);
     ledger.limits.fiveXLimit.cap = multiplyDecimal128(ledger.wallets.lp, "5");
-    
+
 
     // ---- Sponsor bonus (base on NET)
     if (user.sponsorId) {
-      
+
       const sponsor = await User.findById(user.sponsorId);
 
       if (!sponsor) {
-        
+
       } else {
         const sponsorLedger = await getOrCreateLedger(sponsor._id);
 
@@ -325,7 +325,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
           if (compareDecimal128(sponsorLpBalance, "0.0") > 0) {
             sponsor.firstLpDepositTs = new Date();
             await sponsor.save();
-            
+
           }
         }
 
@@ -338,8 +338,8 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
           // else if (hoursDifference <= 24 + 168 * 2) bonusPercentage = 0.3;
           // else if (hoursDifference <= 24 + 168 * 3) bonusPercentage = 0.2;
           // else if (hoursDifference <= 24 + 168 * 4) bonusPercentage = 0.1;
-          bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
-          
+          bonusPercentage = getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
+
 
           if (bonusPercentage > 0) {
             const bonusAmount = multiplyDecimal128(netToLP, bonusPercentage.toString());
@@ -371,7 +371,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
                   refId: user._id.toString(),
                 });
 
-                
+
               }
             }
           }
@@ -381,7 +381,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
 
     await user.save();
     await ledger.save();
-    
+
 
     // ---- Ledger row: write AUTOPOSITIONING with GROSS so history matches deduction
     const lpDepositLedgerEntry = await createLedgerEntry({
@@ -394,7 +394,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
         ? `Auto-positioned ${grossCR} CR → LP. Credited ${netToLP}. Fee ${ecosystemFeeDeduction} (10%).`
         : `Auto-positioned ${grossCR} CR → LP. No fee.`,
     });
-    
+
 
     // ---- Record + settle the fee (chain)
     if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
@@ -406,19 +406,19 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
         narrative: "10% ecosystem fee charged during autopositioning",
       });
 
-    //  const txResult =  await sendUsdt({
-    //         idempotency_key: lpDepositLedgerEntry._id,
-    //         withdrawal_id: EcosystemFeeEntry._id,
-    //         amount: ecosystemFeeDeduction,
-    //         destination: process.env.ECOSYSTEM_ADDRESS,
-    //       });
+      //  const txResult =  await sendUsdt({
+      //         idempotency_key: lpDepositLedgerEntry._id,
+      //         withdrawal_id: EcosystemFeeEntry._id,
+      //         amount: ecosystemFeeDeduction,
+      //         destination: process.env.ECOSYSTEM_ADDRESS,
+      //       });
 
-  
-    //   if (txResult?.quicknode?.tx_json?.hash) {
-    //     EcosystemFeeEntry.refId = txResult?.quicknode?.tx_json?.hash;
-    //   }
+
+      //   if (txResult?.quicknode?.tx_json?.hash) {
+      //     EcosystemFeeEntry.refId = txResult?.quicknode?.tx_json?.hash;
+      //   }
       await EcosystemFeeEntry.save();
-      
+
     }
 
     if (boostBonusEntry) {
@@ -426,7 +426,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
         { _id: boostBonusEntry._id },
         { $set: { refId: lpDepositLedgerEntry._id.toString() } }
       );
-      
+
     }
 
     // ---- Upline team LP (non-blocking) using NET
@@ -434,7 +434,7 @@ if (ecosystemFee && compareDecimal128(ecosystemFeeDeduction, "0.0") > 0) {
       console.error("🧱 Team LP update failed:", err)
     );
 
-    
+
   } catch (error) {
     console.error(`❌ Error in runAutopositioningForUser: ${error.message}`, error);
   }
@@ -447,7 +447,7 @@ const startAutoPositioningCron = () => {
     "0 5 * * *", // ⏰ Runs at 12:05 AM UTC
     async () => {
       const now = new Date().toISOString();
-      
+
 
       try {
         const users = await User.find({ autopositioning: true });
@@ -462,7 +462,7 @@ const startAutoPositioningCron = () => {
           await runAutopositioningForUser(user);
         }
 
-        
+
       } catch (err) {
         console.error(
           "❌ [CRON] Error during autopositioning cron:",
@@ -475,7 +475,7 @@ const startAutoPositioningCron = () => {
     }
   );
 
-  
+
 };
 
 // Get ledger history for authenticated user
@@ -596,8 +596,8 @@ const walletHistory = async (req, res) => {
       ...(wallet === "REWARDS"
         ? { walletFrom: "COMMUNITY_REWARDS" }
         : wallet
-        ? { $or: [{ walletFrom: wallet }, { walletTo: wallet }] }
-        : {}),
+          ? { $or: [{ walletFrom: wallet }, { walletTo: wallet }] }
+          : {}),
     };
 
     const rawEntries = await LedgerRow.find(mainQuery)
@@ -624,16 +624,16 @@ const walletHistory = async (req, res) => {
 
     const rawIds = rawEntries.map(e => e._id.toString());
 
-      // Fetch ecosystem fees linked to these ledger rows
-      const ecoFees = await EcosystemFee.find({ ledgerRefId: { $in: rawIds } })
-        .lean();
+    // Fetch ecosystem fees linked to these ledger rows
+    const ecoFees = await EcosystemFee.find({ ledgerRefId: { $in: rawIds } })
+      .lean();
 
-      const ecoFeeMap = {};
-      for (const fee of ecoFees) {
-        const ref = fee.ledgerRefId.toString();
-        if (!ecoFeeMap[ref]) ecoFeeMap[ref] = [];
-        ecoFeeMap[ref].push(fee);
-      }
+    const ecoFeeMap = {};
+    for (const fee of ecoFees) {
+      const ref = fee.ledgerRefId.toString();
+      if (!ecoFeeMap[ref]) ecoFeeMap[ref] = [];
+      ecoFeeMap[ref].push(fee);
+    }
 
 
     /* -------------------- PROCESS ENTRIES -------------------- */
@@ -712,58 +712,58 @@ const walletHistory = async (req, res) => {
       }
 
       /* -------------------- REWARDS (only debits from COMMUNITY_REWARDS) -------------------- */
- if (wallet === "REWARDS") {
-  // If ecosystem fee exists for this ledgerRow, push it just after
-const ecoLinked = ecoFeeMap[entry._id.toString()];
-if (ecoLinked && ecoLinked.length > 0) {
-  for (const fee of ecoLinked) {
-    enrichedEntries.push({
-      ...fee,
-      amount: parseFloat(fee.amount).toFixed(6),
-      previousBalance: null,
-      available_balance: null,
-      narrative: fee.narrative || "Ecosystem fee",
-      eventType: "ECOSYSTEM_FEE",
-      ecosystemLinked: true,
-    });
-    
-  }
-}
-  const prev = runningBalanceCR;
-  // Skip deposits (we only want debits)
-  if (entry.eventType === "DEPOSIT") {
-    
-    continue;
-  }
-  // every record is a debit from COMMUNITY_REWARDS
-  runningBalanceCR -= amount;
-  if (runningBalanceCR < 0) runningBalanceCR = 0;
+      if (wallet === "REWARDS") {
+        // If ecosystem fee exists for this ledgerRow, push it just after
+        const ecoLinked = ecoFeeMap[entry._id.toString()];
+        if (ecoLinked && ecoLinked.length > 0) {
+          for (const fee of ecoLinked) {
+            enrichedEntries.push({
+              ...fee,
+              amount: parseFloat(fee.amount).toFixed(6),
+              previousBalance: null,
+              available_balance: null,
+              narrative: fee.narrative || "Ecosystem fee",
+              eventType: "ECOSYSTEM_FEE",
+              ecosystemLinked: true,
+            });
 
-  if (entry.eventType === "REWARDS_REDEEMED") {
-    totalRedeemed += amount;
-    
-  } else if (entry.eventType === "AUTOPOSITIONING") {
-    totalPositioned += amount;
-    
-  }  else if (entry.eventType === "AUTO_DEBIT") {
-    totalPositioned += amount;
-    
-  }else {
-    
-  }
+          }
+        }
+        const prev = runningBalanceCR;
+        // Skip deposits (we only want debits)
+        if (entry.eventType === "DEPOSIT") {
 
-  enrichedEntries.push({
-    ...entry,
-    amount: amount.toFixed(6),
-    ratePct: entry.ratePct ? parseFloat(entry.ratePct).toFixed(2) : null,
-    narrative: entry.narrative || "",
-    refId: entry.refId || "",
-    previousBalance: prev.toFixed(6),
-    available_balance: runningBalanceCR.toFixed(6),
-  });
+          continue;
+        }
+        // every record is a debit from COMMUNITY_REWARDS
+        runningBalanceCR -= amount;
+        if (runningBalanceCR < 0) runningBalanceCR = 0;
 
-  continue; // skip default handling
-}
+        if (entry.eventType === "REWARDS_REDEEMED") {
+          totalRedeemed += amount;
+
+        } else if (entry.eventType === "AUTOPOSITIONING") {
+          totalPositioned += amount;
+
+        } else if (entry.eventType === "AUTO_DEBIT") {
+          totalPositioned += amount;
+
+        } else {
+
+        }
+
+        enrichedEntries.push({
+          ...entry,
+          amount: amount.toFixed(6),
+          ratePct: entry.ratePct ? parseFloat(entry.ratePct).toFixed(2) : null,
+          narrative: entry.narrative || "",
+          refId: entry.refId || "",
+          previousBalance: prev.toFixed(6),
+          available_balance: runningBalanceCR.toFixed(6),
+        });
+
+        continue; // skip default handling
+      }
 
 
       /* -------------------- DEFAULT ENTRIES -------------------- */
@@ -894,7 +894,7 @@ const reports = async (req, res) => {
 
       matchedUserIds = matchedUsers.map((u) => u._id.toString());
 
-      
+
 
       if (matchedUserIds.length === 0) {
         return res.json({
@@ -1287,7 +1287,7 @@ const usersReports = async (req, res) => {
       }
 
       for (const record of day.records) {
-        
+
         const { eventType, walletFrom, walletTo, totalAmount } = record;
         const amount = parseFloat(totalAmount.toString());
 
@@ -1642,19 +1642,19 @@ const getUserChainTotals = async (userId) => {
 
 // Add LP from CommuntityRewards wallet
 const addLpFromCommuntityRewards = async (req, res) => {
-  
-  
+
+
   const userId = req.user._id;
-  
+
   let ecosystemFee = false;
   let ecosystemFeeDeduction = null;
-  
+
 
   try {
     const user = await User.findById(userId);
 
     if (!user) {
-      
+
       return res.status(404).json({
         success: false,
         message: "User not found",
@@ -1664,7 +1664,7 @@ const addLpFromCommuntityRewards = async (req, res) => {
     if (req.query.deactivate === "true") {
       user.autopositioning = false;
       await user.save();
-      
+
 
       return res.status(200).json({
         success: true,
@@ -1674,10 +1674,10 @@ const addLpFromCommuntityRewards = async (req, res) => {
 
     user.autopositioning = true;
     await user.save();
-    
+
 
     const ledger = await getOrCreateLedger(userId);
-    
+
 
     let transferAmountD128 = ensureDecimal128(
       ledger.wallets.communityRewards?.toString() || "0.0"
@@ -1723,7 +1723,7 @@ const addLpFromCommuntityRewards = async (req, res) => {
         transferAmountD128
       );
       // Optional: attach these for tracking
-      
+
       console.log(
         "Adjusted transferAmountD128:",
         transferAmountD128.toString()
@@ -1750,41 +1750,41 @@ const addLpFromCommuntityRewards = async (req, res) => {
       `[addLpFromCommunityRewards] LP wallet updated: ${originalLp} -> ${ledger.wallets.lp}`
     );
     let boostBonusEntry = null;
-    
+
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     const original5xCap = ledger.limits.fiveXLimit?.cap;
     let firstDepositDate = null;
-// prefer firstLpDepositTs if available
-if (user.firstLpDepositTs) {
-  firstDepositDate = new Date(user.firstLpDepositTs);
-} else {
-  firstDepositDate = new Date();
-}
+    // prefer firstLpDepositTs if available
+    if (user.firstLpDepositTs) {
+      firstDepositDate = new Date(user.firstLpDepositTs);
+    } else {
+      firstDepositDate = new Date();
+    }
 
-if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
-  const endDate = new Date(firstDepositDate);
-  endDate.setDate(endDate.getDate() + 30);
-  endDate.setHours(23, 59, 59, 999);
+    if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
+      const endDate = new Date(firstDepositDate);
+      endDate.setDate(endDate.getDate() + 30);
+      endDate.setHours(23, 59, 59, 999);
 
-  if (new Date() <= endDate) {
-    const originalBoostCap = ledger.limits.boostLimit?.cap;
-    ledger.limits.boostLimit.cap = addDecimal128(
-      ledger.limits.boostLimit.cap || "0.0",
-      transferAmountD128
-    );
-    console.log(
-      `[addLpFromUsdt] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
-    );
-  } else {
-    console.log(
-      `[addLpFromUsdt] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
-    );
-  }
-} else {
-  console.warn(
-    `[addLpFromUsdt] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
-  );
-}
+      if (new Date() <= endDate) {
+        const originalBoostCap = ledger.limits.boostLimit?.cap;
+        ledger.limits.boostLimit.cap = addDecimal128(
+          ledger.limits.boostLimit.cap || "0.0",
+          transferAmountD128
+        );
+        console.log(
+          `[addLpFromUsdt] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
+        );
+      } else {
+        console.log(
+          `[addLpFromUsdt] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
+        );
+      }
+    } else {
+      console.warn(
+        `[addLpFromUsdt] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
+      );
+    }
 
     ledger.limits.fiveXLimit.cap = multiplyDecimal128(ledger.wallets.lp, "5");
 
@@ -1811,8 +1811,8 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
             (currentUserDepositTime - sponsorFirstLpTime) / (1000 * 60 * 60);
 
           let bonusPercentage = 0;
-          bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
-            
+          bonusPercentage = getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
+
 
           if (bonusPercentage > 0) {
             const bonusAmount = multiplyDecimal128(
@@ -1849,9 +1849,8 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
                   amount: actualBonusToCredit.toString(),
                   walletFrom: "SYSTEM",
                   walletTo: "BOOST",
-                  narrative: `Boost bonus (${
-                    bonusPercentage * 100
-                  }%) from referral ${user.username}.`,
+                  narrative: `Boost bonus (${bonusPercentage * 100
+                    }%) from referral ${user.username}.`,
                   refId: user._id.toString(),
                 });
               }
@@ -1896,7 +1895,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
           ecosystemFeeDeduction,
           uniqueTransactionId
         );
-        
+
         chainTxHash = txResult.txHash || txResult.hash;
         EcosystemFeeEntry.refId = chainTxHash;
       }
@@ -1926,7 +1925,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
 
 // Add LP from Usdt wallet
 const addLpFromUsdt = async (req, res) => {
-  
+
   try {
     const userId = req.user._id;
     const { transferAmount } = req.body;
@@ -1935,7 +1934,7 @@ const addLpFromUsdt = async (req, res) => {
     );
 
     if (!transferAmount || transferAmount < 9) {
-      
+
       return res.status(400).json({
         success: false,
         message: "Valid transfer amount is required",
@@ -1944,13 +1943,13 @@ const addLpFromUsdt = async (req, res) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      
+
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
-    
+
 
     const transferAmountD128 = ensureDecimal128(transferAmount);
     console.log(
@@ -1958,7 +1957,7 @@ const addLpFromUsdt = async (req, res) => {
     );
 
     const ledger = await getOrCreateLedger(userId);
-    
+
 
     // Ensure usdt wallet has enough balance
     const usdtBalanceD128 = ensureDecimal128(
@@ -1968,18 +1967,18 @@ const addLpFromUsdt = async (req, res) => {
       `[addLpFromUsdt] Current Usdt balance: ${usdtBalanceD128.toString()}`
     );
     if (compareDecimal128(usdtBalanceD128, transferAmountD128) < 0) {
-      
+
       return res.status(400).json({
         success: false,
         message: `Insufficient Usdt balance. Trying to transfer ${transferAmount}, but only ${usdtBalanceD128.toString()} available.`,
       });
     }
 
-    
+
 
     // 1. Update user's self LP counter and check if this is the first deposit
     const isFirstDeposit = (user.counters.selfLp || "0.0").toString() === "0.0";
-    
+
     user.counters.selfLp = addDecimal128(
       user.counters.selfLp || "0.0",
       transferAmountD128
@@ -1999,31 +1998,31 @@ const addLpFromUsdt = async (req, res) => {
       transferAmountD128
     );
     ledger.wallets.lp = addDecimal128(ledger.wallets.lp, transferAmountD128);
-      // Ensure lpLimit object exists
-      if (!ledger.limits.lpLimit) {
-        ledger.limits.lpLimit = {
-          cap: mongoose.Types.Decimal128.fromString("0.0"),
-          used: mongoose.Types.Decimal128.fromString("0.0"),
-        };
-      }
-    
-        // Update lpLimit.cap = 2 × LP balance
-      const currentLpBalance = ensureDecimal128(ledger.wallets.lp);
-      const newLpCap = multiplyDecimal128(currentLpBalance, "2");
-      const oldLpCap = ledger.limits.lpLimit.cap;
-      ledger.limits.lpLimit.cap = newLpCap;
-    
+    // Ensure lpLimit object exists
+    if (!ledger.limits.lpLimit) {
+      ledger.limits.lpLimit = {
+        cap: mongoose.Types.Decimal128.fromString("0.0"),
+        used: mongoose.Types.Decimal128.fromString("0.0"),
+      };
+    }
+
+    // Update lpLimit.cap = 2 × LP balance
+    const currentLpBalance = ensureDecimal128(ledger.wallets.lp);
+    const newLpCap = multiplyDecimal128(currentLpBalance, "2");
+    const oldLpCap = ledger.limits.lpLimit.cap;
+    ledger.limits.lpLimit.cap = newLpCap;
+
+    // console.log(
+    //   `[addLpFromUsdt] LP limit cap updated: ${oldLpCap?.toString()} -> ${newLpCap.toString()}`
+    // );
+
+    // Ensure firstLpDepositTs is set
+    if (!user.firstLpDepositTs) {
+      user.firstLpDepositTs = new Date();
       // console.log(
-      //   `[addLpFromUsdt] LP limit cap updated: ${oldLpCap?.toString()} -> ${newLpCap.toString()}`
+      //   `[addLpFromUsdt] firstLpDepositTs initialized for user ${user.username} -> ${user.firstLpDepositTs}`
       // );
-    
-      // Ensure firstLpDepositTs is set
-      if (!user.firstLpDepositTs) {
-        user.firstLpDepositTs = new Date();
-        // console.log(
-        //   `[addLpFromUsdt] firstLpDepositTs initialized for user ${user.username} -> ${user.firstLpDepositTs}`
-        // );
-      }
+    }
     // console.log(
     //   `[addLpFromUsdt] Usdt wallet updated: ${originalUsdt} -> ${ledger.wallets.bnb}`
     // );
@@ -2032,7 +2031,7 @@ const addLpFromUsdt = async (req, res) => {
     // );
 
     // 3. Handle Airdrop activation (Swift -> Airdrop)
-    
+
 
     // This will hold the boost bonus entry if it's created
     let boostBonusEntry = null;
@@ -2139,7 +2138,7 @@ const addLpFromUsdt = async (req, res) => {
         walletTo: "AIRDROP",
         narrative: `Airdrop activation for ${amountToMoveFromSwift.toString()} matching LP deposit.${narrativeSuffix}`,
       });
-      
+
     } else {
       console.log(
         "[addLpFromUsdt] No amount to move from Swift, skipping Airdrop activation."
@@ -2147,43 +2146,43 @@ const addLpFromUsdt = async (req, res) => {
     }
 
     // 4. Update all relevant limits
-    
+
     const originalBoostCap = ledger.limits.boostLimit?.cap;
     const original5xCap = ledger.limits.fiveXLimit?.cap;
-// --- BOOST LIMIT LOGIC ---
-// --- BOOST LIMIT LOGIC (safe) ---
-let firstDepositDate = null;
-// prefer firstLpDepositTs if available
-if (user.firstLpDepositTs) {
-  firstDepositDate = new Date(user.firstLpDepositTs);
-} else {
-  firstDepositDate = new Date();
-}
+    // --- BOOST LIMIT LOGIC ---
+    // --- BOOST LIMIT LOGIC (safe) ---
+    let firstDepositDate = null;
+    // prefer firstLpDepositTs if available
+    if (user.firstLpDepositTs) {
+      firstDepositDate = new Date(user.firstLpDepositTs);
+    } else {
+      firstDepositDate = new Date();
+    }
 
-if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
-  const endDate = new Date(firstDepositDate);
-  endDate.setDate(endDate.getDate() + 30);
-  endDate.setHours(23, 59, 59, 999);
+    if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
+      const endDate = new Date(firstDepositDate);
+      endDate.setDate(endDate.getDate() + 30);
+      endDate.setHours(23, 59, 59, 999);
 
-  if (new Date() <= endDate) {
-    const originalBoostCap = ledger.limits.boostLimit?.cap;
-    ledger.limits.boostLimit.cap = addDecimal128(
-      ledger.limits.boostLimit.cap || "0.0",
-      transferAmountD128
-    );
-    console.log(
-      `[addLpFromUsdt] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
-    );
-  } else {
-    console.log(
-      `[addLpFromUsdt] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
-    );
-  }
-} else {
-  console.warn(
-    `[addLpFromUsdt] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
-  );
-}
+      if (new Date() <= endDate) {
+        const originalBoostCap = ledger.limits.boostLimit?.cap;
+        ledger.limits.boostLimit.cap = addDecimal128(
+          ledger.limits.boostLimit.cap || "0.0",
+          transferAmountD128
+        );
+        console.log(
+          `[addLpFromUsdt] Boost limit cap updated (within 29 days): ${originalBoostCap} -> ${ledger.limits.boostLimit.cap}`
+        );
+      } else {
+        console.log(
+          `[addLpFromUsdt] Skipped boost limit update (after 29-day cutoff). FirstDepositTs=${firstDepositDate.toISOString()}`
+        );
+      }
+    } else {
+      console.warn(
+        `[addLpFromUsdt] No valid first deposit date found for user ${user.username}. Skipping boost limit update.`
+      );
+    }
 
     ledger.limits.fiveXLimit.cap = multiplyDecimal128(ledger.wallets.lp, "5");
     console.log(
@@ -2198,7 +2197,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       console.log(
         "[addLpFromUsdt] User has a sponsor, processing bonus logic..."
       );
-      
+
       const sponsor = await User.findById(user.sponsorId);
 
       if (!sponsor) {
@@ -2247,8 +2246,8 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
           );
 
           let bonusPercentage = 0;
-          bonusPercentage =  getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
-            
+          bonusPercentage = getSponsorBonusPctUTC(sponsor.firstLpDepositTs);
+
           console.log(
             `[addLpFromUsdt] Calculated bonus percentage: ${bonusPercentage}`
           );
@@ -2259,8 +2258,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
               bonusPercentage.toString()
             );
             console.log(
-              `[addLpFromUsdt] Calculated raw bonus amount for sponsor ${
-                sponsor.username
+              `[addLpFromUsdt] Calculated raw bonus amount for sponsor ${sponsor.username
               }: ${bonusAmount.toString()}`
             );
 
@@ -2277,8 +2275,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
               sponsorBoostWalletBalance
             );
             console.log(
-              `[BOOST_BONUS_CHECK] Sponsor: ${
-                sponsor.username
+              `[BOOST_BONUS_CHECK] Sponsor: ${sponsor.username
               }, Boost Balance: ${sponsorBoostWalletBalance.toString()}, Boost Limit: ${sponsorBoostLimitCap.toString()}, Available Capacity: ${availableBoostCapacity.toString()}`
             );
 
@@ -2288,8 +2285,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
                 availableBoostCapacity
               );
               console.log(
-                `[BOOST_BONUS_CHECK] Sponsor: ${
-                  sponsor.username
+                `[BOOST_BONUS_CHECK] Sponsor: ${sponsor.username
                 }, Raw Bonus: ${bonusAmount.toString()}, Capped Bonus to Credit: ${actualBonusToCredit.toString()}`
               );
 
@@ -2312,9 +2308,8 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
                   amount: actualBonusToCredit.toString(),
                   walletFrom: "SYSTEM",
                   walletTo: "BOOST",
-                  narrative: `Boost bonus (${
-                    bonusPercentage * 100
-                  }%) from direct referral ${user.username}'s deposit.`,
+                  narrative: `Boost bonus (${bonusPercentage * 100
+                    }%) from direct referral ${user.username}'s deposit.`,
                   refId: user._id.toString(), // Temporary refId
                 });
                 console.log(
@@ -2339,24 +2334,24 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
         }
       }
     } else {
-      
+
     }
 
     // 6. Update Upline Team LP Counters (fire and forget)
-    
+
     updateUplineTeamLp(user.uhid, transferAmountD128).catch((err) => {
       console.error(
         `[BACKGROUND_ERROR] Failed to update team LP for user ${user.uhid}:`,
         err
       );
     });
-    
+
 
     // 7. Save all changes and create the primary ledger entry
-    
+
     await user.save();
     await ledger.save();
-    
+
 
     const lpDepositLedgerEntry = await createLedgerEntry({
       userId: userId,
@@ -2382,7 +2377,7 @@ if (firstDepositDate && !isNaN(firstDepositDate.getTime())) {
       );
     }
 
-    
+
     res.status(200).json({
       success: true,
       message: `Successfully transferred ${transferAmount} USDT from Usdt to LP wallet.`,
@@ -3020,7 +3015,7 @@ const checkPoolRewardEligibility = async (req, res) => {
        FIXED DATE WINDOW (UTC)
     =========================== */
     const RANGE_START = new Date("2025-12-07T00:00:00.000Z");
-    const RANGE_END   = new Date("2026-01-15T23:59:59.999Z");
+    const RANGE_END = new Date("2026-01-15T23:59:59.999Z");
 
     /* ===========================
        STEP 1: USER + UHID
