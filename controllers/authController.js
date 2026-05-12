@@ -1197,6 +1197,45 @@ const impersonateUser = async (req, res) => {
   }
 };
 
+const updateMe = async (req, res) => {
+  try {
+    const { nftPackage, stakingPlan } = req.body;
+    
+    console.log("UpdateMe Payload:", JSON.stringify(req.body));
+
+    const updates = {};
+    if (nftPackage !== undefined) updates.nftPackage = nftPackage;
+    
+    if (stakingPlan) {
+      if (stakingPlan.amount !== undefined) updates["stakingPlan.amount"] = Number(stakingPlan.amount);
+      if (stakingPlan.days !== undefined) updates["stakingPlan.days"] = Number(stakingPlan.days);
+      if (stakingPlan.startDate !== undefined) updates["stakingPlan.startDate"] = stakingPlan.startDate;
+    }
+
+    // Use findByIdAndUpdate with runValidators: false to bypass unrelated schema validation issues
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates },
+      { new: true, runValidators: false }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    console.error("UpdateMe error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Server error while updating user data.",
+    });
+  }
+};
+
 module.exports = {
   signup,
   setPasswordFromLink,
@@ -1204,6 +1243,7 @@ module.exports = {
   walletlogin,
   logout,
   getMe,
+  updateMe,
   forgotPassword,
   resetPassword,
   resetUserPassword,

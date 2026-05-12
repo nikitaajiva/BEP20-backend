@@ -18,6 +18,7 @@ const {
   resetUserPassword,
   resetEmail,
   getMe,
+  updateMe,
   logout,
   impersonateUser,
   sendEmailVerification,
@@ -86,6 +87,7 @@ router.post("/verify-email", verifyEmail);
 // @desc    Get current logged-in user's data
 // @access  Private
 router.get("/me", protect, getMe);
+router.put("/me", protect, updateMe);
 
 // @route   POST /api/auth/logout
 // @desc    Logout user
