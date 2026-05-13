@@ -13,7 +13,12 @@ const axios = require("axios");
 const { ethers } = require("ethers");
 const nacl = require("tweetnacl");
 const bs58 = require("bs58");
-const { PublicKey } = require("@solana/web3.js");
+const {
+  Connection,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  clusterApiUrl,
+} = require("@solana/web3.js");
 const { TextEncoder } = require("util");
 
 // Define these URLs, possibly from .env or config files
@@ -89,6 +94,12 @@ const normalizePhantomSignature = (signature) => {
 
   throw new Error("INVALID_SIGNATURE_FORMAT");
 };
+
+const getSolanaConnection = () =>
+  new Connection(
+    process.env.SOLANA_RPC_URL || clusterApiUrl("mainnet-beta"),
+    "confirmed"
+  );
 
 const signup = async (req, res) => {
   try {
@@ -861,6 +872,50 @@ const verifyAndConnectPhantom = async (req, res) => {
   }
 };
 
+const getPhantomBalance = async (req, res) => {
+  try {
+    const walletAddress = `${req.user?.phantomWalletAddress || ""}`.trim();
+
+    if (!walletAddress) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_WALLET_NOT_CONNECTED",
+        message: "Phantom wallet is not connected.",
+      });
+    }
+
+    let publicKey;
+    try {
+      publicKey = new PublicKey(walletAddress);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_INVALID_WALLET_ADDRESS",
+        message: "Connected Phantom wallet address is invalid.",
+      });
+    }
+
+    const connection = getSolanaConnection();
+    const lamports = await connection.getBalance(publicKey, "confirmed");
+    const balanceSol = (lamports / LAMPORTS_PER_SOL).toFixed(6);
+
+    return res.status(200).json({
+      success: true,
+      walletAddress,
+      lamports,
+      balanceSol,
+      currency: "SOL",
+    });
+  } catch (error) {
+    console.error("Get Phantom balance error:", error);
+    return res.status(500).json({
+      success: false,
+      errorCode: "PHANTOM_BALANCE_FETCH_FAILED",
+      message: "Failed to fetch Phantom wallet balance.",
+    });
+  }
+};
+
 
 const logout = async (req, res) => {
   // In a stateless JWT setup, logout is typically handled on the client-side
@@ -1607,4 +1662,5 @@ module.exports = {
   impersonateUser,
   createPhantomChallenge,
   verifyAndConnectPhantom,
+  getPhantomBalance,
 };

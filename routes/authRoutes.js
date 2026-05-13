@@ -27,6 +27,7 @@ const {
   verifyEmail,
   createPhantomChallenge,
   verifyAndConnectPhantom,
+  getPhantomBalance,
 } = require("../controllers/authController");
 
 // Helper function to extract username from email
@@ -111,5 +112,10 @@ router.post("/phantom/challenge", protect, createPhantomChallenge);
 // @desc    Verify and connect Phantom wallet
 // @access  Private
 router.post("/phantom/connect", protect, verifyAndConnectPhantom);
+
+// @route   GET /api/auth/phantom/balance
+// @desc    Fetch connected Phantom wallet SOL balance
+// @access  Private
+router.get("/phantom/balance", protect, getPhantomBalance);
 
 module.exports = router;
