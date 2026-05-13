@@ -22,6 +22,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
+      "http://168.144.33.10",
       process.env.FRONTEND_URL,
     ].filter(Boolean),
     credentials: true,
@@ -32,8 +33,12 @@ app.use(
 app.use(express.json({ limit: '10kb' })); // Body parser, limit data size
 
 // --- Advanced Security Middleware ---
-// 1. Set Security HTTP headers
-app.use(helmet());
+// 1. Set Security HTTP headers with specific Referrer Policy for CORS compatibility
+app.use(
+  helmet({
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
 
 // 2. Custom NoSQL Sanitization (Express 5 Compatible)
 app.use((req, res, next) => {
