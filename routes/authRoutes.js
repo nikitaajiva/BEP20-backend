@@ -25,6 +25,10 @@ const {
   walletlogin,
 
   verifyEmail,
+  createPhantomChallenge,
+  verifyAndConnectPhantom,
+  getPhantomBalance,
+  disconnectPhantomWallet,
 } = require("../controllers/authController");
 
 // Helper function to extract username from email
@@ -82,6 +86,12 @@ router.post("/send-email-verification", protect, sendEmailVerification);
 // @desc    Verify email via token from link
 // @access  Public
 router.post("/verify-email", verifyEmail);
+
+// Phantom Wallet routes
+router.post("/phantom/challenge", protect, createPhantomChallenge);
+router.post("/phantom/connect", protect, verifyAndConnectPhantom);
+router.get("/phantom/balance", protect, getPhantomBalance);
+router.delete("/phantom/disconnect", protect, disconnectPhantomWallet);
 
 // @route   GET /api/auth/me
 // @desc    Get current logged-in user's data

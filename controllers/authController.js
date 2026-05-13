@@ -11,6 +11,14 @@ const mongoose = require("mongoose"); // Added for diagnostic
 const { processReferral } = require("../services/referralService");
 const axios = require("axios");
 const { ethers } = require("ethers");
+const nacl = require("tweetnacl");
+const bs58 = require("bs58");
+const {
+  Connection,
+  PublicKey,
+  LAMPORTS_PER_SOL,
+  clusterApiUrl,
+} = require("@solana/web3.js");
 
 // Define these URLs, possibly from .env or config files
 const LOGO_URL =
@@ -21,6 +29,20 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3001";
 const APP_URL = process.env.APP_URL || FRONTEND_URL;
 const SUPPORT_EMAIL =
   process.env.APP_SUPPORT_EMAIL || "support@example.com";
+
+const getBs58 = () => bs58.default || bs58;
+
+const normalizeSignatureBytes = (signature) => {
+  if (Array.isArray(signature)) {
+    return Uint8Array.from(signature);
+  }
+
+  if (typeof signature === "string") {
+    return getBs58().decode(signature);
+  }
+
+  throw new Error("INVALID_SIGNATURE_FORMAT");
+};
 
 const signup = async (req, res) => {
   try {
@@ -1236,6 +1258,319 @@ const updateMe = async (req, res) => {
   }
 };
 
+const createPhantomChallenge = async (req, res) => {
+  try {
+    const walletAddress = `${req.body?.walletAddress || ""}`.trim();
+
+    if (!walletAddress) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "WALLET_ADDRESS_REQUIRED",
+        message: "Wallet address is required.",
+      });
+    }
+
+    try {
+      new PublicKey(walletAddress);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        errorCode: "INVALID_SOLANA_WALLET_ADDRESS",
+        message: "Invalid Solana wallet address.",
+      });
+    }
+
+    const nonce = crypto.randomBytes(32).toString("hex");
+    const issuedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    const message = [
+      `${APP_NAME} wants to connect your Phantom wallet.`,
+      "",
+      "Purpose: Connect Phantom Wallet",
+      `Wallet: ${walletAddress}`,
+      `User ID: ${req.user._id}`,
+      `Nonce: ${nonce}`,
+      `Issued At: ${issuedAt}`,
+      "",
+      "Only sign this message if you trust this application.",
+    ].join("\n");
+
+    await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          walletAuthNonce: nonce,
+          walletAuthNonceExpiresAt: expiresAt,
+        },
+      },
+      {
+        runValidators: false,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message,
+      nonceExpiresAt: expiresAt,
+    });
+  } catch (error) {
+    console.error("Create Phantom challenge error:", error);
+    return res.status(500).json({
+      success: false,
+      errorCode: "PHANTOM_CHALLENGE_FAILED",
+      message: "Unable to create wallet verification challenge.",
+    });
+  }
+};
+
+const verifyAndConnectPhantom = async (req, res) => {
+  try {
+    const walletAddress = `${req.body?.walletAddress || ""}`.trim();
+    const { signature, message } = req.body || {};
+
+    if (!walletAddress || !signature || !message) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_VERIFY_PAYLOAD_INVALID",
+        message: "Wallet address, signature, and message are required.",
+      });
+    }
+
+    let publicKey;
+
+    try {
+      publicKey = new PublicKey(walletAddress);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        errorCode: "INVALID_SOLANA_WALLET_ADDRESS",
+        message: "Invalid Solana wallet address.",
+      });
+    }
+
+    const freshUser = await User.findById(req.user._id).select(
+      "+walletAuthNonce +walletAuthNonceExpiresAt"
+    );
+
+    if (!freshUser) {
+      return res.status(401).json({
+        success: false,
+        errorCode: "AUTH_REQUIRED",
+        message: "User not found.",
+      });
+    }
+
+    if (!freshUser.walletAuthNonce || !freshUser.walletAuthNonceExpiresAt) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_CHALLENGE_MISSING",
+        message: "Wallet verification challenge is missing. Please try again.",
+      });
+    }
+
+    if (new Date(freshUser.walletAuthNonceExpiresAt).getTime() < Date.now()) {
+      await User.findByIdAndUpdate(
+        freshUser._id,
+        {
+          $set: {
+            walletAuthNonce: null,
+            walletAuthNonceExpiresAt: null,
+          },
+        },
+        {
+          runValidators: false,
+        }
+      );
+
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_CHALLENGE_EXPIRED",
+        message: "Wallet verification challenge expired. Please try again.",
+      });
+    }
+
+    if (!message.includes(`Nonce: ${freshUser.walletAuthNonce}`)) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_NONCE_MISMATCH",
+        message: "Wallet verification challenge is invalid.",
+      });
+    }
+
+    if (!message.includes(`Wallet: ${walletAddress}`)) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_WALLET_MISMATCH",
+        message: "Wallet address does not match the signed message.",
+      });
+    }
+
+    if (!message.includes(`User ID: ${freshUser._id}`)) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_USER_MISMATCH",
+        message: "Signed message does not belong to this user.",
+      });
+    }
+
+    const existingWalletUser = await User.findOne({
+      phantomWalletAddress: walletAddress,
+      _id: {
+        $ne: freshUser._id,
+      },
+    }).select("_id");
+
+    if (existingWalletUser) {
+      return res.status(409).json({
+        success: false,
+        errorCode: "PHANTOM_WALLET_ALREADY_LINKED",
+        message: "This Phantom wallet is already connected to another account.",
+      });
+    }
+
+    let signatureBytes;
+
+    try {
+      signatureBytes = normalizeSignatureBytes(signature);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        errorCode: "INVALID_SIGNATURE_FORMAT",
+        message: "Invalid wallet signature format.",
+      });
+    }
+
+    const messageBytes = new TextEncoder().encode(message);
+
+    const isValid = nacl.sign.detached.verify(
+      messageBytes,
+      signatureBytes,
+      publicKey.toBytes()
+    );
+
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        errorCode: "PHANTOM_SIGNATURE_INVALID",
+        message: "Wallet signature verification failed.",
+      });
+    }
+
+    const connectedAt = new Date();
+
+    const updatedUser = await User.findByIdAndUpdate(
+      freshUser._id,
+      {
+        $set: {
+          phantomWalletAddress: walletAddress,
+          phantomWalletConnectedAt: connectedAt,
+          walletAuthNonce: null,
+          walletAuthNonceExpiresAt: null,
+        },
+      },
+      {
+        new: true,
+        runValidators: false,
+      }
+    ).select("-password");
+
+    return res.status(200).json({
+      success: true,
+      message: "Phantom wallet connected successfully.",
+      phantomWalletAddress: updatedUser.phantomWalletAddress,
+      phantomWalletConnectedAt: updatedUser.phantomWalletConnectedAt,
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Verify Phantom wallet error:", error);
+    return res.status(500).json({
+      success: false,
+      errorCode: "PHANTOM_VERIFY_FAILED",
+      message: "Unable to verify Phantom wallet right now.",
+    });
+  }
+};
+
+const getPhantomBalance = async (req, res) => {
+  try {
+    const walletAddress = `${req.user?.phantomWalletAddress || ""}`.trim();
+
+    if (!walletAddress) {
+      return res.status(400).json({
+        success: false,
+        errorCode: "PHANTOM_WALLET_NOT_CONNECTED",
+        message: "Phantom wallet is not connected.",
+      });
+    }
+
+    let publicKey;
+
+    try {
+      publicKey = new PublicKey(walletAddress);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        errorCode: "INVALID_SOLANA_WALLET_ADDRESS",
+        message: "Invalid Solana wallet address.",
+      });
+    }
+
+    const rpcUrl = process.env.SOLANA_RPC_URL || clusterApiUrl("mainnet-beta");
+    const connection = new Connection(rpcUrl, "confirmed");
+
+    const lamports = await connection.getBalance(publicKey, "confirmed");
+    const balanceSol = (lamports / LAMPORTS_PER_SOL).toFixed(6);
+
+    return res.status(200).json({
+      success: true,
+      walletAddress,
+      lamports,
+      balanceSol,
+      currency: "SOL",
+      network: process.env.SOLANA_NETWORK || "mainnet-beta",
+    });
+  } catch (error) {
+    console.error("Get Phantom balance error:", error);
+    return res.status(500).json({
+      success: false,
+      errorCode: "SOLANA_BALANCE_FETCH_FAILED",
+      message: "Unable to fetch Solana balance right now.",
+    });
+  }
+};
+
+const disconnectPhantomWallet = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          phantomWalletAddress: null,
+          phantomWalletConnectedAt: null,
+          walletAuthNonce: null,
+          walletAuthNonceExpiresAt: null,
+        },
+      },
+      {
+        runValidators: false,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Phantom wallet disconnected successfully.",
+    });
+  } catch (error) {
+    console.error("Disconnect Phantom wallet error:", error);
+    return res.status(500).json({
+      success: false,
+      errorCode: "PHANTOM_DISCONNECT_FAILED",
+      message: "Unable to disconnect Phantom wallet right now.",
+    });
+  }
+};
+
 module.exports = {
   signup,
   setPasswordFromLink,
@@ -1253,4 +1588,8 @@ module.exports = {
   sendEmailVerification,
   sendTransactionSuccessEmail,
   impersonateUser,
+  createPhantomChallenge,
+  verifyAndConnectPhantom,
+  getPhantomBalance,
+  disconnectPhantomWallet,
 };
