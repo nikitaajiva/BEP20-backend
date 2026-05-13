@@ -7,8 +7,8 @@ async function createTestUser() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     
-    const email = 'admin1@gmail.com';
-    const username = 'admin1';
+    const email = 'admin2@gmail.com';
+    const username = 'admin2';
     const password = '123456';
     const uhid = 'UHID' + Date.now();
 
