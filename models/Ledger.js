@@ -115,45 +115,43 @@ const LedgerSchema = new Schema({
     }
   },
   dailyRewards: {
-  x1Rewards: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
+    x1Rewards: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    xPowerRewards: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    communityBoosterRewards: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    dailyRewardsLp: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    dailyRewardsAirdrop: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    dailyRewardsBoost: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    dailyCascadeRewards: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    total: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    date: {
+      type: Date,               // 👈 very important
+      index: true
+    }
   },
-  xPowerRewards: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  communityBoosterRewards: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  dailyRewardsLp: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  dailyRewardsAirdrop: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  dailyRewardsBoost: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  dailyCascadeRewards: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  total: {
-    type: Schema.Types.Decimal128,
-    default: '0.0'
-  },
-  date: {
-    type: Date,               // 👈 very important
-    index: true
-  }
-},
-
-
   // Track negative net deposits in zero-risk wallet (if withdrawals exceed deposits)
   zeroRiskNegativeBalance: {
     type: Schema.Types.Decimal128,
@@ -167,7 +165,7 @@ const LedgerSchema = new Schema({
     amount: { type: Schema.Types.Decimal128, default: 0 },
     timestamp: { type: Date, default: Date.now },
     lastChecked: Date,
-
+ 
     // --- Fine-grained breakdown to guarantee perfect reversal ---
     amountFromUsdt: Number,
     amountFromLp: Number,
@@ -237,10 +235,25 @@ const LedgerSchema = new Schema({
   }
 }, { timestamps: true }); // Added timestamps for tracking creation/updates of the ledger doc itself
 
-// Ensure _id is set to userId when creating a new ledger document
-LedgerSchema.pre('save', function(next) {
-  if (this.isNew && this.userId && !this._id) {
-    this._id = this.userId;
+// Ensure _id is set to userId and uhid is populated from User model when creating a new ledger document
+LedgerSchema.pre('save', async function(next) {
+  if (this.isNew) {
+    if (this.userId && !this._id) {
+      this._id = this.userId;
+    }
+
+    // Auto-fetch uhid from User if missing
+    if (!this.uhid && (this.userId || this._id)) {
+      try {
+        const User = mongoose.model('User');
+        const user = await User.findById(this.userId || this._id).select('uhid');
+        if (user) {
+          this.uhid = user.uhid;
+        }
+      } catch (err) {
+        console.error("Error auto-populating uhid in Ledger pre-save:", err);
+      }
+    }
   }
   next();
 });
