@@ -23,6 +23,8 @@ app.use(
       "http://localhost:3000",
       "http://localhost:3001",
       "http://168.144.33.10",
+      "http://168.144.33.10:3007",
+      "http://168.144.33.10/mlm-api",
       process.env.FRONTEND_URL,
     ].filter(Boolean),
     credentials: true,
