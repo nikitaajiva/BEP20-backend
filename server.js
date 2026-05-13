@@ -164,10 +164,7 @@ app.use((err, req, res, next) => {
 
 if (process.env.NODE_ENV !== "test") {
   mongoose
-    .connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
+    .connect(process.env.MONGODB_URI)
     .then(() => {
       server = app.listen(PORT, () => {
         console.log(
