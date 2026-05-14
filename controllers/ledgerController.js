@@ -150,6 +150,10 @@ const getLedgerDetails = async (req, res) => {
         pending: ledger.wallets.lpPending?.toString() || "0.0",
         autopositioning: ledger.wallets.autopositionting?.toString() || "0.0",
       },
+      
+      xamanWallet: { // Using xamanWallet key for frontend compatibility (actually SOL)
+        balance: ledger.wallets.sol?.toString() || "0.0",
+      },
 
       bnbWallet: {
         balance: rawBnbBalance,

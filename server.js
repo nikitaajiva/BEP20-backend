@@ -104,6 +104,7 @@ const ledgerRoutes = require("./routes/ledgerRoutes");
 const onchainRoutes = require("./routes/onchainRoutes");
 const temporaryLedgerRoutes = require("./routes/temporaryLedgerRoutes");
 const swiftTransferRoutes = require("./routes/swiftTransferRoutes");
+const phantomDepositRoutes = require("./routes/phantomDepositRoutes");
 // Renamed from auth-system/depositRoutes to distinguish from xrp system's deposit handling
 const hierarchyRoutes = require("./routes/hierarchyRoutes"); // Import hierarchy routes
 const userRoutes = require("./routes/userRoutes"); // <-- Import user routes
@@ -142,6 +143,7 @@ app.get("/", (req, res) => {
   res.send("Unified API Running...");
 });
 app.use("/api/auth", authRoutes);
+app.use("/api/phantom-deposits", phantomDepositRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/deposits", depositRoutes);
 app.use("/api/withdrawals", withdrawalRoutes);

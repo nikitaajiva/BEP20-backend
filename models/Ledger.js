@@ -60,6 +60,10 @@ const LedgerSchema = new Schema({
       type: Schema.Types.Decimal128,
       default: '0.0'
     },
+    sol: { // Solana deposits
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
     zeroRisk: {
       type: Schema.Types.Decimal128,
       default: '0.0'
