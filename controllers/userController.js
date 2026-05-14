@@ -213,8 +213,105 @@ const updateUserProfile = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Stake tokens for a user
+ * @route   POST /api/users/stake
+ * @access  Private
+ */
+const stakeTokens = async (req, res) => {
+    try {
+        const { amount, days } = req.body;
+        const userId = req.user._id;
+
+        // Basic validation
+        if (!amount || !days || isNaN(amount) || ![30, 90, 180, 365].includes(Number(days))) {
+            return res.status(400).json({ message: 'Invalid staking parameters. Please provide amount and valid days (30, 90, 180, 365).' });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Add new plan to stakingPlans array
+        const newPlan = {
+            amount: Number(amount),
+            days: Number(days),
+            startDate: new Date(),
+            status: "active"
+        };
+
+        if (!user.stakingPlans) {
+            user.stakingPlans = [];
+        }
+
+        user.stakingPlans.push(newPlan);
+
+        await user.save();
+
+        res.status(200).json({
+            message: 'Staking plan added successfully.',
+            stakingPlans: user.stakingPlans,
+        });
+
+    } catch (error) {
+        console.error('Error staking tokens:', error);
+        res.status(500).json({ message: 'Server error while staking tokens.' });
+    }
+};
+
+/**
+ * @desc    Purchase an NFT package for a user
+ * @route   POST /api/users/purchase-nft
+ * @access  Private
+ */
+const purchaseNft = async (req, res) => {
+    try {
+        const { tier } = req.body;
+        const userId = req.user._id;
+
+        // Basic validation
+        if (!tier || !["starter", "growth", "premium"].includes(tier)) {
+            return res.status(400).json({ message: 'Invalid NFT tier selected. Please choose starter, growth, or premium.' });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Add new package to nftPackages array
+        const newPackage = {
+            tier,
+            purchaseDate: new Date(),
+            status: "active"
+        };
+
+        if (!user.nftPackages) {
+            user.nftPackages = [];
+        }
+
+        user.nftPackages.push(newPackage);
+
+        await user.save();
+
+        res.status(200).json({
+            message: 'NFT package purchased successfully.',
+            nftPackages: user.nftPackages,
+        });
+
+    } catch (error) {
+        console.error('Error purchasing NFT:', error);
+        res.status(500).json({ message: 'Server error while purchasing NFT.' });
+    }
+};
+
 module.exports = {
     updateNotificationSettings,
     updateWalletAddress,
     updateUserProfile,
+    stakeTokens,
+    purchaseNft,
 }; 

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { updateNotificationSettings, updateWalletAddress, updateUserProfile } = require('../controllers/userController');
+const { updateNotificationSettings, updateWalletAddress, updateUserProfile, stakeTokens, purchaseNft } = require('../controllers/userController');
 const { protect, blockDuringCron } = require('../middleware/authMiddleware');
 
 // @route   PUT /api/users/profile
@@ -17,5 +17,15 @@ router.put('/settings/notifications', protect, updateNotificationSettings);
 // @desc    Update a user's wallet address
 // @access  Private
 router.put('/wallet-address', protect,blockDuringCron, updateWalletAddress);
+
+// @route   POST /api/users/stake
+// @desc    Stake tokens
+// @access  Private
+router.post('/stake', protect, blockDuringCron, stakeTokens);
+
+// @route   POST /api/users/purchase-nft
+// @desc    Purchase NFT
+// @access  Private
+router.post('/purchase-nft', protect, blockDuringCron, purchaseNft);
 
 module.exports = router; 

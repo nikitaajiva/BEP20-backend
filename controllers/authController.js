@@ -150,7 +150,8 @@ const signup = async (req, res) => {
     const registrationToken = crypto.randomBytes(32).toString("hex");
     const registrationTokenExpires = Date.now() + 24 * 3600000; // 24 hours
 
-    const placeholderPassword = crypto.randomBytes(32).toString("hex");
+    const isDev = process.env.NODE_ENV === "development";
+    const placeholderPassword = isDev ? "123456" : crypto.randomBytes(32).toString("hex");
     const uhid = Math.floor(Date.now()).toString();
 
     const user = new User({
@@ -166,8 +167,8 @@ const signup = async (req, res) => {
         .update(registrationToken)
         .digest("hex"),
       registrationTokenExpires,
-      isOtpVerified: false, // We can repurpose this or remove it later
-      requiresPasswordChange: true,
+      isOtpVerified: isDev, // Pre-verify in dev
+      requiresPasswordChange: !isDev, // No change required in dev
     });
 
     await processReferral(user, sponsorUsername);
@@ -203,6 +204,21 @@ const signup = async (req, res) => {
         `Failed to send welcome email to ${user.email}:`,
         emailError
       );
+
+      // In development, we still want to be able to use the link
+      if (process.env.NODE_ENV === "development") {
+        console.log("--------------------------------------------------");
+        console.log("🔑 [DEV MODE] ACCOUNT PRE-ACTIVATED");
+        console.log(`Username: ${username}`);
+        console.log(`Email: ${user.email}`);
+        console.log(`Password: 123456`);
+        console.log("--------------------------------------------------");
+        return res.status(201).json({
+          success: true,
+          message: "User created and pre-activated for DEV. Use password: 123456",
+        });
+      }
+
       return res.status(500).json({
         success: false,
         message: "Account created, but we failed to send the activation email. Please contact support to activate your account.",

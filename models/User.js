@@ -491,16 +491,17 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  nftPackage: {
-    type: String,
-    enum: [null, "starter", "growth", "premium"],
-    default: null,
-  },
-  stakingPlan: {
+  nftPackages: [{
+    tier: { type: String, enum: ["starter", "growth", "premium"], required: true },
+    purchaseDate: { type: Date, default: Date.now },
+    status: { type: String, enum: ["active", "expired"], default: "active" }
+  }],
+  stakingPlans: [{
     amount: { type: Number, default: 0 },
-    days: { type: Number, enum: [null, 30, 90, 180, 365], default: null },
-    startDate: { type: Date, default: null },
-  },
+    days: { type: Number, enum: [30, 90, 180, 365], required: true },
+    startDate: { type: Date, default: Date.now },
+    status: { type: String, enum: ["active", "completed"], default: "active" }
+  }],
   phantomWalletAddress: {
     type: String,
     trim: true,
