@@ -79,7 +79,7 @@ const globalLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again in an hour!',
   validate: { trustProxy: false } // Fix for ERR_ERL_PERMISSIVE_TRUST_PROXY
 });
-app.use('/api', globalLimiter);
+// app.use('/api', globalLimiter);
 
 const authLimiter = rateLimit({
   max: 20, // Limit to 20 attempts per 10 minutes
@@ -87,7 +87,7 @@ const authLimiter = rateLimit({
   message: 'Too many authentication attempts, please try again in 10 minutes!',
   validate: { trustProxy: false } // Fix for ERR_ERL_PERMISSIVE_TRUST_PROXY
 });
-app.use('/api/auth', authLimiter);
+// app.use('/api/auth', authLimiter);
 
 // --- Import Routes ---
 // Auth System Routes

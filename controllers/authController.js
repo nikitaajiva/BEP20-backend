@@ -1542,7 +1542,15 @@ const getPhantomBalance = async (req, res) => {
 
 const disconnectPhantomWallet = async (req, res) => {
   try {
-    await User.findByIdAndUpdate(
+    if (!req.user?._id) {
+      return res.status(401).json({
+        success: false,
+        errorCode: "AUTH_REQUIRED",
+        message: "Authentication required.",
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
       {
         $set: {
@@ -1553,16 +1561,35 @@ const disconnectPhantomWallet = async (req, res) => {
         },
       },
       {
+        new: true,
         runValidators: false,
       }
-    );
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        errorCode: "USER_NOT_FOUND",
+        message: "User not found.",
+      });
+    }
 
     return res.status(200).json({
       success: true,
       message: "Phantom wallet disconnected successfully.",
+      phantomWalletAddress: null,
+      phantomWalletConnectedAt: null,
+      user: {
+        ...updatedUser.toObject(),
+        phantomWalletAddress: null,
+        phantomWalletConnectedAt: null,
+        walletAuthNonce: null,
+        walletAuthNonceExpiresAt: null,
+      },
     });
   } catch (error) {
     console.error("Disconnect Phantom wallet error:", error);
+
     return res.status(500).json({
       success: false,
       errorCode: "PHANTOM_DISCONNECT_FAILED",
