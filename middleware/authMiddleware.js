@@ -161,4 +161,18 @@ const isSupportOrAdmin = (req, res, next) => {
   });
 };
 
-module.exports = { protect, isSupportOrAdmin, blockDuringCron };
+// Middleware to authorize specific roles
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    const userRole = req.user.impersonatorUserType || req.user.userType;
+    if (!roles.includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: `User role ${userRole} is not authorized to access this route`
+      });
+    }
+    next();
+  };
+};
+
+module.exports = { protect, isSupportOrAdmin, authorize, blockDuringCron };

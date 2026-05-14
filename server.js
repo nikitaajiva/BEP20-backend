@@ -115,6 +115,7 @@ const supportHierarchyRoutes = require("./routes/supportHierarchyRoutes");
 const bonusRoutes = require("./routes/bonusRoutes");
 const rewardsRoutes = require("./routes/rewardsRoutes");
 const reportRoutes = require("./routes/report.js");
+const configRoutes = require("./routes/configRoutes");
 
 // XRP System Routes
 // Renamed from xrp/depositRoutes to distinguish
@@ -159,6 +160,7 @@ app.use("/api/support/hierarchy", supportHierarchyRoutes);
 app.use("/api/bonus", bonusRoutes);
 app.use("/api/rewards", rewardsRoutes);
 app.use("/api/report", reportRoutes);
+app.use("/api/config", configRoutes);
 
 // Global Error Handler (Place after routes)
 app.use((err, req, res, next) => {
