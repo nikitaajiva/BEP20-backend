@@ -8,8 +8,8 @@ const seedUser = async () => {
   const dbURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/xrpmigrate';
   
   const userData = {
-    email: 'admin3@gmail.com',
-    username: 'admin3',
+    email: 'admin4@gmail.com',
+    username: 'admin4',
     uhid: 'UHID' + Math.floor(Math.random() * 1000000000),
     password: '123456',
     isVerified: true,

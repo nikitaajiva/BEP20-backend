@@ -22,6 +22,9 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
+      "http://168.144.33.10",
+      "http://168.144.33.10:3007",
+      "http://168.144.33.10/mlm-api",
       process.env.FRONTEND_URL,
     ].filter(Boolean),
     credentials: true,
@@ -32,8 +35,12 @@ app.use(
 app.use(express.json({ limit: '10kb' })); // Body parser, limit data size
 
 // --- Advanced Security Middleware ---
-// 1. Set Security HTTP headers
-app.use(helmet());
+// 1. Set Security HTTP headers with specific Referrer Policy for CORS compatibility
+app.use(
+  helmet({
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
 
 // 2. Custom NoSQL Sanitization (Express 5 Compatible)
 app.use((req, res, next) => {
@@ -159,10 +166,7 @@ app.use((err, req, res, next) => {
 
 if (process.env.NODE_ENV !== "test") {
   mongoose
-    .connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
+    .connect(process.env.MONGODB_URI)
     .then(() => {
       server = app.listen(PORT, () => {
         console.log(

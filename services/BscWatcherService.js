@@ -85,7 +85,9 @@ class BscWatcherService {
     
     this.processingBlocks.add(blockNumber);
     try {
-      console.log(`⛓️  ${isSyncing ? '[Syncing]' : '[Real-time]'} Processing block: ${blockNumber}`);
+      if (!isSyncing || blockNumber % 10 === 0) {
+        console.log(`⛓️  ${isSyncing ? '[Syncing]' : '[Real-time]'} Processing block: ${blockNumber}`);
+      }
       
       // Use eth_getBlockByNumber directly to ensure we get full transaction objects across all RPCs
       // Convert block number to hex without leading zeros (strict JSON-RPC spec)
