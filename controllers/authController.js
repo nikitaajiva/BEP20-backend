@@ -24,7 +24,7 @@ const {
 const LOGO_URL =
   process.env.APP_LOGO_URL || "https://example.com/assets/images/logo.png"; // e.g., https://yourdomain.com/assets/logo.png
 const LOGIN_URL = process.env.APP_LOGIN_URL || "http://localhost:3001/login"; // e.g., https://yourdomain.com/login
-const APP_NAME = process.env.APP_NAME || "USDT Platform";
+const APP_NAME = process.env.APP_NAME || "BEPVault";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3001";
 const APP_URL = process.env.APP_URL || FRONTEND_URL;
 const SUPPORT_EMAIL =
@@ -42,6 +42,11 @@ const normalizeSignatureBytes = (signature) => {
   }
 
   throw new Error("INVALID_SIGNATURE_FORMAT");
+};
+
+const getSolanaConnection = () => {
+  const rpcUrl = process.env.SOLANA_RPC_URL || clusterApiUrl("mainnet-beta");
+  return new Connection(rpcUrl, "confirmed");
 };
 
 const signup = async (req, res) => {
@@ -1278,6 +1283,14 @@ const createPhantomChallenge = async (req, res) => {
   try {
     const walletAddress = `${req.body?.walletAddress || ""}`.trim();
 
+    if (!req.user?._id) {
+      return res.status(401).json({
+        success: false,
+        errorCode: "AUTH_REQUIRED",
+        message: "Authentication required.",
+      });
+    }
+
     if (!walletAddress) {
       return res.status(400).json({
         success: false,
@@ -1532,9 +1545,7 @@ const getPhantomBalance = async (req, res) => {
       });
     }
 
-    const rpcUrl = process.env.SOLANA_RPC_URL || clusterApiUrl("mainnet-beta");
-    const connection = new Connection(rpcUrl, "confirmed");
-
+    const connection = getSolanaConnection();
     const lamports = await connection.getBalance(publicKey, "confirmed");
     const balanceSol = (lamports / LAMPORTS_PER_SOL).toFixed(6);
 

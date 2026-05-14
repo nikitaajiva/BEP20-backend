@@ -1,17 +1,15 @@
 const express = require("express");
-const router = express.Router();
-const { protect } = require("../middleware/authMiddleware");
 const {
   createPhantomDepositIntent,
   confirmPhantomDeposit,
   getPhantomDepositStatus,
 } = require("../controllers/phantomDepositController");
+const { protect, blockDuringCron } = require("../middleware/authMiddleware");
 
-// All routes are protected
-router.use(protect);
+const router = express.Router();
 
-router.post("/intent", createPhantomDepositIntent);
-router.post("/confirm", confirmPhantomDeposit);
-router.get("/status/:intentId", getPhantomDepositStatus);
+router.post("/intent", protect, blockDuringCron, createPhantomDepositIntent);
+router.post("/confirm", protect, blockDuringCron, confirmPhantomDeposit);
+router.get("/status/:intentId", protect, blockDuringCron, getPhantomDepositStatus);
 
 module.exports = router;
