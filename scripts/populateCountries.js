@@ -1,3 +1,4 @@
+require("dotenv").config();
 const mongoose = require('mongoose');
 const path = require('path');
 
@@ -178,21 +179,27 @@ const Country = mongoose.models.Country || mongoose.model('Country', CountrySche
 async function populateCountries() {
   
   try {
-    await mongoose.connect("mongodb://localhost:27017/xrp2");
+    const mongoUri =
+      process.env.MONGODB_URI || "mongodb://localhost:27017/xrpmigrate";
+    await mongoose.connect(mongoUri);
     
 
     
 
     const operations = COUNTRIES_DATA.map((country, index) => ({
       updateOne: {
-        filter: { id: index + 1 },
+        filter: { iso: country.code },
         update: {
           $set: {
             id: index + 1, // Assign a simple numeric ID
-            name: country.name,
+            name: country.name.toUpperCase(),
+            nicename: country.name,
+            iso: country.code,
             code: country.code,
+            phonecode: Number(String(country.dial_code).replace(/^\+/, "").split("-")[0]),
             dial_code: country.dial_code,
-            flag: country.flag
+            flag: country.flag,
+            status: 1,
           }
         },
         upsert: true

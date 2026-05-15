@@ -38,6 +38,24 @@ const getSolanaConnection = () => {
   return new Connection(rpcUrl, "confirmed");
 };
 
+const normalizeCountryLookupCode = (countryCode) =>
+  String(countryCode || "")
+    .trim()
+    .toUpperCase();
+
+const resolveCountryPhoneCode = (countryData) => {
+  const rawPhoneCode =
+    countryData?.phonecode ??
+    countryData?.dial_code ??
+    countryData?.countryCode ??
+    "";
+
+  return String(rawPhoneCode).replace(/^\+/, "").trim();
+};
+
+const resolveCountryName = (countryData) =>
+  countryData?.nicename || countryData?.name || "";
+
 const signup = async (req, res) => {
   try {
     // The frontend sends the country 'iso' in the 'country' field.
@@ -102,11 +120,28 @@ const signup = async (req, res) => {
         .json({ success: false, message: "Country is required." });
     }
 
-    const countryData = await Country.findOne({ iso: country });
+    const normalizedCountryCode = normalizeCountryLookupCode(country);
+    const countryData = await Country.findOne({
+      $or: [
+        { iso: normalizedCountryCode },
+        { code: normalizedCountryCode },
+      ],
+    }).lean();
+
     if (!countryData) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid country selected." });
+    }
+
+    const phoneCode = resolveCountryPhoneCode(countryData);
+    const countryName = resolveCountryName(countryData);
+
+    if (!phoneCode || !countryName) {
+      return res.status(500).json({
+        success: false,
+        message: "Country configuration is incomplete on the server.",
+      });
     }
 
     const existingUserByEmail = await User.findOne({ email });
@@ -153,9 +188,9 @@ const signup = async (req, res) => {
       username,
       uhid,
       password: placeholderPassword,
-      country: { name: countryData.name }, // Store the uppercase name 'INDIA'
-      countryCode: `+${countryData.phonecode}`, // Store the phone dial code, e.g., '+91'
-      whatsappContact: `+${countryData.phonecode}${whatsappContact}`, // Prepend phone code
+      country: { name: countryName },
+      countryCode: `+${phoneCode}`,
+      whatsappContact: `+${phoneCode}${whatsappContact}`,
       registrationToken: crypto
         .createHash("sha256")
         .update(registrationToken)
