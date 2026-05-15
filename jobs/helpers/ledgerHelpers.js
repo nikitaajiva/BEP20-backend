@@ -15,12 +15,14 @@ const createLedgerEntry = async ({
   walletTo,
   narrative,
   refId,
-  transactionId
+  transactionId,
+  tscAmount
 }, session = null) => {
   const ledgerEntry = new LedgerRow({
     userId,
     eventType,
     amount: Decimal128.fromString(amount.toString()),
+    tscAmount: tscAmount ? Decimal128.fromString(tscAmount.toString()) : undefined,
     walletFrom,
     walletTo,
     narrative,
@@ -46,13 +48,20 @@ const createLedgerEntry = async ({
 async function getOrCreateLedger(userId) {
     let ledger = await Ledger.findById(userId);
     if (!ledger) {
+        const User = mongoose.model('User');
+        const user = await User.findById(userId).select('uhid');
         
+        if (!user) {
+            throw new Error(`Cannot create ledger: User not found for ID ${userId}`);
+        }
+
         // Note: The User.post('save') hook that also creates a ledger will not
         // be part of this session, so creating it here explicitly is necessary
         // for operations on users who might not have had a ledger before.
         ledger = new Ledger({
             _id: userId, 
             userId: userId,
+            uhid: user.uhid, // Explicitly provide uhid to avoid validation failure
             // Initial default values
             wallets: {
                 swift: Decimal128.fromString('0.0'),

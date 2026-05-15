@@ -50,6 +50,8 @@ app.use(
           "http://168.144.33.10",
           "http://168.144.33.10:3007",
           "http://168.144.33.10/mlm-api",
+          "http://192.168.1.4:3000",
+          "http://192.168.1.4:5000"
         ];
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);

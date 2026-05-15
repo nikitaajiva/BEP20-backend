@@ -221,7 +221,7 @@ const updateUserProfile = async (req, res) => {
  */
 const stakeTokens = async (req, res) => {
     try {
-        const { amount, days } = req.body;
+    const { amount, days, tscAmount, ratePct } = req.body;
         const userId = req.user._id;
 
         // Basic validation
@@ -240,7 +240,8 @@ const stakeTokens = async (req, res) => {
             amount: Number(amount),
             days: Number(days),
             startDate: new Date(),
-            status: "active"
+            status: "active",
+            apy: ratePct // Store the APY for record
         };
 
         if (!user.stakingPlans) {
@@ -257,7 +258,9 @@ const stakeTokens = async (req, res) => {
             amount: amount,
             walletFrom: 'USDT', // Assuming USDT for now as per frontend
             walletTo: 'STAKING_HUB',
-            narrative: `Staked ${amount} USDT for ${days} days.`,
+            tscAmount: tscAmount,
+            ratePct: ratePct,
+            narrative: `Staked ${amount} USDT (${tscAmount || '0'} TSC) for ${days} days at ${ratePct || '0'}% APY.`,
         });
 
         res.status(200).json({
@@ -278,7 +281,7 @@ const stakeTokens = async (req, res) => {
  */
 const purchaseNft = async (req, res) => {
     try {
-        const { tier } = req.body;
+        const { tier, tscAmount } = req.body;
         const userId = req.user._id;
 
         // Basic validation
@@ -316,7 +319,8 @@ const purchaseNft = async (req, res) => {
             amount: price,
             walletFrom: 'USDT',
             walletTo: 'HORSE_NFT',
-            narrative: `Purchased ${tier.toUpperCase()} Horse NFT package.`,
+            tscAmount: tscAmount,
+            narrative: `Purchased ${tier.toUpperCase()} Horse NFT package (${tscAmount || '0'} TSC).`,
         });
 
         res.status(200).json({
