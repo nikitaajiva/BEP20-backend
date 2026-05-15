@@ -30,6 +30,15 @@ const {
   getPhantomBalance,
   disconnectPhantomWallet,
 } = require("../controllers/authController");
+const {
+  bootstrapPhantomQrSession,
+  cancelPhantomQrSession,
+  createPhantomQrChallenge,
+  createPhantomQrSession,
+  getPhantomQrSession,
+  updatePhantomQrSessionStatus,
+  verifyAndConnectPhantomQr,
+} = require("../controllers/phantomQrController");
 
 // Helper function to extract username from email
 const getUsernameFromEmail = (email) => {
@@ -92,6 +101,13 @@ router.post("/phantom/challenge", protect, createPhantomChallenge);
 router.post("/phantom/connect", protect, verifyAndConnectPhantom);
 router.get("/phantom/balance", protect, getPhantomBalance);
 router.delete("/phantom/disconnect", protect, disconnectPhantomWallet);
+router.post("/phantom/qr/session", protect, createPhantomQrSession);
+router.get("/phantom/qr/session/:sessionId", protect, getPhantomQrSession);
+router.post("/phantom/qr/session/:sessionId/cancel", protect, cancelPhantomQrSession);
+router.post("/phantom/qr/session/:sessionId/bootstrap", bootstrapPhantomQrSession);
+router.post("/phantom/qr/session/:sessionId/challenge", createPhantomQrChallenge);
+router.post("/phantom/qr/session/:sessionId/verify", verifyAndConnectPhantomQr);
+router.post("/phantom/qr/session/:sessionId/status", updatePhantomQrSessionStatus);
 
 // @route   GET /api/auth/me
 // @desc    Get current logged-in user's data
