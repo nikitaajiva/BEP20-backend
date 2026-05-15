@@ -18,15 +18,49 @@ app.set("trust proxy", true);
 // --- Middleware ---
 app.use(
   cors({
-    // Example origins, adjust as per your frontend setup
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://168.144.33.10",
-      "http://168.144.33.10:3007",
-      "http://168.144.33.10/mlm-api",
-      process.env.FRONTEND_URL,
-    ].filter(Boolean),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      try {
+        const { hostname } = new URL(origin);
+
+        // Allow localhost on any port
+        if (hostname === "localhost" || hostname === "127.0.0.1") {
+          return callback(null, true);
+        }
+
+        // Allow any private/local network IP (same WiFi — any developer's machine or phone)
+        if (
+          /^192\.168\./.test(hostname) ||
+          /^10\./.test(hostname) ||
+          /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+        ) {
+          return callback(null, true);
+        }
+
+        // Allow production domain from env
+        const prodUrl = process.env.FRONTEND_URL || "";
+        if (prodUrl && origin === prodUrl) {
+          return callback(null, true);
+        }
+
+        // Known production IPs/domains
+        const allowedOrigins = [
+          "http://168.144.33.10",
+          "http://168.144.33.10:3007",
+          "http://168.144.33.10/mlm-api",
+        ];
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        // Block everything else
+        return callback(new Error(`CORS: Origin ${origin} not allowed`));
+      } catch {
+        return callback(new Error("CORS: Invalid origin"));
+      }
+    },
     credentials: true,
   })
 );
