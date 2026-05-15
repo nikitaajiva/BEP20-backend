@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { createLedgerEntry } = require('../jobs/helpers/ledgerHelpers');
 
 /**
  * @desc    Update user's notification settings
@@ -247,8 +248,17 @@ const stakeTokens = async (req, res) => {
         }
 
         user.stakingPlans.push(newPlan);
-
         await user.save();
+
+        // Create Ledger Entry for Staking
+        await createLedgerEntry({
+            userId: user._id,
+            eventType: 'STAKING_DEPOSIT',
+            amount: amount,
+            walletFrom: 'USDT', // Assuming USDT for now as per frontend
+            walletTo: 'STAKING_HUB',
+            narrative: `Staked ${amount} USDT for ${days} days.`,
+        });
 
         res.status(200).json({
             message: 'Staking plan added successfully.',
@@ -294,8 +304,20 @@ const purchaseNft = async (req, res) => {
         }
 
         user.nftPackages.push(newPackage);
-
         await user.save();
+
+        // Create Ledger Entry for NFT Purchase
+        const nftPrices = { starter: 500, growth: 1000, premium: 5000 };
+        const price = nftPrices[tier] || 0;
+        
+        await createLedgerEntry({
+            userId: user._id,
+            eventType: 'NFT_PURCHASE',
+            amount: price,
+            walletFrom: 'USDT',
+            walletTo: 'HORSE_NFT',
+            narrative: `Purchased ${tier.toUpperCase()} Horse NFT package.`,
+        });
 
         res.status(200).json({
             message: 'NFT package purchased successfully.',

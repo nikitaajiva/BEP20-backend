@@ -20,6 +20,7 @@ async function fetchAndMergeReferralData(
     _id: 1,
     uhid: 1,
     username: 1,
+    email: 1, // Added for identifying accounts created by the same person
     registrationTs: 1,
     xRank: 1,
     teamSize: { $ifNull: ["$communitySize", 0] },
@@ -27,15 +28,16 @@ async function fetchAndMergeReferralData(
     teamLp: { $ifNull: ["$counters.totalTeamLp", new Decimal128("0")] },
     country: { $ifNull: ["$country.name", "N/A"] },
     sponsorUsername: { $ifNull: ["$sponsorInfo.username", "N/A"] },
+    sponsorUhid: { $ifNull: ["$sponsorInfo.uhid", "N/A"] }, // Added for clarity
     boostLimit: { $ifNull: ["$ledger.limits.boostLimit.cap", new Decimal128("0")] },
     boost: { $ifNull: ["$ledger.wallets.boost", Decimal128.fromString("0")] },
   };
 
-  // Only include whatsappContact if the viewer is the direct parent (level 1)
+  // Keep whatsappContact logic as is
   if (level === 1 && viewerUhid === parentUhid) {
     projection.whatsappContact = { $ifNull: ["$whatsappContact", "N/A"] };
   } else {
-    projection.whatsappContact = { $ifNull: [null, "N/A"] }; // Ensure it's always N/A otherwise
+    projection.whatsappContact = { $ifNull: [null, "N/A"] };
   }
 
   const matchQuery = { uhid: { $in: uhidList } };
