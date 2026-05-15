@@ -60,6 +60,12 @@ const phantomDepositIntentSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    payerWalletAddress: {
+      type: String,
+      default: null,
+      trim: true,
+      index: true,
+    },
     failureReason: {
       type: String,
       default: null,
