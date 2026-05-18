@@ -1201,8 +1201,10 @@ const impersonateUser = async (req, res) => {
       `🕵️ Impersonation attempt by ${requestingUser.username} (${requestingUser.userType})`
     );
 
+    const effectiveRole = requestingUser.impersonatorUserType || requestingUser.userType;
+
     // 🔐 Only allow admin, superadmin, or support to impersonate
-    if (!["admin", "superadmin", "support"].includes(requestingUser.userType)) {
+    if (!["admin", "superadmin", "support"].includes(effectiveRole)) {
       console.warn("❌ Unauthorized impersonation attempt: Invalid role");
       return res.status(403).json({
         success: false,
@@ -1212,7 +1214,7 @@ const impersonateUser = async (req, res) => {
     }
 
     // 🚫 Restrict impersonation to specific email (unless they are superadmin)
-    if (requestingUser.userType !== "superadmin" && requestingUser.email !== "Mrperfect2025@icloud.com") {
+    if (effectiveRole !== "superadmin" && requestingUser.email !== "Mrperfect2025@icloud.com") {
       console.warn("❌ Unauthorized impersonation attempt: Invalid email");
       return res.status(403).json({
         success: false,
