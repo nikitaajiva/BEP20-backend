@@ -30,7 +30,7 @@ app.use(
           return callback(null, true);
         }
 
-        // Allow any private/local network IP (same WiFi — any developer's machine or phone)
+        // Allow any private/local network IP
         if (
           /^192\.168\./.test(hostname) ||
           /^10\./.test(hostname) ||
@@ -39,10 +39,19 @@ app.use(
           return callback(null, true);
         }
 
-        // Allow production domain from env
-        const prodUrl = process.env.FRONTEND_URL || "";
-        if (prodUrl && origin === prodUrl) {
+        // --- PRODUCTION IP SUPPORT ---
+        // Allow your specific production IP (172.86.113.73)
+        if (hostname === "172.86.113.73") {
           return callback(null, true);
+        }
+
+        // Allow production domain or IP from env
+        const prodUrl = process.env.FRONTEND_URL || "";
+        if (prodUrl) {
+          const prodHostname = new URL(prodUrl).hostname;
+          if (hostname === prodHostname) {
+            return callback(null, true);
+          }
         }
 
         // Known production IPs/domains
@@ -50,6 +59,8 @@ app.use(
           "http://168.144.33.10",
           "http://168.144.33.10:3007",
           "http://168.144.33.10/mlm-api",
+          "http://192.168.1.4:3000",
+          "http://192.168.1.4:5000"
         ];
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);

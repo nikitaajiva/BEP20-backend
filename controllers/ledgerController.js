@@ -56,6 +56,7 @@ function isOnOrAfterCutoff(dateLike) {
 const getLedgerDetails = async (req, res) => {
   try {
     const userId = req.user._id;
+    console.log(`[getLedgerDetails] Fetching ledger for user: ${userId}`);
     const ledger = await getOrCreateLedger(userId);
 
     if (!ledger) {
@@ -70,9 +71,75 @@ const getLedgerDetails = async (req, res) => {
     const toNumber = (v) => Number(v?.toString?.() || 0);
 
     /* ================== BASE BALANCES ================== */
-    const rawLpBalance = ledger.wallets.lp?.toString() || "0.0";
-    const rawBnbBalance = ledger.wallets.bnb?.toString() || "0.0";
-    const rawZeroRisk = ledger.wallets.zeroRisk?.toString() || "0.0";
+    const rawLpBalance = ledger.wallets?.lp?.toString() || "0.0";
+    const rawBnbBalance = ledger.wallets?.bnb?.toString() || "0.0";
+    const rawZeroRisk = ledger.wallets?.zeroRisk?.toString() || "0.0";
+
+    /* ================== DYNAMIC HORSE NFT BACKEND DATA ================== */
+    const user = await User.findById(userId).lean();
+    const nftPackagesArr = user?.nftPackages || [];
+    const effectiveNftPackages = nftPackagesArr.length > 0 
+      ? nftPackagesArr 
+      : (user?.nftPackage ? [{ tier: user.nftPackage }] : []);
+
+    const tierNormalize = {
+      starter: "bronze", growth: "silver", premium: "gold",
+      bronze: "bronze", silver: "silver", gold: "gold",
+    };
+
+    const packageNames = {
+      bronze: "BRONZE", silver: "SILVER", gold: "GOLD",
+      starter: "BRONZE", growth: "SILVER", premium: "GOLD",
+    };
+
+    const nftRoiMap   = { starter: 45, growth: 55, premium: 65, bronze: 45, silver: 55, gold: 65 };
+    const nftRateMap  = { starter: 0.003, growth: 0.004, premium: 0.005, bronze: 0.003, silver: 0.004, gold: 0.005 };
+    const nftPriceMap = {
+      starter: 500, growth: 1000, premium: 5000,
+      bronze: 500, silver: 1000, gold: 5000,
+      N1: 500, N2: 1000, N3: 5000, N4: 10000, N5: 25000
+    };
+
+    const horseNFTs = effectiveNftPackages.map(pkg => {
+      const tier = tierNormalize[pkg.tier] || "bronze";
+      const roiProgress = nftRoiMap[pkg.tier] || 0;
+      const dailyRate = nftRateMap[pkg.tier] || 0;
+      const purchasePrice = pkg.mintPrice && pkg.mintPrice > 0 ? pkg.mintPrice : (nftPriceMap[pkg.tier] || 0);
+      const dailyYield = (purchasePrice * dailyRate);
+      const estPayout = (purchasePrice * (roiProgress / 100));
+
+      return {
+        tier: pkg.tier,
+        normalizedTier: tier,
+        packageName: packageNames[pkg.tier] || pkg.tier.toUpperCase(),
+        purchasePrice,
+        purchaseDate: pkg.purchaseDate || new Date(),
+        roiProgress,
+        dailyRate,
+        dailyYield: Number(dailyYield.toFixed(4)),
+        estPayout: Number(estPayout.toFixed(2)),
+        status: pkg.status || "active"
+      };
+    });
+
+    let totalNftPrice = 0;
+    let totalNftDailyYield = 0;
+    let maxNftRoiProgress = 0;
+    let highestTier = null;
+    const tiersOrder = { starter: 1, growth: 2, premium: 3 };
+
+    effectiveNftPackages.forEach(p => {
+      const pPrice = p.mintPrice && p.mintPrice > 0 ? p.mintPrice : (nftPriceMap[p.tier] || 0);
+      const rate = nftRateMap[p.tier] || 0;
+      totalNftPrice += pPrice;
+      totalNftDailyYield += (pPrice * rate);
+      maxNftRoiProgress = Math.max(maxNftRoiProgress, nftRoiMap[p.tier] || 0);
+      if (!highestTier || tiersOrder[p.tier] > tiersOrder[highestTier]) {
+        highestTier = p.tier;
+      }
+    });
+
+    const nftBaseValue = totalNftPrice > 0 ? totalNftPrice : toNumber(rawZeroRisk);
 
     /* ================== 5X LIMIT ================== */
     const fiveXLimitCap = multiplyDecimal128(rawLpBalance, "5");
@@ -98,12 +165,14 @@ const getLedgerDetails = async (req, res) => {
       eventType: "AUTOPOSITIONING",
       ts: { $gte: startOfToday, $lte: endOfToday },
     });
+    console.log(`[getLedgerDetails] AUTOPOSITION_TODAY: ${rewardBreakdownByType.AUTOPOSITION_TODAY}`);
 
     rewardBreakdownByType.AUTOPOSITION = await sumLedgerAmounts({
       userId,
       walletFrom: "COMMUNITY_REWARDS",
       eventType: "AUTOPOSITIONING",
     });
+    console.log(`[getLedgerDetails] AUTOPOSITION: ${rewardBreakdownByType.AUTOPOSITION}`);
 
   
     rewardBreakdownByType["DAILY_REWARDS_AIRDROP"] =
@@ -117,7 +186,7 @@ const getLedgerDetails = async (req, res) => {
       toNumber(ledger.dailyRewards?.xPowerRewards);
 
     rewardBreakdownByType["XPOWER_TOTAL"] =
-      toNumber(ledger.limits.xPowerLimit?.used);
+      toNumber(ledger.limits?.xPowerLimit?.used);
 
     rewardBreakdownByType["cascade"] =
       toNumber(ledger.dailyRewards?.dailyCascadeRewards);
@@ -128,11 +197,12 @@ const getLedgerDetails = async (req, res) => {
     rewardBreakdownByType["XBONUS"] =
       toNumber(ledger.dailyRewards?.x1Rewards);
     rewardBreakdownByType["X_BONUS_REWARD"] =
-      toNumber(ledger.limits.xBonusLimit?.used);
+      toNumber(ledger.limits?.xBonusLimit?.used);
 
     /* ================== FORMAT ALL ================== */
     Object.keys(rewardBreakdownByType).forEach((k) => {
-      rewardBreakdownByType[k] = rewardBreakdownByType[k].toFixed(6);
+      console.log(`[getLedgerDetails] Formatting ${k}: ${rewardBreakdownByType[k]} (Type: ${typeof rewardBreakdownByType[k]})`);
+      rewardBreakdownByType[k] = Number(rewardBreakdownByType[k]).toFixed(6);
     });
 
     /* ================== FINAL RESPONSE ================== */
@@ -140,19 +210,19 @@ const getLedgerDetails = async (req, res) => {
       daily_rewards: rewardBreakdownByType,
 
       swiftWallet: {
-        balance: ledger.wallets.swift?.toString() || "0.0",
+        balance: ledger.wallets?.swift?.toString() || "0.0",
       },
 
       lpWallet: {
-        limit: ledger.limits.lpLimit?.cap?.toString() || "0.0",
-        used: ledger.limits.lpLimit?.used?.toString() || "0.0",
+        limit: ledger.limits?.lpLimit?.cap?.toString() || "0.0",
+        used: ledger.limits?.lpLimit?.used?.toString() || "0.0",
         balance: rawLpBalance,
-        pending: ledger.wallets.lpPending?.toString() || "0.0",
-        autopositioning: ledger.wallets.autopositionting?.toString() || "0.0",
+        pending: ledger.wallets?.lpPending?.toString() || "0.0",
+        autopositioning: ledger.wallets?.autopositionting?.toString() || "0.0",
       },
       
       xamanWallet: { // Using xamanWallet key for frontend compatibility (actually SOL)
-        balance: ledger.wallets.sol?.toString() || "0.0",
+        balance: ledger.wallets?.sol?.toString() || "0.0",
       },
 
       bnbWallet: {
@@ -160,41 +230,53 @@ const getLedgerDetails = async (req, res) => {
       },
 
       boostWallet: {
-        limit: ledger.limits.boostLimit?.cap?.toString() || "0.0",
-        used: ledger.limits.boostLimit?.used?.toString() || "0.0",
-        balance: ledger.wallets.boost?.toString() || "0.0",
+        limit: ledger.limits?.boostLimit?.cap?.toString() || "0.0",
+        used: ledger.limits?.boostLimit?.used?.toString() || "0.0",
+        balance: ledger.wallets?.boost?.toString() || "0.0",
       },
 
       airdropWallet: {
-        limit: ledger.limits.airdropLimit?.cap?.toString() || "0.0",
-        used: ledger.limits.airdropLimit?.used?.toString() || "0.0",
-        balance: ledger.wallets.boost?.toString() || "0.0",
+        limit: ledger.limits?.airdropLimit?.cap?.toString() || "0.0",
+        used: ledger.limits?.airdropLimit?.used?.toString() || "0.0",
+        balance: ledger.wallets?.boost?.toString() || "0.0",
       },
       zeroRisk: {
         balance: rawZeroRisk,
       },
 
+      nftAggregated: {
+        totalNftPrice,
+        totalNftDailyYield: Number(totalNftDailyYield.toFixed(4)),
+        maxNftRoiProgress,
+        highestTier,
+        nftBaseValue,
+        nftDailyRate: totalNftDailyYield > 0 ? (totalNftDailyYield / nftBaseValue) : 0,
+        nftEstPayout: Number((nftBaseValue * (maxNftRoiProgress / 100)).toFixed(2))
+      },
+
+      horseNFTs: horseNFTs,
+
       communityRewards: {
-        balance: ledger.wallets.communityRewards?.toString() || "0.0",
+        balance: ledger.wallets?.communityRewards?.toString() || "0.0",
       },
 
       fiveXLimit: {
         cap: fiveXLimitCap.toString(),
-        used: ledger.limits.fiveXLimit?.used?.toString() || "0.0",
+        used: ledger.limits?.fiveXLimit?.used?.toString() || "0.0",
       },
 
       totalRewardsWithdrawal:
         ledger.totalRewardsWithdrawal?.toString() || "0.0",
 
       cascadeRewards:
-        ledger.limits.cascadeLimit?.used?.toString() || "0.0",
+        ledger.limits?.cascadeLimit?.used?.toString() || "0.0",
 
       dailyCascadeRewards:
         ledger.dailyRewards?.dailyCascadeRewards?.toString() || "0.0",
 
       communityBoosterBonus:
-        ledger.limits.boosterLimit?.used?.toString() || "0.0",
-       xBonus:  ledger.limits.xBonusLimit?.used?.toString() || "0.0",
+        ledger.limits?.boosterLimit?.used?.toString() || "0.0",
+       xBonus:  ledger.limits?.xBonusLimit?.used?.toString() || "0.0",
     };
 
     return res.status(200).json({
@@ -202,10 +284,11 @@ const getLedgerDetails = async (req, res) => {
       data: ledgerDetails,
     });
   } catch (error) {
-    console.error("Error fetching ledger details:", error);
+    console.error(`[getLedgerDetails] Error for user ${req.user?._id}:`, error);
     return res.status(500).json({
       success: false,
       message: "Server error fetching ledger details.",
+      error: error.message
     });
   }
 };
@@ -522,7 +605,7 @@ const getLedgerHistory = async (req, res) => {
     // Fetch paginated entries
     const entries = await LedgerRow.find(query)
       .sort({ ts: -1 })
-      .select("ts eventType walletFrom walletTo amount ratePct narrative refId")
+      .select("ts eventType walletFrom walletTo amount tscAmount ratePct narrative refId")
       .skip(skip)
       .limit(limitNum)
       .lean();
@@ -531,8 +614,9 @@ const getLedgerHistory = async (req, res) => {
       success: true,
       entries: entries.map((entry) => ({
         ...entry,
-        amount: parseFloat(entry.amount).toFixed(6),
-        ratePct: entry.ratePct ? parseFloat(entry.ratePct).toFixed(2) : null,
+        amount: entry.amount ? parseFloat(entry.amount.toString()).toFixed(6) : "0.000000",
+        tscAmount: entry.tscAmount ? parseFloat(entry.tscAmount.toString()) : null,
+        ratePct: entry.ratePct ? parseFloat(entry.ratePct.toString()).toFixed(2) : null,
         narrative: entry.narrative || "",
         refId: entry.refId || "",
       })),

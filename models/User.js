@@ -517,6 +517,11 @@ const UserSchema = new mongoose.Schema({
     poolMultiplier:     { type: Number, default: 2.0 }, // Base: 2.0×
     afterTSCMultiplier: { type: Number, default: 0 },  // Post-launch multiplier
   }],
+  nodeTier: {
+    type: String,
+    enum: [null, "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9"],
+    default: null,
+  },
   stakingPlans: [{
     amount: { type: Number, default: 0 },
     days: { type: Number, enum: [30, 90, 180, 365], required: true },

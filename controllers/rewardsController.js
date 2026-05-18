@@ -3,6 +3,7 @@ const User = require("../models/User");
 const Ledger = require("../models/Ledger");
 const CascadeReward = require("../models/CascadeReward");
 const CommunityBoosterReward = require("../models/CommunityBoosterReward");
+const NodeReward = require("../models/NodeReward");
 const { getTeamVolume, getDirectChildrenVolumes, getDirectChildrenCount } = require("../utils/teamUtils");
 
 const {
@@ -320,7 +321,64 @@ const getBoosterRewards = async (req, res) => {
   }
 };
 
+const getNodeRewards = async (req, res) => {
+  try {
+    const user = req.user;
+    const { date } = req.query;
+
+    if (!user.uhid) {
+      return res.status(400).json({ success: false, message: "UHID is required" });
+    }
+
+    const userId = user._id;
+
+    let baseDate;
+    if (date) {
+      baseDate = new Date(date);
+    } else {
+      baseDate = new Date();
+      baseDate.setUTCDate(baseDate.getUTCDate() - 1); // default: yesterday
+    }
+
+    const start = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate(), 0, 0, 0));
+    const end = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate(), 23, 59, 59, 999));
+
+    const rewards = await NodeReward.aggregate([
+      {
+        $match: {
+          userId,
+          createdAt: { $gte: start, $lte: end }
+        }
+      },
+      {
+        $project: {
+          amount: 1,
+          nodeTier: 1,
+          rewardType: 1,
+          narrative: 1,
+          createdAt: 1,
+        }
+      }
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        uhid: user.uhid,
+        username: user.username,
+        rewards,
+        range: { start, end },
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Error in getNodeRewards API:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
 
 module.exports = {
-  getCascadeRewards,getBoosterRewards
+  getCascadeRewards,
+  getBoosterRewards,
+  getNodeRewards,
 };

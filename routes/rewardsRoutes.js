@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const {
-  getCascadeRewards,getBoosterRewards //,getXbonusRewards
+  getCascadeRewards,
+  getBoosterRewards,
+  getNodeRewards,
 } = require("../controllers/rewardsController");
 const { protect, blockDuringCron } = require("../middleware/authMiddleware"); // Assuming you have this middleware
 
@@ -10,8 +12,6 @@ const { protect, blockDuringCron } = require("../middleware/authMiddleware"); //
 // @access  Private
 router.get("/cascade", protect, getCascadeRewards);
 router.get("/booster", protect, getBoosterRewards);
- // router.get("/x-bonus", protect, getXbonusRewards);
-
-
+router.get("/node", protect, getNodeRewards);
 
 module.exports = router;

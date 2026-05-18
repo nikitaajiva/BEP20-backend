@@ -87,6 +87,62 @@ const getTotalEcosystemFeeByUser = async (userId) => {
 };
 /* Get Total Economy fees paide by user Ends Here */
 
+const distributeNodeFeeAirdrop = async (withdrawalAmount, triggeringUserId) => {
+  try {
+    const amountVal = parseFloat(withdrawalAmount.toString());
+    if (amountVal <= 0) return;
+
+    const totalAirdrop = amountVal * 0.02; // 2% fee airdrop
+
+    const TIER_SHARES = {
+      P1: 0.20,
+      P2: 0.15,
+      P3: 0.125,
+      P4: 0.115,
+      P5: 0.105,
+      P6: 0.095,
+      P7: 0.085,
+      P8: 0.075,
+      P9: 0.05
+    };
+
+    const NodeReward = require("../models/NodeReward");
+
+    // Loop through each tier to share the fee among qualified node operators
+    for (const [tier, sharePct] of Object.entries(TIER_SHARES)) {
+      const qualifiedUsers = await User.find({ nodeTier: tier });
+      if (qualifiedUsers.length === 0) continue;
+
+      const tierPool = totalAirdrop * sharePct;
+      const sharePerUser = tierPool / qualifiedUsers.length;
+
+      for (const qUser of qualifiedUsers) {
+        // Create NodeReward entry
+        await NodeReward.create({
+          userId: qUser._id,
+          nodeTier: tier,
+          amount: mongoose.Types.Decimal128.fromString(sharePerUser.toFixed(6)),
+          rewardType: "fee_airdrop",
+          narrative: `Earned P1-P9 Node Airdrop: 2% withdrawal fee share from network activity.`
+        });
+
+        // Credit to the user's community rewards wallet in Ledger
+        await Ledger.updateOne(
+          { userId: qUser._id },
+          { 
+            $inc: { 
+              "wallets.communityRewards": mongoose.Types.Decimal128.fromString(sharePerUser.toFixed(6)) 
+            } 
+          }
+        );
+      }
+    }
+    console.log(`[Node Fee Airdrop] Distributed 2% withdrawal fee (${totalAirdrop.toFixed(6)} USDT) to active node operators.`);
+  } catch (error) {
+    console.error("❌ Error distributing node fee airdrop:", error);
+  }
+};
+
 const withdrawUSDT = async (req, res) => {
   try {
     const { amount, walletFrom = "LP", uniqueTransactionId } = req.body;
@@ -868,6 +924,11 @@ try {
 ledgerRow.status = "COMPLETED";
 ledgerRow.refId = chainTxHash;
 await ledgerRow.save();
+
+// Trigger 2% Node fee airdrop distribution in background
+distributeNodeFeeAirdrop(amountD128, userId).catch(err => {
+    console.error("Error distributing node fee airdrop:", err);
+});
 
 
 

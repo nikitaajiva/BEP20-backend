@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { updateNotificationSettings, updateWalletAddress, updateUserProfile, stakeTokens, purchaseNft } = require('../controllers/userController');
+const { updateNotificationSettings, updateWalletAddress, updateUserProfile, stakeTokens, purchaseNft, getNodeStatus, getPortfolioDetails } = require('../controllers/userController');
 const { protect, blockDuringCron } = require('../middleware/authMiddleware');
 
 // @route   PUT /api/users/profile
@@ -27,5 +27,15 @@ router.post('/stake', protect, blockDuringCron, stakeTokens);
 // @desc    Purchase NFT
 // @access  Private
 router.post('/purchase-nft', protect, blockDuringCron, purchaseNft);
+
+// @route   GET /api/users/node-status
+// @desc    Get user's P1-P9 node qualification status
+// @access  Private
+router.get('/node-status', protect, getNodeStatus);
+
+// @route   GET /api/users/portfolio
+// @desc    Get user's complete dynamic ecosystem portfolio
+// @access  Private
+router.get('/portfolio', protect, getPortfolioDetails);
 
 module.exports = router; 

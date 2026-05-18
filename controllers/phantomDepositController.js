@@ -14,20 +14,36 @@ const getConnection = () => {
   return new Connection(rpcUrl, "confirmed");
 };
 
-const getTreasuryAddress = () => {
-  const address = `${process.env.SOLANA_TREASURY_ADDRESS || ""}`.trim();
+const isUsingConnectedWalletAsTreasury = () => {
+  return `${process.env.SOLANA_USE_CONNECTED_WALLET_AS_TREASURY || ""}`
+    .trim()
+    .toLowerCase() === "true";
+};
+
+const getDepositReceivingAddress = (connectedWalletAddress) => {
+  const useConnectedWallet = isUsingConnectedWalletAsTreasury();
+
+  const address = useConnectedWallet
+    ? `${connectedWalletAddress || ""}`.trim()
+    : `${process.env.SOLANA_TREASURY_ADDRESS || ""}`.trim();
 
   if (!address) {
-    throw new Error("SOLANA_TREASURY_ADDRESS_NOT_CONFIGURED");
+    throw new Error(
+      useConnectedWallet
+        ? "CONNECTED_WALLET_ADDRESS_NOT_FOUND"
+        : "SOLANA_TREASURY_ADDRESS_NOT_CONFIGURED"
+    );
   }
 
   try {
-    new PublicKey(address);
+    return new PublicKey(address).toBase58();
   } catch {
-    throw new Error("INVALID_SOLANA_TREASURY_ADDRESS");
+    throw new Error(
+      useConnectedWallet
+        ? "INVALID_CONNECTED_WALLET_ADDRESS"
+        : "INVALID_SOLANA_TREASURY_ADDRESS"
+    );
   }
-
-  return address;
 };
 
 const parseSolAmount = (amount) => {
@@ -90,7 +106,8 @@ const createPhantomDepositIntent = async (req, res) => {
       });
     }
 
-    const treasuryAddress = getTreasuryAddress();
+    const temporaryConnectedWalletMode = isUsingConnectedWalletAsTreasury();
+    const treasuryAddress = getDepositReceivingAddress(walletAddress);
     const reference = createReference();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -113,7 +130,9 @@ const createPhantomDepositIntent = async (req, res) => {
     solanaPayUrl.searchParams.set("label", process.env.APP_NAME || "BEPVault");
     solanaPayUrl.searchParams.set(
       "message",
-      `Deposit ${parsedAmount.amountSol} SOL`
+      temporaryConnectedWalletMode
+        ? `Request ${parsedAmount.amountSol} SOL`
+        : `Deposit ${parsedAmount.amountSol} SOL`
     );
     solanaPayUrl.searchParams.set("memo", `phantom-deposit:${intent._id}`);
 
@@ -123,6 +142,7 @@ const createPhantomDepositIntent = async (req, res) => {
         id: intent._id,
         fromWalletAddress: walletAddress,
         treasuryAddress,
+        receivingAddress: treasuryAddress,
         reference,
         amountSol: intent.amountSol,
         amountLamports: intent.amountLamports,
@@ -131,11 +151,34 @@ const createPhantomDepositIntent = async (req, res) => {
         status: intent.status,
         paymentMethod: intent.paymentMethod,
         expiresAt: intent.expiresAt,
+        temporaryConnectedWalletMode,
       },
       solanaPayUrl: solanaPayUrl.toString(),
     });
   } catch (error) {
     console.error("Create Phantom deposit intent error:", error);
+
+    const depositAddressErrors = [
+      "SOLANA_TREASURY_ADDRESS_NOT_CONFIGURED",
+      "INVALID_SOLANA_TREASURY_ADDRESS",
+      "CONNECTED_WALLET_ADDRESS_NOT_FOUND",
+      "INVALID_CONNECTED_WALLET_ADDRESS",
+    ];
+
+    if (depositAddressErrors.includes(error.message)) {
+      return res.status(500).json({
+        success: false,
+        errorCode: error.message,
+        message:
+          error.message === "CONNECTED_WALLET_ADDRESS_NOT_FOUND"
+            ? "Connected Phantom wallet address was not found."
+            : error.message === "INVALID_CONNECTED_WALLET_ADDRESS"
+            ? "Connected Phantom wallet address is invalid."
+            : error.message === "SOLANA_TREASURY_ADDRESS_NOT_CONFIGURED"
+            ? "Solana treasury address is not configured."
+            : "Solana treasury address is invalid.",
+      });
+    }
 
     return res.status(500).json({
       success: false,
@@ -321,6 +364,109 @@ const confirmPhantomDeposit = async (req, res) => {
   }
 };
 
+const transactionHasReference = (tx, reference) => {
+  const accountKeys = tx?.transaction?.message?.accountKeys || [];
+
+  return accountKeys.some((account) => {
+    const key =
+      typeof account?.pubkey?.toBase58 === "function"
+        ? account.pubkey.toBase58()
+        : typeof account?.pubkey === "string"
+        ? account.pubkey
+        : typeof account === "string"
+        ? account
+        : "";
+
+    return key === reference;
+  });
+};
+
+const findTransactionByReference = async ({ reference, limit = 20 }) => {
+  const connection = getConnection();
+  const referencePublicKey = new PublicKey(reference);
+
+  const signatures = await connection.getSignaturesForAddress(referencePublicKey, {
+    limit,
+  });
+
+  for (const item of signatures) {
+    if (!item?.signature) continue;
+
+    const tx = await connection.getParsedTransaction(item.signature, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (!tx || tx.meta?.err) continue;
+
+    if (transactionHasReference(tx, reference)) {
+      return {
+        signature: item.signature,
+        transaction: tx,
+      };
+    }
+  }
+
+  return null;
+};
+
+const verifyQrSolTransfer = async ({
+  reference,
+  receivingAddress,
+  amountLamports,
+}) => {
+  const found = await findTransactionByReference({ reference });
+
+  if (!found) {
+    return {
+      valid: false,
+      pending: true,
+      reason: "PAYMENT_NOT_FOUND_YET",
+    };
+  }
+
+  const tx = found.transaction;
+  const instructions = tx.transaction.message.instructions || [];
+
+  let payerWalletAddress = null;
+
+  const hasValidTransfer = instructions.some((instruction) => {
+    if (instruction.program !== "system") return false;
+
+    const parsed = instruction.parsed;
+    if (!parsed || parsed.type !== "transfer") return false;
+
+    const info = parsed.info || {};
+
+    const destinationMatches = info.destination === receivingAddress;
+    const amountMatches = Number(info.lamports) >= Number(amountLamports);
+
+    if (destinationMatches && amountMatches) {
+      payerWalletAddress = info.source || null;
+      return true;
+    }
+
+    return false;
+  });
+
+  if (!hasValidTransfer) {
+    return {
+      valid: false,
+      pending: false,
+      reason: "MATCHING_SOL_TRANSFER_NOT_FOUND",
+      txSignature: found.signature,
+    };
+  }
+
+  return {
+    valid: true,
+    pending: false,
+    txSignature: found.signature,
+    payerWalletAddress,
+    transaction: tx,
+  };
+};
+
 const getPhantomDepositStatus = async (req, res) => {
   try {
     const intent = await PhantomDepositIntent.findOne({
@@ -336,8 +482,117 @@ const getPhantomDepositStatus = async (req, res) => {
       });
     }
 
+    if (intent.status === "confirmed") {
+      return res.status(200).json({
+        success: true,
+        intent: {
+          id: intent._id,
+          status: intent.status,
+          amountSol: intent.amountSol,
+          amountLamports: intent.amountLamports,
+          currency: intent.currency,
+          txSignature: intent.txSignature,
+          payerWalletAddress: intent.payerWalletAddress || null,
+          expiresAt: intent.expiresAt,
+          confirmedAt: intent.confirmedAt,
+        },
+      });
+    }
+
+    if (["failed", "expired"].includes(intent.status)) {
+      return res.status(200).json({
+        success: true,
+        intent: {
+          id: intent._id,
+          status: intent.status,
+          amountSol: intent.amountSol,
+          amountLamports: intent.amountLamports,
+          currency: intent.currency,
+          txSignature: intent.txSignature,
+          failureReason: intent.failureReason,
+          expiresAt: intent.expiresAt,
+          confirmedAt: intent.confirmedAt,
+        },
+      });
+    }
+
+    if (new Date(intent.expiresAt).getTime() < Date.now()) {
+      intent.status = "expired";
+      intent.failureReason = "Deposit request expired.";
+      await intent.save();
+
+      return res.status(200).json({
+        success: true,
+        intent: {
+          id: intent._id,
+          status: intent.status,
+          amountSol: intent.amountSol,
+          amountLamports: intent.amountLamports,
+          currency: intent.currency,
+          failureReason: intent.failureReason,
+          expiresAt: intent.expiresAt,
+          confirmedAt: intent.confirmedAt,
+        },
+      });
+    }
+
+    // Auto-detect QR/Solana Pay payment by reference.
+    const verification = await verifyQrSolTransfer({
+      reference: intent.reference,
+      receivingAddress: intent.treasuryAddress,
+      amountLamports: intent.amountLamports,
+    });
+
+    if (verification.valid) {
+      const duplicate = await PhantomDepositIntent.findOne({
+        txSignature: verification.txSignature,
+        _id: { $ne: intent._id },
+      }).select("_id");
+
+      if (duplicate) {
+        intent.status = "failed";
+        intent.failureReason = "DUPLICATE_DEPOSIT_SIGNATURE";
+        await intent.save();
+
+        return res.status(409).json({
+          success: false,
+          errorCode: "DUPLICATE_DEPOSIT_SIGNATURE",
+          message: "This transaction has already been used for another deposit.",
+        });
+      }
+
+      intent.status = "confirmed";
+      intent.txSignature = verification.txSignature;
+      intent.payerWalletAddress = verification.payerWalletAddress || null;
+      intent.confirmedAt = new Date();
+      await intent.save();
+
+      // In temporary request-money mode, do NOT credit internal balance unless your business rules require it.
+      // For production treasury deposits, credit ledger here only after verified.
+      // If ledger credit already exists, keep it idempotent.
+
+      return res.status(200).json({
+        success: true,
+        message: "Payment detected and confirmed successfully.",
+        intent: {
+          id: intent._id,
+          status: intent.status,
+          amountSol: intent.amountSol,
+          amountLamports: intent.amountLamports,
+          currency: intent.currency,
+          txSignature: intent.txSignature,
+          payerWalletAddress: intent.payerWalletAddress || null,
+          expiresAt: intent.expiresAt,
+          confirmedAt: intent.confirmedAt,
+        },
+      });
+    }
+
     return res.status(200).json({
       success: true,
+      message: verification.pending
+        ? "Payment not found yet."
+        : "Payment found but transaction did not match request.",
       intent: {
         id: intent._id,
         status: intent.status,
@@ -345,6 +600,7 @@ const getPhantomDepositStatus = async (req, res) => {
         amountLamports: intent.amountLamports,
         currency: intent.currency,
         txSignature: intent.txSignature,
+        failureReason: intent.failureReason,
         expiresAt: intent.expiresAt,
         confirmedAt: intent.confirmedAt,
       },

@@ -65,6 +65,9 @@ const LedgerRowSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Decimal128,
       required: true,
     },
+    tscAmount: {
+      type: mongoose.Schema.Types.Decimal128,
+    },
     // Optional: Store balances before/after for easier auditing directly in the row
     // balanceBefore: { type: mongoose.Schema.Types.Decimal128 },
     // balanceAfter: { type: mongoose.Schema.Types.Decimal128 },
