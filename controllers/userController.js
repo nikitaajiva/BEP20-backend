@@ -220,6 +220,9 @@ const updateUserProfile = async (req, res) => {
  * @access  Private
  */
 const stakeTokens = async (req, res) => {
+    const { debitInternalSolWallet } = require('../services/internalWalletService');
+    const axios = require('axios');
+
     try {
         const { amount, days, tscAmount, ratePct } = req.body;
         const userId = req.user._id;
@@ -230,9 +233,37 @@ const stakeTokens = async (req, res) => {
         }
 
         const user = await User.findById(userId);
-
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // ── Fetch live SOL/USDT rate ───────────────────────────────────────────
+        let solUsdRate = 150; // fallback
+        try {
+            const rateRes = await axios.get(
+                'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+                { timeout: 5000 }
+            );
+            const rate = rateRes.data?.solana?.usd;
+            if (rate && rate > 0) solUsdRate = rate;
+        } catch (rateErr) {
+            console.warn('[stakeTokens] Could not fetch live SOL rate, using fallback:', solUsdRate);
+        }
+
+        const requiredSol = parseFloat((Number(amount) / solUsdRate).toFixed(9));
+
+        // ── Debit internal SOL wallet ─────────────────────────────────────────
+        try {
+            await debitInternalSolWallet({ userId, amountSol: requiredSol });
+        } catch (debitErr) {
+            if (debitErr.message === 'INSUFFICIENT_INTERNAL_SOL_BALANCE') {
+                return res.status(402).json({
+                    message: `Insufficient wallet balance. You need ${requiredSol} SOL (≈ $${amount} USDT at current rate of $${solUsdRate}/SOL).`,
+                    requiredSol,
+                    solUsdRate,
+                });
+            }
+            throw debitErr;
         }
 
         // Add new plan to stakingPlans array
@@ -251,16 +282,16 @@ const stakeTokens = async (req, res) => {
         user.stakingPlans.push(newPlan);
         await user.save();
 
-        // Create Ledger Entry for Staking
+        // Create Ledger Entry for Staking (debit from SOL_INTERNAL)
         await createLedgerEntry({
             userId: user._id,
             eventType: 'STAKING_DEPOSIT',
-            amount: amount,
-            walletFrom: 'USDT', // Assuming USDT for now as per frontend
+            amount: requiredSol,
+            walletFrom: 'SOL_INTERNAL',
             walletTo: 'STAKING_HUB',
             tscAmount: tscAmount,
             ratePct: ratePct,
-            narrative: `Staked ${amount} USDT (${tscAmount || '0'} TSC) for ${days} days at ${ratePct || '0'}% APY.`,
+            narrative: `Staked ${amount} USDT (${tscAmount || '0'} TSC) for ${days} days at ${ratePct || '0'}% APY. Paid ${requiredSol} SOL @ $${solUsdRate}/SOL.`,
         });
 
         res.status(200).json({
@@ -282,113 +313,110 @@ const stakeTokens = async (req, res) => {
  * @body    { tier: "starter"|"growth"|"premium"|"N1"|"N2"|"N3"|"N4"|"N5" }
  */
 const purchaseNft = async (req, res) => {
+    const { debitInternalSolWallet } = require('../services/internalWalletService');
+    const axios = require('axios');
+
     try {
         const { tier, tscAmount } = req.body;
         const userId = req.user._id;
 
-        // ── Horse NFT tier config (legacy) ────────────────────────────────────
+        // ── Horse NFT tier config ──────────────────────────────────────────────
         const HORSE_TIERS = {
-            starter: {
-                nftType: 'horse',
-                mintPrice: 500,
-                bonusTokens: 5000,
-                roi: 'Up to 15% annual ROI',
-                dividendFreq: 'Quarterly',
-                walletTo: 'HORSE_NFT',
-                label: 'Bronze Horse NFT Package',
-            },
-            growth: {
-                nftType: 'horse',
-                mintPrice: 1000,
-                bonusTokens: 12000,
-                roi: 'Up to 25% annual ROI',
-                dividendFreq: 'Monthly',
-                walletTo: 'HORSE_NFT',
-                label: 'Silver Horse NFT Package',
-            },
-            premium: {
-                nftType: 'horse',
-                mintPrice: 5000,
-                bonusTokens: 75000,
-                roi: 'Up to 35% annual ROI',
-                dividendFreq: 'Weekly',
-                walletTo: 'HORSE_NFT',
-                label: 'Gold Horse NFT Package',
-            },
+            starter: { nftType: 'horse', mintPrice: 500,  bonusTokens: 5000,  roi: 'Up to 15% annual ROI', dividendFreq: 'Quarterly', label: 'Bronze Horse NFT Package' },
+            growth:  { nftType: 'horse', mintPrice: 1000, bonusTokens: 12000, roi: 'Up to 25% annual ROI', dividendFreq: 'Monthly',   label: 'Silver Horse NFT Package' },
+            premium: { nftType: 'horse', mintPrice: 5000, bonusTokens: 75000, roi: 'Up to 35% annual ROI', dividendFreq: 'Weekly',    label: 'Gold Horse NFT Package'   },
         };
 
         // ── N1–N5 Mining NFT tier config ──────────────────────────────────────
         const MINING_TIERS = {
-            N1: { nftType: 'mining', mintPrice: 100, miningPower: 100, powerCoefficient: 0.7, poolMultiplier: 2.0, afterTSCMultiplier: 2.5 },
-            N2: { nftType: 'mining', mintPrice: 500, miningPower: 500, powerCoefficient: 0.8, poolMultiplier: 2.0, afterTSCMultiplier: 2.8 },
-            N3: { nftType: 'mining', mintPrice: 1000, miningPower: 1000, powerCoefficient: 0.9, poolMultiplier: 2.0, afterTSCMultiplier: 3.0 },
-            N4: { nftType: 'mining', mintPrice: 3000, miningPower: 3000, powerCoefficient: 1.0, poolMultiplier: 2.0, afterTSCMultiplier: 3.5 },
+            N1: { nftType: 'mining', mintPrice: 100,   miningPower: 100,   powerCoefficient: 0.7, poolMultiplier: 2.0, afterTSCMultiplier: 2.5 },
+            N2: { nftType: 'mining', mintPrice: 500,   miningPower: 500,   powerCoefficient: 0.8, poolMultiplier: 2.0, afterTSCMultiplier: 2.8 },
+            N3: { nftType: 'mining', mintPrice: 1000,  miningPower: 1000,  powerCoefficient: 0.9, poolMultiplier: 2.0, afterTSCMultiplier: 3.0 },
+            N4: { nftType: 'mining', mintPrice: 3000,  miningPower: 3000,  powerCoefficient: 1.0, poolMultiplier: 2.0, afterTSCMultiplier: 3.5 },
             N5: { nftType: 'mining', mintPrice: 10000, miningPower: 10000, powerCoefficient: 1.1, poolMultiplier: 2.0, afterTSCMultiplier: 4.0 },
         };
 
-        const isHorse = !!HORSE_TIERS[tier];
+        const isHorse  = !!HORSE_TIERS[tier];
         const isMining = !!MINING_TIERS[tier];
 
         if (!tier || (!isHorse && !isMining)) {
-            return res.status(400).json({
-                message: 'Invalid NFT tier. Choose a Horse tier (starter, growth, premium) or a Mining tier (N1–N5).'
-            });
+            return res.status(400).json({ message: 'Invalid NFT tier. Choose a Horse tier (starter, growth, premium) or a Mining tier (N1–N5).' });
         }
 
         const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found.' });
+        if (!user) return res.status(404).json({ message: 'User not found.' });
+
+        // ── Fetch live SOL/USDT rate ───────────────────────────────────────────
+        let solUsdRate = 150; // fallback
+        try {
+            const rateRes = await axios.get(
+                'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+                { timeout: 5000 }
+            );
+            const rate = rateRes.data?.solana?.usd;
+            if (rate && rate > 0) solUsdRate = rate;
+        } catch (rateErr) {
+            console.warn('[purchaseNft] Could not fetch live SOL rate, using fallback:', solUsdRate);
         }
 
+        const cfg = isHorse ? HORSE_TIERS[tier] : MINING_TIERS[tier];
+        const mintPriceUsdt = cfg.mintPrice;
+        const requiredSol   = parseFloat((mintPriceUsdt / solUsdRate).toFixed(9));
+
+        // ── Debit internal SOL wallet ─────────────────────────────────────────
+        try {
+            await debitInternalSolWallet({ userId, amountSol: requiredSol });
+        } catch (debitErr) {
+            if (debitErr.message === 'INSUFFICIENT_INTERNAL_SOL_BALANCE') {
+                return res.status(402).json({
+                    message: `Insufficient wallet balance. You need ${requiredSol} SOL (≈ $${mintPriceUsdt} USDT at current rate of $${solUsdRate}/SOL).`,
+                    requiredSol,
+                    solUsdRate,
+                });
+            }
+            throw debitErr;
+        }
+
+        // ── Build package record ───────────────────────────────────────────────
         if (!user.nftPackages) user.nftPackages = [];
 
         let newPackage;
-        let narrative;
         let walletTo;
+        let narrative;
 
         if (isHorse) {
-            const cfg = HORSE_TIERS[tier];
             newPackage = {
-                nftType: 'horse',
-                tier,
-                mintPrice: cfg.mintPrice,
-                bonusTokens: cfg.bonusTokens,
-                roi: cfg.roi,
-                dividendFreq: cfg.dividendFreq,
-                purchaseDate: new Date(),
-                status: 'active',
+                nftType: 'horse', tier,
+                mintPrice: cfg.mintPrice, bonusTokens: cfg.bonusTokens,
+                roi: cfg.roi, dividendFreq: cfg.dividendFreq,
+                purchaseDate: new Date(), status: 'active',
             };
-            walletTo = 'HORSE_NFT';
-            narrative = `Purchased ${cfg.label} — ${cfg.roi}, Dividend: ${cfg.dividendFreq}, Bonus Tokens: ${cfg.bonusTokens.toLocaleString()}.`;
+            walletTo  = 'HORSE_NFT';
+            narrative = `Purchased ${cfg.label} — ${cfg.roi}, Dividend: ${cfg.dividendFreq}, Bonus Tokens: ${cfg.bonusTokens.toLocaleString()}. Paid ${requiredSol} SOL @ $${solUsdRate}/SOL.`;
         } else {
-            const cfg = MINING_TIERS[tier];
             newPackage = {
-                nftType: 'mining',
-                tier,
-                mintPrice: cfg.mintPrice,
-                miningPower: cfg.miningPower,
-                powerCoefficient: cfg.powerCoefficient,
-                poolMultiplier: cfg.poolMultiplier,
+                nftType: 'mining', tier,
+                mintPrice: cfg.mintPrice, miningPower: cfg.miningPower,
+                powerCoefficient: cfg.powerCoefficient, poolMultiplier: cfg.poolMultiplier,
                 afterTSCMultiplier: cfg.afterTSCMultiplier,
-                purchaseDate: new Date(),
-                status: 'active',
+                purchaseDate: new Date(), status: 'active',
             };
-            walletTo = 'NFT_MINT';
-            narrative = `Minted ${tier} NFT — Mining Power: ${cfg.miningPower.toLocaleString()}, Coefficient: ${cfg.powerCoefficient}×, Pool: ${cfg.poolMultiplier}×, Post-TSC: ${cfg.afterTSCMultiplier}×.`;
+            walletTo  = 'NFT_MINT';
+            narrative = `Minted ${tier} NFT — Mining Power: ${cfg.miningPower.toLocaleString()}, Coefficient: ${cfg.powerCoefficient}×. Paid ${requiredSol} SOL @ $${solUsdRate}/SOL.`;
         }
 
         user.nftPackages.push(newPackage);
         await user.save();
 
-        // Write ledger row
+        // ── Write ledger row ───────────────────────────────────────────────────
         await createLedgerEntry({
             userId,
             eventType: 'NFT_PURCHASE',
-            amount: newPackage.mintPrice,
-            walletFrom: 'USDT',
-            walletTo: 'HORSE_NFT',
-            tscAmount: tscAmount,
-            narrative: `Purchased ${tier.toUpperCase()} Horse NFT package (${tscAmount || '0'} TSC).`,
+            amount:    requiredSol,
+            walletFrom: 'SOL_INTERNAL',
+            walletTo,
+            tscAmount,
+            narrative,
         });
 
         const message = isHorse
@@ -402,6 +430,7 @@ const purchaseNft = async (req, res) => {
         res.status(500).json({ message: 'Server error while processing NFT purchase.' });
     }
 };
+
 
 /**
  * @desc    Get user's P1-P9 Node level status, current powers, and qualified level
