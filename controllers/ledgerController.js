@@ -225,6 +225,10 @@ const getLedgerDetails = async (req, res) => {
         balance: ledger.wallets?.sol?.toString() || "0.0",
       },
 
+      solWallet: {
+        balance: ledger.wallets?.sol?.toString() || "0.0",
+      },
+
       bnbWallet: {
         balance: rawBnbBalance,
       },
