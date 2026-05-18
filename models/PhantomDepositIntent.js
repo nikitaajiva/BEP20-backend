@@ -14,7 +14,7 @@ const phantomDepositIntentSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-    treasuryAddress: {
+    merchantWalletAddress: {
       type: String,
       required: true,
       trim: true,
@@ -69,6 +69,18 @@ const phantomDepositIntentSchema = new mongoose.Schema(
     failureReason: {
       type: String,
       default: null,
+    },
+    lastCheckedAt: {
+      type: Date,
+      default: null,
+    },
+    nextCheckAt: {
+      type: Date,
+      default: null,
+    },
+    checkAttempts: {
+      type: Number,
+      default: 0,
     },
     expiresAt: {
       type: Date,
