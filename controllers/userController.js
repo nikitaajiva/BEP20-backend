@@ -323,7 +323,7 @@ const purchaseNft = async (req, res) => {
 
         // ── Horse NFT tier config ──────────────────────────────────────────────
         const HORSE_TIERS = {
-            starter: { nftType: 'horse', mintPrice: 500,  bonusTokens: 5000,  roi: 'Up to 15% annual ROI', dividendFreq: 'Quarterly', label: 'Bronze Horse NFT Package' },
+            starter: { nftType: 'horse', mintPrice: 0.03,  bonusTokens: 5000,  roi: 'Up to 15% annual ROI', dividendFreq: 'Quarterly', label: 'Bronze Horse NFT Package' },
             growth:  { nftType: 'horse', mintPrice: 1000, bonusTokens: 12000, roi: 'Up to 25% annual ROI', dividendFreq: 'Monthly',   label: 'Silver Horse NFT Package' },
             premium: { nftType: 'horse', mintPrice: 5000, bonusTokens: 75000, roi: 'Up to 35% annual ROI', dividendFreq: 'Weekly',    label: 'Gold Horse NFT Package'   },
         };

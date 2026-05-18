@@ -77,17 +77,22 @@ exports.getUsers = async (req, res) => {
       }
     }
 
+    const escapeRegex = (val) => {
+      if (typeof val !== "string") return "";
+      return val.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+    };
+
     // 2. Handle Search Filters (uhid, email, username, etc.)
     const searchFields = ["uhid", "email", "username", "wallet_address"];
     searchFields.forEach(field => {
       if (filters[field]) {
-        matchStage[field] = { $regex: filters[field], $options: "i" };
+        matchStage[field] = { $regex: escapeRegex(filters[field]), $options: "i" };
       }
     });
 
     // Handle legacy/frontend field name mappings
     if (filters.xrpAddress) {
-      matchStage.wallet_address = { $regex: filters.xrpAddress, $options: "i" };
+      matchStage.wallet_address = { $regex: escapeRegex(filters.xrpAddress), $options: "i" };
     }
 
     const usersPipeline = [
@@ -887,7 +892,9 @@ exports.grantManualAirdrop = async (req, res) => {
 // PUT /api/support/ledger
 exports.updateLedger = async (req, res) => {
   try {
-    const { userId, field, value } = req.body;
+    const userId = req.body.userId || req.query.userId;
+    const field = req.body.field || req.query.field;
+    const value = req.body.value !== undefined ? req.body.value : req.query.value;
 
     if (!userId || !field || value === undefined) {
       return res.status(400).json({
@@ -921,15 +928,18 @@ exports.updateLedger = async (req, res) => {
     // All editable wallet fields are likely numeric and Decimal128
     let updateValue;
 
-    // Basic validation to ensure value is a number-like string
-    if (typeof value !== "string" || isNaN(parseFloat(value))) {
+    // Convert value to string to handle both numeric and string representations safely
+    const valueStr = typeof value === "number" ? value.toString() : value;
+
+    // Basic validation to ensure value is a number or a number-like string
+    if (typeof valueStr !== "string" || isNaN(parseFloat(valueStr))) {
       return res.status(400).json({
         success: false,
         message:
-          "Invalid numeric value provided. Must be a string representing a number.",
+          "Invalid numeric value provided. Must be a number or a string representing a number.",
       });
     }
-    updateValue = mongoose.Types.Decimal128.fromString(value);
+    updateValue = mongoose.Types.Decimal128.fromString(valueStr);
 
     const ledger = await Ledger.findOneAndUpdate(
       { uhid: user.uhid },
@@ -6469,13 +6479,13 @@ exports.getEcofeeReport = async (req, res) => {
       source: bodySource,
       destination: bodyDestination,
       amount: bodyAmount,
-    } = req.body;
+    } = req.query || req.body || {};
 
     // If you resolve BSC tx elsewhere, plug values here; otherwise use body fallbacks
     const source = bodySource || null;
     const destination = bodyDestination || null;
     const amount = typeof bodyAmount === "number" ? bodyAmount : null; // optional
-    const raw = req.body.fullTransaction || null; // optional
+    const raw = req.query?.fullTransaction || req.body?.fullTransaction || null; // optional
 
     // ---- EcosystemFee report (grand total + rows with username) ----
     const ecoReportAgg = await EcosystemFee.aggregate([
@@ -7677,13 +7687,14 @@ exports.exportEcosystemFeeReport = async (req, res) => {
  */
 exports.getAdjustment = async (req, res) => {
   try {
-    const adjustment = await WithdrawalDepositAdjustment.findOne({})
+    let adjustment = await WithdrawalDepositAdjustment.findOne({})
       .sort({ createdAt: -1 });
 
     if (!adjustment) {
-      return res.status(404).json({
-        success: false,
-        message: "Settings not found",
+      adjustment = await WithdrawalDepositAdjustment.create({
+        negativeWithdrawal: 0,
+        positiveDeposit: 0,
+        note: "Default Settings Initialized",
       });
     }
 
@@ -7734,16 +7745,11 @@ exports.updateAdjustment = async (req, res) => {
       update,
       {
         new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
         sort: { createdAt: -1 },
       }
     );
-
-    if (!adjustment) {
-      return res.status(404).json({
-        success: false,
-        message: "Settings not found",
-      });
-    }
 
     return res.status(200).json({
       success: true,

@@ -1,8 +1,6 @@
-require("dotenv").config();
-const mongoose = require('mongoose');
-const path = require('path');
+const mongoose = require("mongoose");
+const Country = require("../models/Country");
 
-// Manually including the country data. In a real-world scenario, you might share this from a common module.
 const COUNTRIES_DATA = [
   { name: 'Afghanistan', code: 'AF', dial_code: '+93', flag: '🇦🇫' },
   { name: 'Albania', code: 'AL', dial_code: '+355', flag: '🇦🇱' },
@@ -163,40 +161,14 @@ const COUNTRIES_DATA = [
   { name: 'Zimbabwe', code: 'ZW', dial_code: '+263', flag: '🇿🇼' },
 ];
 
-const CountrySchema = new mongoose.Schema({
-  id: { type: Number },
-  name: { type: String },
-  code: { type: String },
-  dial_code: { type: String },
-  flag: { type: String },
-  iso: { type: String },
-  nicename: { type: String },
-  phonecode: { type: Number },
-  status: { type: Number }
-}, {
-  collection: 'countries',
-  timestamps: true,
-  strict: false
-});
-
-const Country = mongoose.models.Country || mongoose.model('Country', CountrySchema);
-
-async function populateCountries() {
-  
+const seedCountries = async () => {
   try {
-    const mongoUri =
-      process.env.MONGODB_URI || "mongodb://localhost:27017/xrpmigrate";
-    await mongoose.connect(mongoUri);
-    
-
-    
-
     const operations = COUNTRIES_DATA.map((country, index) => ({
       updateOne: {
         filter: { iso: country.code },
         update: {
           $set: {
-            id: index + 1, // Assign a simple numeric ID
+            id: index + 1,
             name: country.name.toUpperCase(),
             nicename: country.name,
             iso: country.code,
@@ -211,20 +183,16 @@ async function populateCountries() {
       }
     }));
 
-    if (operations.length > 0) {
-      console.log(`[Seeder] Starting bulkWrite for ${operations.length} countries...`);
-      const result = await Country.bulkWrite(operations);
-      console.log(`[Seeder] Success! Matched: ${result.matchedCount}, Upserted: ${result.upsertedCount}, Modified: ${result.modifiedCount}`);
-    } else {
-      console.log("[Seeder] No country operations to run.");
-    }
-
+    console.log(`[Auto-Seeder] Seeding ${operations.length} countries into the database...`);
+    const result = await Country.bulkWrite(operations);
+    console.log("[Auto-Seeder] Countries seeded successfully!");
+    return result;
   } catch (error) {
-    console.error('\nAn error occurred during the population script:', error);
-  } finally {
-    await mongoose.disconnect();
-    
+    console.error("[Auto-Seeder] Failed to seed countries:", error);
+    throw error;
   }
-}
+};
 
-populateCountries(); 
+module.exports = {
+  seedCountries,
+};

@@ -52,6 +52,9 @@ const protect = async (req, res, next) => {
       }
       req.userip = userIp;
       req.user = user;
+      if (decoded.user && decoded.user.impersonatorUserType) {
+        req.user.impersonatorUserType = decoded.user.impersonatorUserType;
+      }
       next();
     } catch (error) {
       if (error.name === 'TokenExpiredError') {

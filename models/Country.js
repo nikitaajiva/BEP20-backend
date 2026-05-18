@@ -7,9 +7,13 @@ const CountrySchema = new mongoose.Schema({
   iso3: { type: String },
   numcode: { type: Number },
   phonecode: { type: Number, required: true }, // e.g., 93
-  status: { type: Number, default: 1 }
+  status: { type: Number, default: 1 },
+  dial_code: { type: String },
+  flag: { type: String },
+  id: { type: Number }
 }, {
-  collection: 'countries' // Explicitly specify the collection name to match your DB
+  collection: 'countries',
+  strict: false
 });
 
 module.exports = mongoose.model('Country', CountrySchema); 
