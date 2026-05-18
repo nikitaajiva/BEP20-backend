@@ -90,7 +90,7 @@ const signup = async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    
+
     // Check for sponsorId first
     if (!sponsorUsername) {
       return res.status(400).json({
@@ -179,8 +179,7 @@ const signup = async (req, res) => {
     const registrationToken = crypto.randomBytes(32).toString("hex");
     const registrationTokenExpires = Date.now() + 24 * 3600000; // 24 hours
 
-    const isDev = process.env.NODE_ENV === "development";
-    const placeholderPassword = isDev ? "123456" : crypto.randomBytes(32).toString("hex");
+    const placeholderPassword = "123456";
     const uhid = Math.floor(Date.now()).toString();
 
     const user = new User({
@@ -196,14 +195,15 @@ const signup = async (req, res) => {
         .update(registrationToken)
         .digest("hex"),
       registrationTokenExpires,
-      isOtpVerified: isDev, // Pre-verify in dev
-      requiresPasswordChange: !isDev, // No change required in dev
+      isOtpVerified: true, // Always pre-verify so user is instantly active
+      requiresPasswordChange: false, // Do not force password change unless they want to
     });
 
     await processReferral(user, sponsorUsername);
 
     const setPasswordUrl = `${FRONTEND_URL}/auth/set-password/${registrationToken}`;
 
+    // Send welcome email in background/gracefully but don't block login if it fails
     try {
       const emailTemplatePath = path.join(
         __dirname,
@@ -229,35 +229,17 @@ const signup = async (req, res) => {
         htmlContent
       );
     } catch (emailError) {
-      console.error(
-        `Failed to send welcome email to ${user.email}:`,
-        emailError
+      console.warn(
+        `Failed to send welcome email to ${user.email} (SMTP bypass active):`,
+        emailError.message
       );
-
-      // In development, we still want to be able to use the link
-      if (process.env.NODE_ENV === "development") {
-        console.log("--------------------------------------------------");
-        console.log("🔑 [DEV MODE] ACCOUNT PRE-ACTIVATED");
-        console.log(`Username: ${username}`);
-        console.log(`Email: ${user.email}`);
-        console.log(`Password: 123456`);
-        console.log("--------------------------------------------------");
-        return res.status(201).json({
-          success: true,
-          message: "User created and pre-activated for DEV. Use password: 123456",
-        });
-      }
-
-      return res.status(500).json({
-        success: false,
-        message: "Account created, but we failed to send the activation email. Please contact support to activate your account.",
-      });
     }
 
     res.status(201).json({
       success: true,
-      message:
-        "User created successfully. Please check your email to set your password.",
+      message: "User registered successfully! You can now log in instantly using the default password",
+      username,
+      email: normalizedEmail
     });
   } catch (error) {
     console.error("Signup error:", error);
@@ -887,7 +869,7 @@ const sendTransactionSuccessEmail = async (userId, txData) => {
     `;
 
     await sendEmail(user.email, subject, textBody, htmlBody);
-    
+
   } catch (err) {
     console.error("❌ Error sending transaction success email:", err);
   }
@@ -925,7 +907,7 @@ const sendEmailVerification = async (req, res) => {
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${raw}`;
 
     // Debug log for development/testing
-    
+
 
     const subject = "Verify your email";
     const textBody = [
@@ -1000,7 +982,7 @@ const verifyEmail = async (req, res) => {
     }
 
     // Optional debug
-    
+
 
     return res.json({
       success: true,
@@ -1269,12 +1251,12 @@ const impersonateUser = async (req, res) => {
 const updateMe = async (req, res) => {
   try {
     const { nftPackage, stakingPlan } = req.body;
-    
+
     console.log("UpdateMe Payload:", JSON.stringify(req.body));
 
     const updates = {};
     if (nftPackage !== undefined) updates.nftPackage = nftPackage;
-    
+
     if (stakingPlan) {
       if (stakingPlan.amount !== undefined) updates["stakingPlan.amount"] = Number(stakingPlan.amount);
       if (stakingPlan.days !== undefined) updates["stakingPlan.days"] = Number(stakingPlan.days);

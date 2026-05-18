@@ -9,8 +9,6 @@ const sendEmail = async (to, subject, textBody, htmlBody = null) => {
     const senderName = process.env.APP_NAME || "USDT Platform";
     const senderEmail = process.env.EMAIL_FROM || "noreply@example.com";
 
-    // Gmail/Nodemailer Setup
-    // Using SMTP2GO_API_KEY variable as a generic SMTP password since it holds the app password
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com", // Fallback to Gmail since credentials match app password format
       port: 465,
@@ -19,6 +17,8 @@ const sendEmail = async (to, subject, textBody, htmlBody = null) => {
         user: senderEmail,
         pass: process.env.SMTP2GO_API_KEY,
       },
+      connectionTimeout: 5000, // 5 seconds connection timeout
+      socketTimeout: 5000,     // 5 seconds socket timeout
     });
 
     const mailOptions = {
