@@ -642,6 +642,68 @@ const getLedgerHistory = async (req, res) => {
   }
 };
 
+// Fetch specific purchase/staking asset history for the authenticated user
+const getAssetHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { page = 1, limit = 20 } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Filter specifically for asset history event types
+    const query = {
+      userId,
+      eventType: { $in: ["NFT_PURCHASE", "STAKING_DEPOSIT"] }
+    };
+
+    const totalEntries = await LedgerRow.countDocuments(query);
+    const totalPages = Math.ceil(totalEntries / limitNum);
+
+    const entries = await LedgerRow.find(query)
+      .sort({ ts: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    res.json({
+      success: true,
+      entries: entries.map((entry) => {
+        const safeAmt = entry.amount ? (typeof entry.amount.toString === "function" ? entry.amount.toString() : String(entry.amount)) : "";
+        const safeTsc = entry.tscAmount ? (typeof entry.tscAmount.toString === "function" ? entry.tscAmount.toString() : String(entry.tscAmount)) : "";
+        const safeRate = entry.ratePct ? (typeof entry.ratePct.toString === "function" ? entry.ratePct.toString() : String(entry.ratePct)) : "";
+
+        return {
+          id: entry._id,
+          date: entry.ts || new Date(),
+          time: entry.ts ? new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "",
+          eventType: entry.eventType || "",
+          assetType: entry.eventType === "NFT_PURCHASE" ? "Horse NFT" : "Token Staking",
+          amountUsdt: safeAmt ? parseFloat(safeAmt).toFixed(2) : "0.00",
+          amountToken: safeTsc ? parseFloat(safeTsc).toFixed(4) : "0.0000",
+          ratePct: safeRate ? parseFloat(safeRate).toFixed(2) : null,
+          narrative: entry.narrative || "",
+          txHash: entry.txHash || ""
+        };
+      }),
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalEntries,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching asset history:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch asset history"
+    });
+  }
+};
+
 
 
 const walletHistory = async (req, res) => {
@@ -3493,5 +3555,6 @@ module.exports = {
   addLpFromCommuntityRewards,
   getTeamDailyLedgerTotals,
   checkPoolRewardEligibility,
-  checkRedeemEligibility
+  checkRedeemEligibility,
+  getAssetHistory
 };

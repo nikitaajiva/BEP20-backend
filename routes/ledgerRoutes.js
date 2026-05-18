@@ -16,7 +16,8 @@ const {
   addLpFromCommuntityRewards,
   getTeamDailyLedgerTotals,
   checkPoolRewardEligibility,
-  checkRedeemEligibility
+  checkRedeemEligibility,
+  getAssetHistory
 } = require("../controllers/ledgerController");
 const { protect, blockDuringCron } = require("../middleware/authMiddleware"); // Assuming you have this middleware
 
@@ -24,6 +25,11 @@ const { protect, blockDuringCron } = require("../middleware/authMiddleware"); //
 // @desc    Get ledger details (Swift, Boost, FiveX, ZeroRisk limits and pending amounts) for the authenticated user
 // @access  Private
 router.get("/", protect, getLedgerDetails);
+
+// @route   GET /api/ledger/asset-history
+// @desc    Get asset purchase and staking history for the authenticated user
+// @access  Private
+router.get("/asset-history", protect, getAssetHistory);
 
 // @route   GET /api/ledger/history
 // @desc    Get ledger history (transactions, rewards, etc.) for the authenticated user
