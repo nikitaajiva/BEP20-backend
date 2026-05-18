@@ -448,12 +448,155 @@ const findTransactionByReference = async ({ reference, limit = 20 }) => {
   return null;
 };
 
+
+const findTransactionBySenderAndAmount = async ({ merchantAddress, payerAddress, amountLamports, minTime }) => {
+  if (!payerAddress) return null;
+  const connection = getConnection();
+  const merchantPublicKey = new PublicKey(merchantAddress);
+
+  try {
+    const signatures = await connection.getSignaturesForAddress(merchantPublicKey, {
+      limit: 20,
+    });
+
+    for (const item of signatures) {
+      if (!item?.signature) continue;
+
+      if (item.blockTime && item.blockTime < Math.floor(minTime / 1000) - 120) {
+        continue;
+      }
+
+      const tx = await connection.getParsedTransaction(item.signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+
+      if (!tx || tx.meta?.err) continue;
+
+      const instructions = tx.transaction.message.instructions || [];
+      let match = false;
+
+      instructions.forEach((instruction) => {
+        if (instruction.program === "system") {
+          const parsed = instruction.parsed;
+          if (parsed && parsed.type === "transfer") {
+            const info = parsed.info || {};
+            const sourceMatches = info.source === payerAddress;
+            const destinationMatches = info.destination === merchantAddress;
+            const amountMatches = Number(info.lamports) >= Number(amountLamports);
+
+            if (sourceMatches && destinationMatches && amountMatches) {
+              match = true;
+            }
+          }
+        }
+      });
+
+      if (match) {
+        return {
+          signature: item.signature,
+          transaction: tx,
+        };
+      }
+    }
+  } catch (err) {
+    console.error("findTransactionBySenderAndAmount error:", err);
+  }
+
+  return null;
+};
+
+const findTransactionByAnySenderAndAmount = async ({ merchantAddress, amountLamports, minTime }) => {
+  const connection = getConnection();
+  const merchantPublicKey = new PublicKey(merchantAddress);
+
+  try {
+    const signatures = await connection.getSignaturesForAddress(merchantPublicKey, {
+      limit: 20,
+    });
+
+    for (const item of signatures) {
+      if (!item?.signature) continue;
+
+      if (item.blockTime && item.blockTime < Math.floor(minTime / 1000) - 120) {
+        continue;
+      }
+
+      const tx = await connection.getParsedTransaction(item.signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+
+      if (!tx || tx.meta?.err) continue;
+
+      // Ensure this transaction is not already confirmed in any previous deposit intent!
+      const alreadyConfirmed = await PhantomDepositIntent.findOne({
+        txSignature: item.signature,
+        status: "confirmed"
+      }).select("_id");
+
+      if (alreadyConfirmed) continue;
+
+      const instructions = tx.transaction.message.instructions || [];
+      let match = false;
+
+      instructions.forEach((instruction) => {
+        if (instruction.program === "system") {
+          const parsed = instruction.parsed;
+          if (parsed && parsed.type === "transfer") {
+            const info = parsed.info || {};
+            const destinationMatches = info.destination === merchantAddress;
+            const amountMatches = Number(info.lamports) >= Number(amountLamports);
+
+            if (destinationMatches && amountMatches) {
+              match = true;
+            }
+          }
+        }
+      });
+
+      if (match) {
+        return {
+          signature: item.signature,
+          transaction: tx,
+        };
+      }
+    }
+  } catch (err) {
+    console.error("findTransactionByAnySenderAndAmount error:", err);
+  }
+
+  return null;
+};
+
 const verifyQrSolTransfer = async ({
   reference,
   receivingAddress,
   amountLamports,
+  createdAt,
+  fromWalletAddress,
 }) => {
-  const found = await findTransactionByReference({ reference });
+  // 1. Try traditional Solana Pay reference scanning
+  let found = await findTransactionByReference({ reference });
+
+  // 2. If reference scan returns nothing, fallback to scanning merchant's recent transactions for exact sender + amount
+  if (!found && fromWalletAddress) {
+    found = await findTransactionBySenderAndAmount({
+      merchantAddress: receivingAddress,
+      payerAddress: fromWalletAddress,
+      amountLamports,
+      minTime: new Date(createdAt).getTime(),
+    });
+  }
+
+  // 3. If still not found, search for ANY recent transaction with the exact lamports matching the merchant address
+  if (!found) {
+    found = await findTransactionByAnySenderAndAmount({
+      merchantAddress: receivingAddress,
+      amountLamports,
+      minTime: new Date(createdAt).getTime(),
+    });
+  }
 
   if (!found) {
     return {
@@ -566,6 +709,8 @@ const getPhantomDepositStatus = async (req, res) => {
         reference: intent.reference,
         receivingAddress: intent.merchantWalletAddress,
         amountLamports: intent.amountLamports,
+        createdAt: intent.createdAt,
+        fromWalletAddress: intent.fromWalletAddress,
       });
     } catch (error) {
       if (isRpcRateLimitError(error)) {
