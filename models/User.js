@@ -492,9 +492,30 @@ const UserSchema = new mongoose.Schema({
     default: 0,
   },
   nftPackages: [{
-    tier: { type: String, enum: ["starter", "growth", "premium"], required: true },
+    // nftType: 'horse' = legacy Horse NFT (starter/growth/premium)
+    //          'mining' = new N1–N5 mining ecosystem tiers
+    nftType: { type: String, enum: ["horse", "mining"], default: "horse" },
+
+    // ── Common fields ─────────────────────────────────────────────────────────
+    tier: {
+      type: String,
+      enum: ["starter", "growth", "premium", "N1", "N2", "N3", "N4", "N5"],
+      required: true
+    },
+    mintPrice:   { type: Number, default: 0 },  // USDT paid at mint / purchase price
     purchaseDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ["active", "expired"], default: "active" }
+    status: { type: String, enum: ["active", "expired"], default: "active" },
+
+    // ── Horse NFT fields (legacy) ─────────────────────────────────────────────
+    bonusTokens:   { type: Number, default: 0 },   // Bonus Toking Tokens
+    roi:           { type: String, default: "" },   // e.g. "Up to 25%"
+    dividendFreq:  { type: String, default: "" },   // e.g. "Monthly"
+
+    // ── N1–N5 Mining NFT fields ───────────────────────────────────────────────
+    miningPower:        { type: Number, default: 0 },  // Raw mining power
+    powerCoefficient:   { type: Number, default: 0 },  // 0.7 – 1.1
+    poolMultiplier:     { type: Number, default: 2.0 }, // Base: 2.0×
+    afterTSCMultiplier: { type: Number, default: 0 },  // Post-launch multiplier
   }],
   stakingPlans: [{
     amount: { type: Number, default: 0 },

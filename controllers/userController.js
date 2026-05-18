@@ -272,61 +272,130 @@ const stakeTokens = async (req, res) => {
 };
 
 /**
- * @desc    Purchase an NFT package for a user
+ * @desc    Purchase an NFT package — supports both Horse NFT (starter/growth/premium)
+ *          AND N1–N5 Mining ecosystem tiers.
  * @route   POST /api/users/purchase-nft
  * @access  Private
+ * @body    { tier: "starter"|"growth"|"premium"|"N1"|"N2"|"N3"|"N4"|"N5" }
  */
 const purchaseNft = async (req, res) => {
     try {
         const { tier } = req.body;
         const userId = req.user._id;
 
-        // Basic validation
-        if (!tier || !["starter", "growth", "premium"].includes(tier)) {
-            return res.status(400).json({ message: 'Invalid NFT tier selected. Please choose starter, growth, or premium.' });
+        // ── Horse NFT tier config (legacy) ────────────────────────────────────
+        const HORSE_TIERS = {
+            starter: {
+                nftType:      'horse',
+                mintPrice:    500,
+                bonusTokens:  5000,
+                roi:          'Up to 15% annual ROI',
+                dividendFreq: 'Quarterly',
+                walletTo:     'HORSE_NFT',
+                label:        'Bronze Horse NFT Package',
+            },
+            growth: {
+                nftType:      'horse',
+                mintPrice:    1000,
+                bonusTokens:  12000,
+                roi:          'Up to 25% annual ROI',
+                dividendFreq: 'Monthly',
+                walletTo:     'HORSE_NFT',
+                label:        'Silver Horse NFT Package',
+            },
+            premium: {
+                nftType:      'horse',
+                mintPrice:    5000,
+                bonusTokens:  75000,
+                roi:          'Up to 35% annual ROI',
+                dividendFreq: 'Weekly',
+                walletTo:     'HORSE_NFT',
+                label:        'Gold Horse NFT Package',
+            },
+        };
+
+        // ── N1–N5 Mining NFT tier config ──────────────────────────────────────
+        const MINING_TIERS = {
+            N1: { nftType: 'mining', mintPrice: 100,   miningPower: 100,   powerCoefficient: 0.7, poolMultiplier: 2.0, afterTSCMultiplier: 2.5 },
+            N2: { nftType: 'mining', mintPrice: 500,   miningPower: 500,   powerCoefficient: 0.8, poolMultiplier: 2.0, afterTSCMultiplier: 2.8 },
+            N3: { nftType: 'mining', mintPrice: 1000,  miningPower: 1000,  powerCoefficient: 0.9, poolMultiplier: 2.0, afterTSCMultiplier: 3.0 },
+            N4: { nftType: 'mining', mintPrice: 3000,  miningPower: 3000,  powerCoefficient: 1.0, poolMultiplier: 2.0, afterTSCMultiplier: 3.5 },
+            N5: { nftType: 'mining', mintPrice: 10000, miningPower: 10000, powerCoefficient: 1.1, poolMultiplier: 2.0, afterTSCMultiplier: 4.0 },
+        };
+
+        const isHorse  = !!HORSE_TIERS[tier];
+        const isMining = !!MINING_TIERS[tier];
+
+        if (!tier || (!isHorse && !isMining)) {
+            return res.status(400).json({
+                message: 'Invalid NFT tier. Choose a Horse tier (starter, growth, premium) or a Mining tier (N1–N5).'
+            });
         }
 
         const user = await User.findById(userId);
-
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        // Add new package to nftPackages array
-        const newPackage = {
-            tier,
-            purchaseDate: new Date(),
-            status: "active"
-        };
+        if (!user.nftPackages) user.nftPackages = [];
 
-        if (!user.nftPackages) {
-            user.nftPackages = [];
+        let newPackage;
+        let narrative;
+        let walletTo;
+
+        if (isHorse) {
+            const cfg = HORSE_TIERS[tier];
+            newPackage = {
+                nftType:      'horse',
+                tier,
+                mintPrice:    cfg.mintPrice,
+                bonusTokens:  cfg.bonusTokens,
+                roi:          cfg.roi,
+                dividendFreq: cfg.dividendFreq,
+                purchaseDate: new Date(),
+                status:       'active',
+            };
+            walletTo  = 'HORSE_NFT';
+            narrative = `Purchased ${cfg.label} — ${cfg.roi}, Dividend: ${cfg.dividendFreq}, Bonus Tokens: ${cfg.bonusTokens.toLocaleString()}.`;
+        } else {
+            const cfg = MINING_TIERS[tier];
+            newPackage = {
+                nftType:            'mining',
+                tier,
+                mintPrice:          cfg.mintPrice,
+                miningPower:        cfg.miningPower,
+                powerCoefficient:   cfg.powerCoefficient,
+                poolMultiplier:     cfg.poolMultiplier,
+                afterTSCMultiplier: cfg.afterTSCMultiplier,
+                purchaseDate:       new Date(),
+                status:             'active',
+            };
+            walletTo  = 'NFT_MINT';
+            narrative = `Minted ${tier} NFT — Mining Power: ${cfg.miningPower.toLocaleString()}, Coefficient: ${cfg.powerCoefficient}×, Pool: ${cfg.poolMultiplier}×, Post-TSC: ${cfg.afterTSCMultiplier}×.`;
         }
 
         user.nftPackages.push(newPackage);
         await user.save();
 
-        // Create Ledger Entry for NFT Purchase
-        const nftPrices = { starter: 500, growth: 1000, premium: 5000 };
-        const price = nftPrices[tier] || 0;
-        
+        // Write ledger row
         await createLedgerEntry({
-            userId: user._id,
-            eventType: 'NFT_PURCHASE',
-            amount: price,
+            userId,
+            eventType:  'NFT_PURCHASE',
+            amount:     newPackage.mintPrice,
             walletFrom: 'USDT',
-            walletTo: 'HORSE_NFT',
-            narrative: `Purchased ${tier.toUpperCase()} Horse NFT package.`,
+            walletTo,
+            narrative,
         });
 
-        res.status(200).json({
-            message: 'NFT package purchased successfully.',
-            nftPackages: user.nftPackages,
-        });
+        const message = isHorse
+            ? `${tier.charAt(0).toUpperCase() + tier.slice(1)} Horse NFT purchased successfully.`
+            : `${tier} Mining NFT minted successfully. Mining power is now active.`;
+
+        res.status(200).json({ message, nftPackages: user.nftPackages });
 
     } catch (error) {
         console.error('Error purchasing NFT:', error);
-        res.status(500).json({ message: 'Server error while purchasing NFT.' });
+        res.status(500).json({ message: 'Server error while processing NFT purchase.' });
     }
 };
 
