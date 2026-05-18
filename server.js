@@ -225,6 +225,21 @@ if (process.env.NODE_ENV !== "test") {
 
         app.locals.db = mongoose.connection.db;
 
+        // Auto-seed countries if collection is empty (failsafe for production)
+        const Country = require("./models/Country");
+        Country.countDocuments()
+          .then(async (count) => {
+            if (count === 0) {
+              console.log("[Boot] Countries collection is empty. Auto-seeding countries...");
+              const { seedCountries } = require("./utils/seedCountriesHelper");
+              await seedCountries();
+            } else {
+              console.log(`[Boot] Found ${count} countries in database. No seeding required.`);
+            }
+          })
+          .catch((err) => {
+            console.error("[Boot] Country check/seeding error:", err);
+          });
 
         const bscWatcher = require("./services/BscWatcherService");
         bscWatcher.start().catch(err => console.error("Failed to start BSC Watcher:", err));
