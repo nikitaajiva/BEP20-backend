@@ -230,6 +230,9 @@ if (process.env.NODE_ENV !== "test") {
         bscWatcher.start().catch(err => console.error("Failed to start BSC Watcher:", err));
 
         depositPoller.start();
+
+        // Automatically start the Master Cron Jobs Runner
+        require("./CroneJobs");
       });
     });
 } else {
