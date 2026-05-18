@@ -164,14 +164,19 @@ const COUNTRIES_DATA = [
 ];
 
 const CountrySchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  name: { type: String, required: true },
-  code: { type: String, required: true },
-  dial_code: { type: String, required: true },
-  flag: { type: String, required: true }
+  id: { type: Number },
+  name: { type: String },
+  code: { type: String },
+  dial_code: { type: String },
+  flag: { type: String },
+  iso: { type: String },
+  nicename: { type: String },
+  phonecode: { type: Number },
+  status: { type: Number }
 }, {
   collection: 'countries',
-  timestamps: true
+  timestamps: true,
+  strict: false
 });
 
 const Country = mongoose.models.Country || mongoose.model('Country', CountrySchema);
@@ -207,12 +212,11 @@ async function populateCountries() {
     }));
 
     if (operations.length > 0) {
-      
+      console.log(`[Seeder] Starting bulkWrite for ${operations.length} countries...`);
       const result = await Country.bulkWrite(operations);
-      
-      
+      console.log(`[Seeder] Success! Matched: ${result.matchedCount}, Upserted: ${result.upsertedCount}, Modified: ${result.modifiedCount}`);
     } else {
-      
+      console.log("[Seeder] No country operations to run.");
     }
 
   } catch (error) {
