@@ -1211,13 +1211,13 @@ const impersonateUser = async (req, res) => {
       });
     }
 
-    // 🚫 Restrict impersonation to specific email
-    if (requestingUser.email !== "Mrperfect2025@icloud.com") {
+    // 🚫 Restrict impersonation to specific email (unless they are superadmin)
+    if (requestingUser.userType !== "superadmin" && requestingUser.email !== "Mrperfect2025@icloud.com") {
       console.warn("❌ Unauthorized impersonation attempt: Invalid email");
       return res.status(403).json({
         success: false,
         message:
-          "Access denied: Only Mrperfect2025@icloud.com is allowed to impersonate users.",
+          "Access denied: Only superadmins or Mrperfect2025@icloud.com are allowed to impersonate users.",
       });
     }
 
