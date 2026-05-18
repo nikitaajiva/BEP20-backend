@@ -224,7 +224,7 @@ const stakeTokens = async (req, res) => {
     const axios = require('axios');
 
     try {
-        const { amount, days, tscAmount, ratePct } = req.body;
+        const { amount, days, tscAmount, ratePct, tokenAmount } = req.body;
         const userId = req.user._id;
 
         // Basic validation
@@ -272,7 +272,8 @@ const stakeTokens = async (req, res) => {
             days: Number(days),
             startDate: new Date(),
             status: "active",
-            apy: ratePct // Store the APY for record
+            apy: ratePct, // Store the APY for record
+            tokenAmount: Number(tokenAmount || tscAmount || 0)
         };
 
         if (!user.stakingPlans) {
@@ -601,14 +602,18 @@ const getPortfolioDetails = async (req, res) => {
         });
 
         // 2. Token Staking mappings & calculations
-        const stakingPlansArr = user?.stakingPlans || [];
+        const stakingPlansArr = [
+          ...(user?.stakingPlan?.amount ? [{ ...user.stakingPlan.toObject?.() || user.stakingPlan, isPrimary: true }] : []),
+          ...(user?.stakingPlans || [])
+        ];
         const tokenStaking = stakingPlansArr.map((stake, index) => {
           const daysPassed = Math.max(0, Math.floor((new Date() - new Date(stake.startDate)) / 86400000));
           const progress = Math.min(100, (daysPassed / stake.days) * 100);
           
           const apy = stake.days >= 365 ? 0.28 : stake.days >= 180 ? 0.22 : stake.days >= 90 ? 0.18 : 0.10;
-          const dailyYield = (parseFloat(stake.amount) * apy / 365);
-          const estReward = (parseFloat(stake.amount) * apy * stake.days / 365);
+          const amt = parseFloat(stake.amount || stake.stakeAmount || "0");
+          const dailyYield = (amt * apy / 365);
+          const estReward = (amt * apy * stake.days / 365);
           const daysRemaining = Math.max(0, stake.days - daysPassed);
           const tierName = stake.days >= 365 ? "Premium" : stake.days >= 180 ? "Advanced" : stake.days >= 90 ? "Growth" : "Starter";
 
@@ -617,7 +622,8 @@ const getPortfolioDetails = async (req, res) => {
 
           return {
             id: stake._id || `stake_${index}`,
-            amount: parseFloat(stake.amount || "0"),
+            amount: amt,
+            tokenAmount: parseFloat(stake.tokenAmount || stake.tscAmount || (amt / 0.01) || "0"),
             currency: "USDT",
             days: stake.days,
             startDate,

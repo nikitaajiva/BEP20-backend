@@ -526,8 +526,16 @@ const UserSchema = new mongoose.Schema({
     amount: { type: Number, default: 0 },
     days: { type: Number, enum: [30, 90, 180, 365], required: true },
     startDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ["active", "completed"], default: "active" }
+    status: { type: String, enum: ["active", "completed"], default: "active" },
+    tokenAmount: { type: Number, default: 0 }
   }],
+  stakingPlan: {
+    amount: { type: Number, default: 0 },
+    days: { type: Number, default: 0 },
+    startDate: { type: Date, default: Date.now },
+    status: { type: String, default: "active" },
+    tokenAmount: { type: Number, default: 0 }
+  },
   phantomWalletAddress: {
     type: String,
     trim: true,
