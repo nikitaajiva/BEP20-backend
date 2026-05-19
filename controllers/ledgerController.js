@@ -229,6 +229,16 @@ const getLedgerDetails = async (req, res) => {
         balance: ledger.wallets?.sol?.toString() || "0.0",
       },
 
+      tscWallet: {
+        available: ledger.wallets?.tscAvailable?.toString() || "0.0",
+        locked: ledger.wallets?.tscLocked?.toString() || "0.0",
+        vesting: ledger.wallets?.tscVesting?.toString() || "0.0",
+      },
+
+      tkcWallet: {
+        balance: ledger.wallets?.tkc?.toString() || "0.0",
+      },
+
       bnbWallet: {
         balance: rawBnbBalance,
       },

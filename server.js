@@ -162,6 +162,11 @@ const rewardsRoutes = require("./routes/rewardsRoutes");
 const reportRoutes = require("./routes/report.js");
 const configRoutes = require("./routes/configRoutes");
 const adminProtocolRoutes = require("./routes/adminProtocolRoutes");
+const rewardTransactionRoutes = require("./routes/rewardTransactionRoutes");
+const adminTokenLedgerRoutes = require("./routes/adminTokenLedgerRoutes");
+const nftRoutes = require("./routes/nftRoutes");
+const miningRoutes = require("./routes/miningRoutes");
+const adminMiningRoutes = require("./routes/adminMiningRoutes");
 
 // XRP System Routes
 // Renamed from xrp/depositRoutes to distinguish
@@ -219,6 +224,11 @@ app.use("/api/rewards", rewardsRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/admin/protocol", adminProtocolRoutes);
+app.use("/api/reward-transactions", rewardTransactionRoutes);
+app.use("/api/admin/token-ledger", adminTokenLedgerRoutes);
+app.use("/api/nft", nftRoutes);
+app.use("/api/mining", miningRoutes);
+app.use("/api/admin/mining", adminMiningRoutes);
 
 // Global Error Handler (Place after routes)
 app.use((err, req, res, next) => {
@@ -269,6 +279,7 @@ if (process.env.NODE_ENV !== "test") {
         enqueueMissedDailyRoiBatchIfNeeded().catch((err) =>
           console.error("Failed to enqueue missed DAILY_ROI_BATCH:", err)
         );
+        tscMiningCronTask = scheduleDailyTscMiningJob();
 
         // Automatically start the Master Cron Jobs Runner
         require("./CroneJobs");
@@ -303,6 +314,10 @@ const shutdownServices = async () => {
   if (dailyRoiCronTask) {
     dailyRoiCronTask.stop();
     dailyRoiCronTask = null;
+  }
+  if (tscMiningCronTask) {
+    tscMiningCronTask.stop();
+    tscMiningCronTask = null;
   }
   try {
     await mongoose.disconnect();

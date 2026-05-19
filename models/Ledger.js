@@ -116,6 +116,22 @@ const LedgerSchema = new Schema({
     dailyXBonus: {
       type: Schema.Types.Decimal128,
       default: '0.0'
+    },
+    tscAvailable: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    tscLocked: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    tscVesting: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
+    },
+    tkc: {
+      type: Schema.Types.Decimal128,
+      default: '0.0'
     }
   },
   dailyRewards: {

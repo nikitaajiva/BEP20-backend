@@ -9,7 +9,7 @@ const dec = (val) => mongoose.Types.Decimal128.fromString(String(val));
 
 const defaultProtocolConfig = {
   key: "default",
-  tscInitialPriceUSDT: dec(2),
+  tscInitialPriceUSDT: dec(1),
   tscDailyIncreasePercent: dec(0.2),
   tscDailyIncreaseMinPercent: dec(0.2),
   tscDailyIncreaseMaxPercent: dec(0.5),
