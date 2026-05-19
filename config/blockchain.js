@@ -8,6 +8,9 @@ const { ethers } = require("ethers");
 const BSC_CHAIN_ID = Number(process.env.BSC_CHAIN_ID || "56");
 const HTTP_URL = process.env.BSC_MAINNET_RPC_URL || "https://bsc-rpc.publicnode.com";
 const WSS_URL = process.env.BSC_MAINNET_WSS_URL || "wss://bsc.publicnode.com";
+const USE_WSS =
+  String(process.env.BSC_WATCHER_USE_WSS || "true").trim().toLowerCase() ===
+  "true";
 
 // Shared Provider Handles
 let httpProvider = null;
@@ -32,6 +35,16 @@ function getHttpProvider() {
  * Used ONLY for real-time listeners (BscWatcherService).
  */
 function createWebSocketProvider() {
+  if (!USE_WSS) {
+    console.warn("🔻 BSC WebSocket watcher disabled via BSC_WATCHER_USE_WSS=false");
+    return null;
+  }
+
+  if (!WSS_URL) {
+    console.warn("🔻 BSC WebSocket URL is missing. Falling back to HTTP polling.");
+    return null;
+  }
+
   try {
     console.log("🔌 Connecting to BSC WebSocket:", WSS_URL);
     
@@ -45,20 +58,39 @@ function createWebSocketProvider() {
     // Ethers v6 WebSocketProvider will attempt connection 
     
     // Keep-alive/Reconnection logic
+    const getSocket = () => provider.websocket || provider._websocket || null;
+
     const keepAlive = () => {
-      if (provider.websocket && (provider.websocket.readyState === 1)) {
-          // Connected
-          return;
+      const socket = getSocket();
+      if (socket && socket.readyState === 1) {
+        return;
       }
-      console.warn("⚠️ WebSocket is not open. Reconnection will be handled by ethers or manual reset.");
+      console.warn(
+        "⚠️ BSC WebSocket is not open. Polling fallback should continue."
+      );
     };
 
     const interval = setInterval(keepAlive, 30000);
 
-    provider.on("error", (err) => {
-      console.error("❌ WebSocket Provider Error:", err);
-      wssProvider = null; // Forces getWssProvider to recreate next time
+    const handleSocketFailure = (label, err) => {
+      console.error(`❌ BSC WebSocket ${label}:`, err?.message || err);
+      wssProvider = null;
       clearInterval(interval);
+    };
+
+    const socket = getSocket();
+    if (socket && typeof socket.on === "function") {
+      socket.on("error", (err) => handleSocketFailure("socket error", err));
+      socket.on("close", (code, reason) => {
+        handleSocketFailure(
+          `socket closed (${code})`,
+          reason ? reason.toString() : "closed"
+        );
+      });
+    }
+
+    provider.on("error", (err) => {
+      handleSocketFailure("provider error", err);
     });
 
     return provider;
@@ -76,12 +108,7 @@ function getWssProvider() {
   if (!wssProvider) {
     wssProvider = createWebSocketProvider();
   }
-  
-  if (!wssProvider) {
-    console.warn("🔻 Falling back to HTTP provider for real-time listener (Not ideal).");
-    return getHttpProvider();
-  }
-  
+
   return wssProvider;
 }
 

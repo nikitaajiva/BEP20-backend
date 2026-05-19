@@ -268,8 +268,14 @@ if (process.env.NODE_ENV !== "test") {
             console.error("[Boot] Country check/seeding error:", err);
           });
 
-        const bscWatcher = require("./services/BscWatcherService");
-        bscWatcher.start().catch(err => console.error("Failed to start BSC Watcher:", err));
+        if (String(process.env.DISABLE_BSC_WATCHER || "").trim().toLowerCase() !== "true") {
+          const bscWatcher = require("./services/BscWatcherService");
+          bscWatcher.start().catch((err) =>
+            console.error("Failed to start BSC Watcher:", err)
+          );
+        } else {
+          console.warn("🔻 BSC watcher disabled via DISABLE_BSC_WATCHER=true");
+        }
 
         depositPoller.start();
 
