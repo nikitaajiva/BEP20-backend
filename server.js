@@ -186,6 +186,7 @@ const {
   scheduleDailyRoiBatchJob,
   enqueueMissedDailyRoiBatchIfNeeded,
 } = require("./jobs/cronJobs");
+const { scheduleDailyTscMiningJob } = require("./jobs/dailyTscMiningCron");
 const {
   handleDailyRoiBatch,
   handleDailyRoiUser,
@@ -195,6 +196,7 @@ const {
 let outboxProcessor; // Declare outboxProcessor
 let server;
 let dailyRoiCronTask;
+let tscMiningCronTask;
 
 const PORT = process.env.PORT || 5000;
 
