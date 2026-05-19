@@ -646,16 +646,23 @@ const getLedgerHistory = async (req, res) => {
 const getAssetHistory = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, type } = req.query;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     // Filter specifically for asset history event types
+    let eventTypes = ["NFT_PURCHASE", "STAKING_DEPOSIT"];
+    if (type === "nft") {
+      eventTypes = ["NFT_PURCHASE"];
+    } else if (type === "staking") {
+      eventTypes = ["STAKING_DEPOSIT"];
+    }
+
     const query = {
       userId,
-      eventType: { $in: ["NFT_PURCHASE", "STAKING_DEPOSIT"] }
+      eventType: { $in: eventTypes }
     };
 
     const totalEntries = await LedgerRow.countDocuments(query);
