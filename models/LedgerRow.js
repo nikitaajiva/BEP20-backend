@@ -192,4 +192,7 @@ const LedgerRowSchema = new mongoose.Schema(
   { timestamps: { createdAt: "ts" } }
 ); // Use 'ts' as the primary timestamp field as per schema, `updatedAt` will also be added
 
+// Indexes for fast retrieval
+LedgerRowSchema.index({ userId: 1, eventType: 1, refId: 1 });
+
 module.exports = mongoose.models.LedgerRow || mongoose.model("LedgerRow", LedgerRowSchema);

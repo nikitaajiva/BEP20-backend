@@ -162,6 +162,7 @@ const rewardsRoutes = require("./routes/rewardsRoutes");
 const reportRoutes = require("./routes/report.js");
 const configRoutes = require("./routes/configRoutes");
 const adminProtocolRoutes = require("./routes/adminProtocolRoutes");
+const referralRewardsRoutes = require("./routes/referralRewardsRoutes");
 
 // XRP System Routes
 // Renamed from xrp/depositRoutes to distinguish
@@ -219,6 +220,7 @@ app.use("/api/rewards", rewardsRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/admin/protocol", adminProtocolRoutes);
+app.use("/api/referral-rewards", referralRewardsRoutes);
 
 // Global Error Handler (Place after routes)
 app.use((err, req, res, next) => {
