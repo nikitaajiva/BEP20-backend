@@ -1,14 +1,20 @@
 const mongoose = require('mongoose');
 const User = require('../../models/User');
-const Ledger = require('../../models/Ledger');
 const Outbox = require('../../models/Outbox');
 const { Decimal128 } = mongoose.Types;
 const { createLedgerEntry, getOrCreateLedger } = require('../helpers/ledgerHelpers');
+const {
+    addDecimal128,
+    subtractDecimal128,
+    multiplyDecimal128,
+    compareDecimal128,
+    convertToFloat
+} = require('../../utils/decimal128Utils');
 
-const { ROI_SLABS, getRoiSlabInfo } = require('../../utils/constants');
+const { getRoiSlabInfo } = require('../../utils/constants');
 
 function getRoiRateForBalance(balanceD128) {
-    const balance = balanceD128.toFloat();
+    const balance = convertToFloat(balanceD128);
     const slabInfo = getRoiSlabInfo(balance);
     
     if (!slabInfo) {
@@ -41,7 +47,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
     ];
 
     for (const wallet of walletsToProcess) {
-        if (!wallet.balance || wallet.balance.toFloat() <= 0) {
+        if (!wallet.balance || convertToFloat(wallet.balance) <= 0) {
             
             continue;
         }
@@ -52,7 +58,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
             continue;
         }
 
-        let calculatedRoi = wallet.balance.multiply(Decimal128.fromString(rate.toString()));
+        let calculatedRoi = multiplyDecimal128(wallet.balance, Decimal128.fromString(rate.toString()));
         let roiToCredit = calculatedRoi;
         let walletLimitAppliedDescription = 'None';
 
@@ -61,7 +67,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
             const limitDef = ledger.limits[wallet.limitKey];
             const remainingWalletLimit = subtractDecimal128(limitDef.cap, limitDef.used);
             
-            if (parseFloat(remainingWalletLimit.toString()) <= 0) {
+            if (convertToFloat(remainingWalletLimit) <= 0) {
                 
                 continue; 
             }
@@ -73,7 +79,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
             }
         }
 
-        if (parseFloat(roiToCredit.toString()) <= 0) {
+        if (convertToFloat(roiToCredit) <= 0) {
             
             continue;
         }
@@ -82,7 +88,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
         const fiveXLimitDef = ledger.limits.fiveXLimit;
         const remainingFiveXRoom = subtractDecimal128(fiveXLimitDef.cap, fiveXLimitDef.used);
 
-        if (parseFloat(remainingFiveXRoom.toString()) <= 0) {
+        if (convertToFloat(remainingFiveXRoom) <= 0) {
             
             continue; // Cannot credit any more to Community Rewards
         }
@@ -97,7 +103,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
             fiveXAppliedDescription = 'WithinFiveX';
         }
 
-        if (parseFloat(finalRoiCreditedToCommunity.toString()) <= 0) {
+        if (convertToFloat(finalRoiCreditedToCommunity) <= 0) {
             
             continue;
         }
@@ -109,13 +115,12 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
         if (wallet.limitKey) {
             ledger.limits[wallet.limitKey].used = addDecimal128(ledger.limits[wallet.limitKey].used, finalRoiCreditedToCommunity);
         }
-        
+
         // Increase pending for FiveXLimit
         ledger.limits.fiveXLimit.used = addDecimal128(ledger.limits.fiveXLimit.used, finalRoiCreditedToCommunity);
         // Decrease the zero risk wallet limit
         ledger.limits.zeroRiskLimit.used = addDecimal128(ledger.limits.zeroRiskLimit.used, finalRoiCreditedToCommunity);
-
-        totalRoiCreditedThisRun = addDecimal128(totalRoiCreditedThisRun, finalRoiCreditedToCommunity);
+        ledger.totalRewardsCredited = addDecimal128(ledger.totalRewardsCredited, finalRoiCreditedToCommunity);
 
         const narrative = `Daily ROI credit from ${wallet.name} wallet. Rate: ${rate*100}%. Original: ${calculatedRoi.toString()}, Capped: ${finalRoiCreditedToCommunity.toString()}. WalletLimit: ${walletLimitAppliedDescription}, FiveXLimit: ${fiveXAppliedDescription}.`;
 
@@ -146,7 +151,7 @@ exports.handleDailyRoiUser = async (payload, session, event) => {
     await ledger.save({ session });
 
     // If LP-ROI > 0, emit ROI_CASCADE
-    if (parseFloat(totalLpRoiEarned.toString()) > 0) {
+    if (convertToFloat(totalLpRoiEarned) > 0) {
         
         const cascadePayload = {
             userId, 

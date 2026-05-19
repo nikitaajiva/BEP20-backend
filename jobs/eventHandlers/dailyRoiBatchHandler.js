@@ -6,7 +6,7 @@ const BATCH_SIZE = process.env.ROI_USER_BATCH_SIZE || 5000; // Number of users t
 
 exports.handleDailyRoiBatch = async (payload, session, event) => {
     
-    const { triggeredAt } = payload;
+    const { triggeredAt, processingDate } = payload;
 
     let page = 0;
     let usersProcessed = 0;
@@ -34,7 +34,7 @@ exports.handleDailyRoiBatch = async (payload, session, event) => {
             eventType: 'DAILY_ROI_USER',
             payload: {
                 userId: user._id,
-                processingDate: triggeredAt || new Date().toISOString() // Date for which ROI is being calculated
+                processingDate: processingDate || triggeredAt || new Date().toISOString()
             },
             status: 'PENDING',
             nextRunTs: new Date(), // Process ASAP

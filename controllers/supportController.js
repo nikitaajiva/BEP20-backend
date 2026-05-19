@@ -6101,6 +6101,9 @@ exports.getSystemReport = async (req, res) => {
     const yesterdayEnd = new Date(todayEnd);
     yesterdayEnd.setUTCDate(yesterdayEnd.getUTCDate() - 1);
 
+    const weekStart = new Date(todayStart);
+    weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+
     // Look back 90 days for last distribution to avoid scanning entire collection
     const distLookback = new Date(todayStart);
     distLookback.setUTCDate(distLookback.getUTCDate() - 90);
@@ -6122,8 +6125,13 @@ exports.getSystemReport = async (req, res) => {
       xPowerTodayAgg,
       cascadeYesterdayAgg,
 
+      chainDepositTodayAgg,
+      chainWithdrawalTodayAgg,
       chainDepositLifetimeAgg,
       chainWithdrawalLifetimeAgg,
+      chainDepositTrendAgg,
+      chainWithdrawalTrendAgg,
+      newUsersTrendAgg,
 
       ecosystemFeeLifetimeAgg,
 
@@ -6218,9 +6226,87 @@ exports.getSystemReport = async (req, res) => {
         { $group: { _id: null, total: { $sum: "$amount" } } }
       ]),
 
+      /* On-chain today totals */
+      ChainDeposit.aggregate([
+        { $match: { txDate: { $gte: todayStart, $lte: todayEnd } } },
+        {
+          $facet: {
+            totalAmount: [{ $group: { _id: null, total: { $sum: "$amount" } } }],
+            txCount: [{ $count: "count" }],
+            userCount: [{ $group: { _id: "$userId" } }, { $count: "count" }]
+          }
+        }
+      ]),
+      ChainWithdrawal.aggregate([
+        { $match: { txDate: { $gte: todayStart, $lte: todayEnd } } },
+        {
+          $facet: {
+            totalAmount: [{ $group: { _id: null, total: { $sum: "$amount" } } }],
+            txCount: [{ $count: "count" }],
+            userCount: [{ $group: { _id: "$userId" } }, { $count: "count" }]
+          }
+        }
+      ]),
+
       /* On-chain lifetime totals */
       ChainDeposit.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
       ChainWithdrawal.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
+
+      /* Rolling 7-day trends */
+      ChainDeposit.aggregate([
+        { $match: { txDate: { $gte: weekStart, $lte: todayEnd } } },
+        {
+          $group: {
+            _id: {
+              day: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$txDate",
+                  timezone: "UTC"
+                }
+              }
+            },
+            total: { $sum: "$amount" }
+          }
+        },
+        { $sort: { "_id.day": 1 } }
+      ]),
+      ChainWithdrawal.aggregate([
+        { $match: { txDate: { $gte: weekStart, $lte: todayEnd } } },
+        {
+          $group: {
+            _id: {
+              day: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$txDate",
+                  timezone: "UTC"
+                }
+              }
+            },
+            total: { $sum: "$amount" }
+          }
+        },
+        { $sort: { "_id.day": 1 } }
+      ]),
+      User.aggregate([
+        { $match: { createdAt: { $gte: weekStart, $lte: todayEnd } } },
+        {
+          $group: {
+            _id: {
+              day: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$createdAt",
+                  timezone: "UTC"
+                }
+              }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id.day": 1 } }
+      ]),
 
       /* Ecosystem fee lifetime */
       EcosystemFee.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
@@ -6350,6 +6436,53 @@ exports.getSystemReport = async (req, res) => {
     const distributedAirdropRewards = lifetimeMap["DAILY_REWARDS_AIRDROP"] || Decimal128.fromString("0");
     const distributedBoosterRewards = lifetimeMap["DAILY_REWARDS_BOOST"] || Decimal128.fromString("0");
 
+    const depositsToday = chainDepositTodayAgg?.[0] || {};
+    const withdrawalsToday = chainWithdrawalTodayAgg?.[0] || {};
+    const onChainDepositsToday = {
+      total: depositsToday.totalAmount?.[0]?.total?.toString?.() || "0",
+      txCount: depositsToday.txCount?.[0]?.count || 0,
+      userCount: depositsToday.userCount?.[0]?.count || 0,
+    };
+    const onChainWithdrawalsToday = {
+      total: withdrawalsToday.totalAmount?.[0]?.total?.toString?.() || "0",
+      txCount: withdrawalsToday.txCount?.[0]?.count || 0,
+      userCount: withdrawalsToday.userCount?.[0]?.count || 0,
+    };
+
+    const trendDates = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(weekStart);
+      date.setUTCDate(weekStart.getUTCDate() + index);
+      return date;
+    });
+
+    const depositsTrendMap = Object.fromEntries(
+      chainDepositTrendAgg.map((entry) => [entry._id.day, Number(entry.total || 0)])
+    );
+    const withdrawalsTrendMap = Object.fromEntries(
+      chainWithdrawalTrendAgg.map((entry) => [entry._id.day, Number(entry.total || 0)])
+    );
+    const newUsersTrendMap = Object.fromEntries(
+      newUsersTrendAgg.map((entry) => [entry._id.day, Number(entry.count || 0)])
+    );
+
+    const trend7d = {
+      labels: trendDates.map((date) =>
+        date.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+      ),
+      deposits: trendDates.map((date) => {
+        const key = date.toISOString().slice(0, 10);
+        return depositsTrendMap[key] || 0;
+      }),
+      withdrawals: trendDates.map((date) => {
+        const key = date.toISOString().slice(0, 10);
+        return withdrawalsTrendMap[key] || 0;
+      }),
+      newUsers: trendDates.map((date) => {
+        const key = date.toISOString().slice(0, 10);
+        return newUsersTrendMap[key] || 0;
+      }),
+    };
+
     /* Distribution day totals from pre-fetched distDayRewards facet */
     let lpTotal = Decimal128.fromString("0");
     let airdropTotal = Decimal128.fromString("0");
@@ -6415,6 +6548,9 @@ exports.getSystemReport = async (req, res) => {
 
       onChainDeposits: onChainDeposits.toString(),
       onChainWithdrawals: onChainWithdrawals.toString(),
+      onChainDepositsToday,
+      onChainWithdrawalsToday,
+      trend7d,
 
       distributedLpRewards: distributedLpRewards.toString(),
       distributedAirdropRewards: distributedAirdropRewards.toString(),

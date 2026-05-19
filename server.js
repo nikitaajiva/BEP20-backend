@@ -174,9 +174,20 @@ const depositPoller = require("./jobs/depositPoller"); // Import the new deposit
 const bep20Watcher = require("./jobs/bep20Watcher");
 const withdrawalReconciler = require("./jobs/withdrawalReconciler"); // ⬅️ NEW: Import withdrawal reconciler job
 const reconcilePendingWithdrawals = require("./jobs/reconcilePendingWithdrawals"); // Pending-withdrawal reconciler
+const OutboxProcessor = require("./jobs/OutboxProcessor");
+const {
+  scheduleDailyRoiBatchJob,
+  enqueueMissedDailyRoiBatchIfNeeded,
+} = require("./jobs/cronJobs");
+const {
+  handleDailyRoiBatch,
+  handleDailyRoiUser,
+  handleRoiCascade,
+} = require("./jobs/eventHandlers");
 
 let outboxProcessor; // Declare outboxProcessor
 let server;
+let dailyRoiCronTask;
 
 const PORT = process.env.PORT || 5000;
 
@@ -246,6 +257,17 @@ if (process.env.NODE_ENV !== "test") {
 
         depositPoller.start();
 
+        outboxProcessor = new OutboxProcessor();
+        outboxProcessor.registerHandler("DAILY_ROI_BATCH", handleDailyRoiBatch);
+        outboxProcessor.registerHandler("DAILY_ROI_USER", handleDailyRoiUser);
+        outboxProcessor.registerHandler("ROI_CASCADE", handleRoiCascade);
+        outboxProcessor.start();
+
+        dailyRoiCronTask = scheduleDailyRoiBatchJob();
+        enqueueMissedDailyRoiBatchIfNeeded().catch((err) =>
+          console.error("Failed to enqueue missed DAILY_ROI_BATCH:", err)
+        );
+
         // Automatically start the Master Cron Jobs Runner
         require("./CroneJobs");
       });
@@ -275,6 +297,10 @@ const shutdownServices = async () => {
 
     outboxProcessor.stop();
 
+  }
+  if (dailyRoiCronTask) {
+    dailyRoiCronTask.stop();
+    dailyRoiCronTask = null;
   }
   try {
     await mongoose.disconnect();

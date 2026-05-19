@@ -22,3 +22,5 @@ build/
 logs/
 *.log
 output*.log
+
+mongodb_data

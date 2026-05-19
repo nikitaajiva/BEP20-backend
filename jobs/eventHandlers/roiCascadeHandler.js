@@ -1,9 +1,15 @@
 const mongoose = require('mongoose');
 const User = require('../../models/User');
-const Ledger = require('../../models/Ledger');
 // const Outbox = require('../../models/Outbox'); // Not strictly needed unless this handler emits further events
 const { Decimal128 } = mongoose.Types;
 const { createLedgerEntry, getOrCreateLedger } = require('../helpers/ledgerHelpers');
+const {
+    addDecimal128,
+    subtractDecimal128,
+    compareDecimal128,
+    multiplyDecimal128,
+    convertToFloat
+} = require('../../utils/decimal128Utils');
 
 // ROI-on-ROI (Team Cascade) Table Data (§6)
 const cascadeUnlockRules = [
@@ -32,19 +38,19 @@ const cascadeUnlockRules = [
 function checkSponsorUnlock(sponsorCounters, rule) {
     if (sponsorCounters.directReferrals < rule.minDirects) return false;
 
-    const selfLp = sponsorCounters.selfLp.toFloat();
+    const selfLp = convertToFloat(sponsorCounters.selfLp);
 
     if (rule.selfLpOrTeamLp3) {
         const meetsSelfLp = selfLp >= rule.selfLpOrTeamLp3.selfLp;
         if (rule.selfLpOrTeamLp3.teamLp3 === null) return meetsSelfLp; // Only selfLp matters
-        const meetsTeamLp3 = sponsorCounters.teamLpFirst3Lvls.toFloat() >= rule.selfLpOrTeamLp3.teamLp3;
+        const meetsTeamLp3 = convertToFloat(sponsorCounters.teamLpFirst3Lvls) >= rule.selfLpOrTeamLp3.teamLp3;
         return meetsSelfLp || meetsTeamLp3;
     }
     if (rule.selfLpOrTeamLp5) {
         const meetsSelfLp = selfLp >= rule.selfLpOrTeamLp5.selfLp;
         // For teamLp5, it's an OR condition according to table format
         if (rule.selfLpOrTeamLp5.teamLp5 === null) return meetsSelfLp; // Should not happen for L7+
-        const meetsTeamLp5 = sponsorCounters.teamLpFirst5Lvls.toFloat() >= rule.selfLpOrTeamLp5.teamLp5;
+        const meetsTeamLp5 = convertToFloat(sponsorCounters.teamLpFirst5Lvls) >= rule.selfLpOrTeamLp5.teamLp5;
         return meetsSelfLp || meetsTeamLp5;
     }
     return false; // Should not be reached if rule is well-defined
@@ -105,36 +111,37 @@ exports.handleRoiCascade = async (payload, session, event) => {
 
         if (isUnlocked) {
             const cascadeBonusPct = Decimal128.fromString(rule.pct.toString());
-            let cascadeAmountD128 = originalRoiD128.multiply(cascadeBonusPct);
+            let cascadeAmountD128 = multiplyDecimal128(originalRoiD128, cascadeBonusPct);
 
-            if (cascadeAmountD128.toFloat() <= 0) {
+            if (convertToFloat(cascadeAmountD128) <= 0) {
                 
                 continue;
             }
 
             const sponsorLedger = await getOrCreateLedger(sponsorUserId, session);
             const fiveXLimitDef = sponsorLedger.limits.fiveXLimit;
-            const remainingFiveXRoom = fiveXLimitDef.cap.subtract(fiveXLimitDef.used);
+            const remainingFiveXRoom = subtractDecimal128(fiveXLimitDef.cap, fiveXLimitDef.used);
             let fiveXAppliedDescription = 'WithinFiveX';
 
-            if (remainingFiveXRoom.toFloat() <= 0) {
+            if (convertToFloat(remainingFiveXRoom) <= 0) {
                 
                 continue; 
             }
 
-            if (cascadeAmountD128.compare(remainingFiveXRoom) === 1) { // cascadeAmount > remainingFiveXRoom
+            if (compareDecimal128(cascadeAmountD128, remainingFiveXRoom) === 1) {
                 cascadeAmountD128 = remainingFiveXRoom;
                 fiveXAppliedDescription = 'FIVEX_CAP';
             }
             
-            if (cascadeAmountD128.toFloat() <= 0) { // Check again after FiveX cap
+            if (convertToFloat(cascadeAmountD128) <= 0) {
                 
                 continue;
             }
 
             qualifiedAncestorsProcessed++; // Count only if an amount is actually paid
-            sponsorLedger.wallets.communityRewards = sponsorLedger.wallets.communityRewards.add(cascadeAmountD128);
-            sponsorLedger.limits.fiveXLimit.used = sponsorLedger.limits.fiveXLimit.used.add(cascadeAmountD128);
+            sponsorLedger.wallets.communityRewards = addDecimal128(sponsorLedger.wallets.communityRewards, cascadeAmountD128);
+            sponsorLedger.limits.fiveXLimit.used = addDecimal128(sponsorLedger.limits.fiveXLimit.used, cascadeAmountD128);
+            sponsorLedger.totalRewardsCredited = addDecimal128(sponsorLedger.totalRewardsCredited, cascadeAmountD128);
             
             await createLedgerEntry({
                 userId: sponsorUserId,

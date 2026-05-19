@@ -16,19 +16,27 @@ const createLedgerEntry = async ({
   narrative,
   refId,
   transactionId,
-  tscAmount
+  tscAmount,
+  ratePct,
+  roiDetails,
+  ...extraFields
 }, session = null) => {
   const ledgerEntry = new LedgerRow({
     userId,
     eventType,
     amount: Decimal128.fromString(amount.toString()),
     tscAmount: tscAmount ? Decimal128.fromString(tscAmount.toString()) : undefined,
+    ratePct: ratePct != null ? Decimal128.fromString(ratePct.toString()) : undefined,
     walletFrom,
     walletTo,
     narrative,
     refId,
     transactionId,
-    timestamp: new Date()
+    roiWalletSource: roiDetails?.walletSource,
+    roiRateSlabApplied: roiDetails?.rateSlab,
+    roiLimitApplied: roiDetails?.limitApplied,
+    timestamp: new Date(),
+    ...extraFields
   });
 
   if (session) {
@@ -45,11 +53,20 @@ const createLedgerEntry = async ({
  * @param {string|mongoose.Types.ObjectId} userId - The ID of the user.
  * @returns {Promise<Ledger>} The user's ledger document.
  */
-async function getOrCreateLedger(userId) {
-    let ledger = await Ledger.findById(userId);
+async function getOrCreateLedger(userId, session = null) {
+    let ledgerQuery = Ledger.findById(userId);
+    if (session) {
+        ledgerQuery = ledgerQuery.session(session);
+    }
+
+    let ledger = await ledgerQuery;
     if (!ledger) {
         const User = mongoose.model('User');
-        const user = await User.findById(userId).select('uhid');
+        let userQuery = User.findById(userId).select('uhid');
+        if (session) {
+            userQuery = userQuery.session(session);
+        }
+        const user = await userQuery;
         
         if (!user) {
             throw new Error(`Cannot create ledger: User not found for ID ${userId}`);
@@ -88,9 +105,15 @@ async function getOrCreateLedger(userId) {
                 boostLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
                 fiveXLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
                 zeroRiskLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
+                airdropLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
+                boosterLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
+                cascadeLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
+                xBonusLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
+                xPowerLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
+                xMenLimit: { cap: Decimal128.fromString('0.0'), used: Decimal128.fromString('0.0') },
             }
         });
-        await ledger.save();
+        await ledger.save(session ? { session } : undefined);
     }
     // No need to manually ensure Decimal128 types if schema is correct.
     // The save operations in depositService will handle the updates.

@@ -37,9 +37,16 @@ class OutboxProcessor {
         if (this.isPolling) return;
         this.isPolling = true;
 
-        // 
+        const registeredEventTypes = Object.keys(eventHandlers);
+        if (registeredEventTypes.length === 0) {
+            this.isPolling = false;
+            if (this.timeoutId) clearTimeout(this.timeoutId);
+            this.timeoutId = setTimeout(() => this.run(), this.pollInterval);
+            return;
+        }
 
         const eventsToProcess = await Outbox.find({
+            eventType: { $in: registeredEventTypes },
             status: { $in: ['PENDING', 'RETRY'] },
             nextRunTs: { $lte: new Date() }
         })
