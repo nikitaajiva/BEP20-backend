@@ -167,6 +167,7 @@ const adminTokenLedgerRoutes = require("./routes/adminTokenLedgerRoutes");
 const nftRoutes = require("./routes/nftRoutes");
 const miningRoutes = require("./routes/miningRoutes");
 const adminMiningRoutes = require("./routes/adminMiningRoutes");
+const referralRewardsRoutes = require("./routes/referralRewardsRoutes");
 
 // XRP System Routes
 // Renamed from xrp/depositRoutes to distinguish
@@ -229,6 +230,7 @@ app.use("/api/admin/token-ledger", adminTokenLedgerRoutes);
 app.use("/api/nft", nftRoutes);
 app.use("/api/mining", miningRoutes);
 app.use("/api/admin/mining", adminMiningRoutes);
+app.use("/api/referral-rewards", referralRewardsRoutes);
 
 // Global Error Handler (Place after routes)
 app.use((err, req, res, next) => {

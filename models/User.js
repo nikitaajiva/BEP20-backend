@@ -622,4 +622,7 @@ UserSchema.post("save", async function () {
   }
 });
 
+// Indexes for fast hierarchy retrieval
+UserSchema.index({ sponsorId: 1 });
+
 module.exports = mongoose.model("User", UserSchema);

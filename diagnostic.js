@@ -8,6 +8,6 @@ app.get('/test', (req, res) => {
   res.send(descriptor);
 });
 
-app.listen(5001, () => {
+app.listen(5000, () => {
   console.log('Diagnostic server on 5001');
 });
