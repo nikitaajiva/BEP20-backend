@@ -1,6 +1,8 @@
 require('dotenv').config();
 const Ledger = require("../models/Ledger");
 const User = require("../models/User");
+const UserNft = require("../models/UserNft");
+const MiningSnapshot = require("../models/MiningSnapshot");
 const LedgerRow = require("../models/LedgerRow");
 const DailyUserLp = require("../models/DailyUserLp");
 const EcosystemFee = require("../models/EcosystemFee");
@@ -205,6 +207,67 @@ const getLedgerDetails = async (req, res) => {
       rewardBreakdownByType[k] = Number(rewardBreakdownByType[k]).toFixed(6);
     });
 
+    // Fetch and format user's TokingGold NFTs
+    const userNfts = await UserNft.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formattedTokingGoldNfts = userNfts.map(nft => ({
+      _id: nft._id.toString(),
+      tierCode: nft.tierCode,
+      tierName: nft.tierName,
+      serialNo: nft.serialNo,
+      status: nft.status,
+      mintPriceU: nft.mintPriceU ? nft.mintPriceU.toString() : "0",
+      miningPower: nft.miningPower ? nft.miningPower.toString() : "0",
+      powerCoefficient: nft.powerCoefficient ? nft.powerCoefficient.toString() : "0",
+      currentPoolMultiplier: nft.currentPoolMultiplier ? nft.currentPoolMultiplier.toString() : "0",
+      dailyYieldRatePercent: nft.dailyYieldRatePercent ? nft.dailyYieldRatePercent.toString() : "0",
+      tscAllocationAmount: nft.tscAllocationAmount ? nft.tscAllocationAmount.toString() : "0",
+      paymentAsset: nft.paymentAsset,
+      paymentAmount: nft.paymentAmount ? nft.paymentAmount.toString() : "0",
+      mintedAt: nft.mintedAt,
+      stakedAt: nft.stakedAt,
+      unstakedAt: nft.unstakedAt,
+      lastMinedAt: nft.lastMinedAt
+    }));
+
+    // Calculate NFT summary details
+    let totalMinted = formattedTokingGoldNfts.length;
+    let totalStaked = 0;
+    let totalUnstaked = 0;
+    let totalMiningPower = new Decimal(0);
+    let totalTscAllocation = new Decimal(0);
+
+    formattedTokingGoldNfts.forEach(nft => {
+      if (nft.status === 'STAKED') {
+        totalStaked += 1;
+      } else if (nft.status === 'UNSTAKED') {
+        totalUnstaked += 1;
+      }
+      totalMiningPower = totalMiningPower.plus(nft.miningPower || 0);
+      totalTscAllocation = totalTscAllocation.plus(nft.tscAllocationAmount || 0);
+    });
+
+    const postedSnapshots = await MiningSnapshot.find({
+      user: userId,
+      status: "POSTED"
+    }).lean();
+
+    let totalMinedTscDecimal = new Decimal(0);
+    postedSnapshots.forEach(snap => {
+      totalMinedTscDecimal = totalMinedTscDecimal.plus(snap.minedTsc ? snap.minedTsc.toString() : "0");
+    });
+
+    const tokingGoldNftSummary = {
+      totalMinted,
+      totalStaked,
+      totalUnstaked,
+      totalMiningPower: totalMiningPower.toString(),
+      totalTscAllocation: totalTscAllocation.toString(),
+      totalMinedTsc: totalMinedTscDecimal.toString()
+    };
+
     /* ================== FINAL RESPONSE ================== */
     const ledgerDetails = {
       daily_rewards: rewardBreakdownByType,
@@ -269,6 +332,8 @@ const getLedgerDetails = async (req, res) => {
       },
 
       horseNFTs: horseNFTs,
+      tokingGoldNfts: formattedTokingGoldNfts,
+      tokingGoldNftSummary,
 
       communityRewards: {
         balance: ledger.wallets?.communityRewards?.toString() || "0.0",

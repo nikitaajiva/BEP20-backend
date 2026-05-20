@@ -84,6 +84,13 @@ exports.getMyMiningSummary = async (req, res) => {
       }
     }
 
+    let latestDateMinedTsc = 0;
+    for (const snap of snapshots) {
+      if (latestMiningDate && snap.miningDate === latestMiningDate) {
+        latestDateMinedTsc += toNumber(snap.minedTsc);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -92,6 +99,7 @@ exports.getMyMiningSummary = async (req, res) => {
         totalMinedTsc: totalMinedTsc.toFixed(4),
         todayMinedTsc: todayMinedTsc.toFixed(4),
         latestMiningDate,
+        latestDateMinedTsc: latestDateMinedTsc.toFixed(4),
       },
     });
   } catch (error) {

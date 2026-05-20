@@ -1,0 +1,2131 @@
+{
+  "info": {
+    "name": "TokingGold Phase 1-5 API Test Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "adminToken",
+      "value": "paste_admin_jwt_here"
+    },
+    {
+      "key": "userToken",
+      "value": "paste_user_jwt_here"
+    },
+    {
+      "key": "userId",
+      "value": "paste_user_id_here"
+    },
+    {
+      "key": "nftId",
+      "value": "paste_minted_nft_id_here"
+    },
+    {
+      "key": "miningDate",
+      "value": "2026-05-19"
+    },
+    {
+      "key": "nextMiningDate",
+      "value": "2026-05-20"
+    },
+    {
+      "key": "unstakedMiningDate",
+      "value": "2026-05-21"
+    },
+    {
+      "key": "mintIdempotencyKey",
+      "value": "MINT:N1:POSTMAN:001"
+    }
+  ],
+  "item": [
+    {
+      "name": "Folder 0: Setup Notes",
+      "item": [
+        {
+          "name": "README - How to Use This Collection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "1. First login with your existing auth API as admin/superadmin and paste token in collection variable adminToken.\n2. Login as normal user and paste token in userToken.\n3. Copy normal user's id into userId.\n4. Make sure backend is running.\n5. Run seed first from terminal:\n   node scripts/seedTokingGoldConfig.js\n6. Run requests in order from Phase 1 to Phase 5.\n7. After minting NFT, copy returned data._id into collection variable nftId manually unless test script captures it.\n8. For mining, NFT must be STAKED.\n9. Note: this collection uses the live mounted ledger route `/api/ledger` for ledger details requests.",
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 1: Phase 1 - Protocol Config",
+      "item": [
+        {
+          "name": "1.1 Get Protocol Config",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data exists', function () {",
+                  "  pm.expect(json.data).to.exist;",
+                  "});",
+                  "pm.test('tscInitialPriceUSDT exists', function () {",
+                  "  pm.expect(json.data).to.have.property('tscInitialPriceUSDT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/protocol/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "protocol",
+                "config"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.2 Update Protocol Config - Set TSC Price 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.tscInitialPriceUSDT equals 1', function () {",
+                  "  pm.expect(String(json.data.tscInitialPriceUSDT)).to.eql('1');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tscInitialPriceUSDT\": \"1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/protocol/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "protocol",
+                "config"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.3 Get NFT Tiers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data length >= 5', function () {",
+                  "  pm.expect((json.data || []).length).to.be.at.least(5);",
+                  "});",
+                  "pm.test('includes N1', function () {",
+                  "  pm.expect((json.data || []).some(function (item) { return item.code === 'N1'; })).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/protocol/nft-tiers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "protocol",
+                "nft-tiers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.4 Update N1 NFT Tier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dailyYieldRatePercent\": \"0.5\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/protocol/nft-tiers/N1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "protocol",
+                "nft-tiers",
+                "N1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 Get Node Levels",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data length >= 9', function () {",
+                  "  pm.expect((json.data || []).length).to.be.at.least(9);",
+                  "});",
+                  "pm.test('includes P1', function () {",
+                  "  pm.expect((json.data || []).some(function (item) { return item.code === 'P1'; })).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/protocol/node-levels",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "protocol",
+                "node-levels"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Update P1 Node Level",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"miningOutputPercent\": \"10\",\n  \"airdropAllocationPercent\": \"20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/protocol/node-levels/P1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "protocol",
+                "node-levels",
+                "P1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 2: Phase 2 - Internal TSC/TKC Ledger",
+      "item": [
+        {
+          "name": "2.1 Get Ledger Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.tscWallet exists', function () {",
+                  "  pm.expect(json.data).to.have.property('tscWallet');",
+                  "});",
+                  "pm.test('data.tkcWallet exists', function () {",
+                  "  pm.expect(json.data).to.have.property('tkcWallet');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Live backend route for ledger details is `/api/ledger`.",
+            "url": {
+              "raw": "{{baseUrl}}/api/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ledger"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.2 Admin Credit TSC",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"asset\": \"TSC\",\n  \"balanceField\": \"tscAvailable\",\n  \"direction\": \"CREDIT\",\n  \"amount\": \"10\",\n  \"reason\": \"Phase 2 Postman test TSC credit\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/token-ledger/adjust",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "token-ledger",
+                "adjust"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 Admin Debit TSC",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"asset\": \"TSC\",\n  \"balanceField\": \"tscAvailable\",\n  \"direction\": \"DEBIT\",\n  \"amount\": \"5\",\n  \"reason\": \"Phase 2 Postman test TSC debit\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/token-ledger/adjust",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "token-ledger",
+                "adjust"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.4 Admin Credit TKC",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"asset\": \"TKC\",\n  \"balanceField\": \"tkc\",\n  \"direction\": \"CREDIT\",\n  \"amount\": \"25\",\n  \"reason\": \"Phase 2 Postman test TKC credit\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/token-ledger/adjust",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "token-ledger",
+                "adjust"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.5 Get Reward Transactions - All",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data is array', function () {",
+                  "  pm.expect(Array.isArray(json.data)).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.6 Get Reward Transactions - TSC Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my?asset=TSC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "asset",
+                  "value": "TSC"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.7 Get Reward Transactions - Admin Adjustment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my?type=ADMIN_ADJUSTMENT",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "ADMIN_ADJUSTMENT"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.8 Reward Transaction Pagination",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('pagination exists if implemented', function () {",
+                  "  pm.expect(json.pagination).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 3: Prepare User Internal SOL Balance",
+      "item": [
+        {
+          "name": "3.1 Check Ledger Before NFT Mint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "console.log('solWallet balance:', json?.data?.solWallet?.balance);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "User must have internal solWallet.balance >= 100 to mint N1.\nIf not, use your existing Solana merchant deposit flow to deposit and confirm SOL, or use existing backend test helper if available.\n\nLive backend route for ledger details is `/api/ledger`.",
+            "url": {
+              "raw": "{{baseUrl}}/api/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ledger"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 4: Phase 3 - NFT Mint",
+      "item": [
+        {
+          "name": "4.1 Get Public NFT Tiers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data length >= 5', function () {",
+                  "  pm.expect((json.data || []).length).to.be.at.least(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/tiers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "tiers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Mint N1 NFT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Mint response success', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "if (json && json.data && json.data._id) {",
+                  "  pm.collectionVariables.set('nftId', json.data._id);",
+                  "  console.log('Saved nftId:', json.data._id);",
+                  "}",
+                  "pm.test('NFT status is MINTED', function () {",
+                  "  pm.expect(json.data.status).to.eql('MINTED');",
+                  "});",
+                  "pm.test('NFT tier is N1', function () {",
+                  "  pm.expect(json.data.tierCode).to.eql('N1');",
+                  "});",
+                  "pm.test('N1 TSC allocation is 100 when TSC price is 1', function () {",
+                  "  pm.expect(String(json.data.tscAllocationAmount)).to.eql('100');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tierCode\": \"N1\",\n  \"paymentAsset\": \"SOL\",\n  \"idempotencyKey\": \"{{mintIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/mint",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "mint"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.3 Ledger After NFT Mint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('tscWallet.available exists', function () {",
+                  "  pm.expect(json?.data?.tscWallet).to.have.property('available');",
+                  "});",
+                  "pm.test('solWallet.balance exists', function () {",
+                  "  pm.expect(json?.data?.solWallet).to.have.property('balance');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Live backend route for ledger details is `/api/ledger`.",
+            "url": {
+              "raw": "{{baseUrl}}/api/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ledger"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.4 Get My NFTs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data is array', function () {",
+                  "  pm.expect(Array.isArray(json.data)).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "my"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.5 Get My NFT By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data._id equals nftId', function () {",
+                  "  pm.expect(String(json.data._id)).to.eql(pm.collectionVariables.get('nftId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/my/{{nftId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "my",
+                "{{nftId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.6 Mint N1 Again Same Idempotency Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('returns same NFT id when idempotent record is found', function () {",
+                  "  pm.expect(String(json.data._id)).to.eql(pm.collectionVariables.get('nftId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expected: should not double debit SOL, should not double credit TSC, should not create duplicate NFT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tierCode\": \"N1\",\n  \"paymentAsset\": \"SOL\",\n  \"idempotencyKey\": \"{{mintIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/mint",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "mint"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.7 Reward Transactions - NFT Allocation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('contains NFT_TSC_ALLOCATION rows', function () {",
+                  "  pm.expect((json.data || []).some(function (item) { return item.type === 'NFT_TSC_ALLOCATION'; })).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my?type=NFT_TSC_ALLOCATION",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "NFT_TSC_ALLOCATION"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 5: Phase 4 - NFT Stake / Unstake",
+      "item": [
+        {
+          "name": "5.1 Stake NFT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.status equals STAKED', function () {",
+                  "  pm.expect(json.data.status).to.eql('STAKED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/{{nftId}}/stake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "{{nftId}}",
+                "stake"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.2 Stake Same NFT Again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.status equals STAKED', function () {",
+                  "  pm.expect(json.data.status).to.eql('STAKED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expected: should return already staked safely.",
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/{{nftId}}/stake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "{{nftId}}",
+                "stake"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.3 Get Staked NFTs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data is array', function () {",
+                  "  pm.expect(Array.isArray(json.data)).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/staked",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "staked"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.4 Unstake NFT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.status equals UNSTAKED', function () {",
+                  "  pm.expect(json.data.status).to.eql('UNSTAKED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/{{nftId}}/unstake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "{{nftId}}",
+                "unstake"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.5 Unstake Same NFT Again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success false OR status code 400', function () {",
+                  "  pm.expect(json.success === false || pm.response.code === 400).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expected: should return error NFT_NOT_STAKED.",
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/{{nftId}}/unstake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "{{nftId}}",
+                "unstake"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.6 Stake Again For Mining Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.status equals STAKED', function () {",
+                  "  pm.expect(json.data.status).to.eql('STAKED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/{{nftId}}/stake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "{{nftId}}",
+                "stake"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 6: Phase 5 - Daily TSC Mining",
+      "item": [
+        {
+          "name": "6.1 Ledger Before Mining",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "console.log('TSC available before mining:', json?.data?.tscWallet?.available);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Live backend route for ledger details is `/api/ledger`.",
+            "url": {
+              "raw": "{{baseUrl}}/api/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ledger"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.2 Run Daily Mining",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.processed should be >= 0', function () {",
+                  "  pm.expect(json.data.processed).to.be.at.least(0);",
+                  "});",
+                  "pm.test('data.totalMinedTsc exists', function () {",
+                  "  pm.expect(json.data).to.have.property('totalMinedTsc');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"miningDate\": \"{{miningDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/mining/run-daily",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "mining",
+                "run-daily"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.3 Ledger After Mining",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "console.log('TSC available after mining:', json?.data?.tscWallet?.available);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Live backend route for ledger details is `/api/ledger`.",
+            "url": {
+              "raw": "{{baseUrl}}/api/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ledger"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.4 Get Mining Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data.totalStakedNfts exists', function () {",
+                  "  pm.expect(json.data).to.have.property('totalStakedNfts');",
+                  "});",
+                  "pm.test('data.totalMinedTsc exists', function () {",
+                  "  pm.expect(json.data).to.have.property('totalMinedTsc');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mining/my-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mining",
+                "my-summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.5 Get Mining History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('data is array', function () {",
+                  "  pm.expect(Array.isArray(json.data)).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mining/my-history?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mining",
+                "my-history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.6 Reward Transactions - Mining Reward",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my?type=NFT_MINING_REWARD",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "NFT_MINING_REWARD"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.7 Run Same Mining Date Again - Idempotency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('miningDate matches requested date', function () {",
+                  "  pm.expect(json.data.miningDate).to.eql(pm.collectionVariables.get('miningDate'));",
+                  "});",
+                  "console.log('Repeat-date mining summary:', json.data);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expected in a single-user isolated test: processed = 0, skipped >= 1, and TSC balance should not increase again. Because this admin job is global, environments with other staked NFTs may still show non-zero processed counts for other users.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"miningDate\": \"{{miningDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/mining/run-daily",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "mining",
+                "run-daily"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.8 Run Next Mining Date",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expected: N1 staked NFT should mine again.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"miningDate\": \"{{nextMiningDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/mining/run-daily",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "mining",
+                "run-daily"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.9 Unstake NFT Before Mining Skip Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/{{nftId}}/unstake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "{{nftId}}",
+                "unstake"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.10 Run Mining After Unstake - Should Skip",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "pm.test('miningDate matches requested date', function () {",
+                  "  pm.expect(json.data.miningDate).to.eql(pm.collectionVariables.get('unstakedMiningDate'));",
+                  "});",
+                  "console.log('Post-unstake mining summary:', json.data);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expected: processed should be 0 for this user's NFT. Because this admin job is global, other users' staked NFTs can still be processed in shared environments.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"miningDate\": \"{{unstakedMiningDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/mining/run-daily",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "mining",
+                "run-daily"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder 7: Final Verification",
+      "item": [
+        {
+          "name": "7.1 Final Ledger Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Live backend route for ledger details is `/api/ledger`.",
+            "url": {
+              "raw": "{{baseUrl}}/api/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ledger"
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.2 Final NFT List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nft",
+                "my"
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.3 Final Reward Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reward-transactions/my?page=1&limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reward-transactions",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.4 Final Mining History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('success true', function () {",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mining/my-history?page=1&limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mining",
+                "my-history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

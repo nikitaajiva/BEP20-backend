@@ -18,6 +18,77 @@ const getMiningDate = (dateVal) => {
   return new Date().toISOString().split("T")[0];
 };
 
+const parseMiningDateStart = (miningDate) => {
+  return new Date(`${miningDate}T00:00:00.000Z`);
+};
+
+const parseMiningDateEnd = (miningDate) => {
+  return new Date(`${miningDate}T23:59:59.999Z`);
+};
+
+const toUtcDateOnly = (date) => {
+  return new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate()
+  ));
+};
+
+const addDays = (date, days) => {
+  const copy = new Date(date);
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return copy;
+};
+
+const getFirstEligibleMiningDate = (stakedAt) => {
+  const stakeDateOnly = toUtcDateOnly(new Date(stakedAt));
+  return addDays(stakeDateOnly, 1); // next day after stake
+};
+
+const isNftEligibleForMiningDate = (nft, miningDate) => {
+  if (!nft || nft.status !== "STAKED") {
+    return {
+      eligible: false,
+      reason: "NFT_NOT_STAKED",
+    };
+  }
+
+  if (!nft.stakedAt) {
+    return {
+      eligible: false,
+      reason: "NFT_STAKED_AT_MISSING",
+    };
+  }
+
+  const miningDateStart = parseMiningDateStart(miningDate);
+  const firstEligibleDate = getFirstEligibleMiningDate(nft.stakedAt);
+
+  if (miningDateStart < firstEligibleDate) {
+    return {
+      eligible: false,
+      reason: "MINING_DATE_BEFORE_STAKE_ELIGIBILITY",
+      firstEligibleMiningDate: firstEligibleDate.toISOString().slice(0, 10),
+    };
+  }
+
+  if (nft.unstakedAt) {
+    const unstakeDateOnly = toUtcDateOnly(new Date(nft.unstakedAt));
+
+    // If user unstaked on or before miningDate, do not mine for that date.
+    if (miningDateStart >= unstakeDateOnly) {
+      return {
+        eligible: false,
+        reason: "NFT_UNSTAKED_BEFORE_OR_ON_MINING_DATE",
+      };
+    }
+  }
+
+  return {
+    eligible: true,
+    reason: "ELIGIBLE",
+  };
+};
+
 const calculateDailyMinedTsc = (nft) => {
   const miningPower = toNumber(nft.miningPower);
   const dailyYieldRatePercent = toNumber(nft.dailyYieldRatePercent);
@@ -42,11 +113,12 @@ const calculateDailyMinedTsc = (nft) => {
   );
 };
 
+
 const runDailyTscMining = async ({ miningDate, triggeredBy = "SYSTEM" } = {}) => {
   const formattedDate = getMiningDate(miningDate);
 
-  // 1. Get all staked NFTs
-  const stakedNfts = await UserNft.find({ status: "STAKED" });
+  // 1. Get all staked & previously staked (unstaked) NFTs to evaluate eligibility
+  const stakedNfts = await UserNft.find({ status: { $in: ["STAKED", "UNSTAKED"] } });
 
   const summary = {
     miningDate: formattedDate,
@@ -57,7 +129,11 @@ const runDailyTscMining = async ({ miningDate, triggeredBy = "SYSTEM" } = {}) =>
     errors: [],
   };
 
+  const skippedItems = [];
+
   if (stakedNfts.length === 0) {
+    summary.skippedItems = skippedItems;
+    summary.skippedDetails = skippedItems;
     return summary;
   }
 
@@ -72,6 +148,18 @@ const runDailyTscMining = async ({ miningDate, triggeredBy = "SYSTEM" } = {}) =>
     const idempotencyKey = `NFT_MINING:${nft._id.toString()}:${formattedDate}`;
 
     try {
+      // Check NFT mining eligibility
+      const eligibility = isNftEligibleForMiningDate(nft, formattedDate);
+      if (!eligibility.eligible) {
+        summary.skipped += 1;
+        skippedItems.push({
+          userNft: nft._id.toString(),
+          reason: eligibility.reason,
+          firstEligibleMiningDate: eligibility.firstEligibleMiningDate || null,
+        });
+        continue;
+      }
+
       // Pre-check idempotency outside transaction
       const existing = await MiningSnapshot.findOne({
         userNft: nft._id,
@@ -208,6 +296,8 @@ const runDailyTscMining = async ({ miningDate, triggeredBy = "SYSTEM" } = {}) =>
 
   // Format total mined TSC to 4 decimal places
   summary.totalMinedTsc = summary.totalMinedTsc.toFixed(4);
+  summary.skippedItems = skippedItems;
+  summary.skippedDetails = skippedItems;
 
   return summary;
 };
@@ -218,4 +308,6 @@ module.exports = {
   getMiningDate,
   calculateDailyMinedTsc,
   runDailyTscMining,
+  isNftEligibleForMiningDate,
 };
+
