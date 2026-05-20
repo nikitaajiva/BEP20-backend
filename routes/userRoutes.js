@@ -33,9 +33,11 @@ router.post('/purchase-nft', protect, blockDuringCron, purchaseNft);
 // @access  Private
 router.get('/node-status', protect, getNodeStatus);
 
-// @route   GET /api/users/portfolio
+// @route   GET /api/users/active-staking
 // @desc    Get user's complete dynamic ecosystem portfolio
 // @access  Private
+router.get('/active-staking', protect, getPortfolioDetails);
+router.get('/activity-staking', protect, getPortfolioDetails);
 router.get('/portfolio', protect, getPortfolioDetails);
 
 module.exports = router; 
