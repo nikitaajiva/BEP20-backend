@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const TokenStaking = require('../models/TokenStaking');
 const { createLedgerEntry } = require('../jobs/helpers/ledgerHelpers');
 const { createHorseNftPurchase } = require('../server/Modules/horseNft/Services/horseNftPurchaseService');
 
