@@ -172,6 +172,7 @@ const horseNftRoutes = require("./server/Modules/horseNft/Routes/horseNftRoutes"
 const adminHorseNftRoutes = require("./server/Modules/horseNft/Routes/adminHorseNftRoutes");
 const { seedDefaultHorseNftPackages } = require("./server/Modules/horseNft/Services/horseNftPackageService");
 const { scheduleHorseNftPayoutCron } = require("./server/jobs/horseNftPayoutCron");
+const { scheduleStakingRewardsCron } = require("./jobs/stakingRewardsCron");
 
 // XRP System Routes
 // Renamed from xrp/depositRoutes to distinguish
@@ -202,6 +203,7 @@ let server;
 let dailyRoiCronTask;
 let tscMiningCronTask;
 let horseNftPayoutCronTask;
+let stakingRewardsCronTask;
 
 const PORT = process.env.PORT || 5000;
 
@@ -307,6 +309,7 @@ if (process.env.NODE_ENV !== "test") {
             });
         }
         horseNftPayoutCronTask = scheduleHorseNftPayoutCron();
+        stakingRewardsCronTask = scheduleStakingRewardsCron();
 
         // Automatically start the Master Cron Jobs Runner
         require("./CroneJobs");
@@ -349,6 +352,10 @@ const shutdownServices = async () => {
   if (horseNftPayoutCronTask) {
     horseNftPayoutCronTask.stop();
     horseNftPayoutCronTask = null;
+  }
+  if (stakingRewardsCronTask) {
+    stakingRewardsCronTask.stop();
+    stakingRewardsCronTask = null;
   }
   try {
     await mongoose.disconnect();
