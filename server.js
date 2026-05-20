@@ -9,8 +9,7 @@ const hpp = require("hpp");
 // const xss = require("xss-clean"); // Removed due to incompatibility
 
 // --- Database Connection ---
-// Assuming db.js is in project-merged/config/db.js and handles the connection
-// If xrp system had a direct mongoose.connect, that logic is now centralized in db.js
+// Centralized in db.js
 const connectDB = require("./config/db");
 const app = express();
 app.set("trust proxy", true);
@@ -19,18 +18,15 @@ app.set("trust proxy", true);
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
 
       try {
         const { hostname } = new URL(origin);
 
-        // Allow localhost on any port
         if (hostname === "localhost" || hostname === "127.0.0.1") {
           return callback(null, true);
         }
 
-        // Allow any private/local network IP
         if (
           /^192\.168\./.test(hostname) ||
           /^10\./.test(hostname) ||
@@ -39,13 +35,10 @@ app.use(
           return callback(null, true);
         }
 
-        // --- PRODUCTION IP SUPPORT ---
-        // Allow your specific production IP (172.86.113.73)
         if (hostname === "172.86.113.73") {
           return callback(null, true);
         }
 
-        // Allow production domain or IP from env
         const prodUrl = process.env.FRONTEND_URL || "";
         if (prodUrl) {
           const prodHostname = new URL(prodUrl).hostname;
@@ -54,7 +47,6 @@ app.use(
           }
         }
 
-        // Known production IPs/domains
         const allowedOrigins = [
           "http://168.144.33.10",
           "http://168.144.33.10:3007",
@@ -66,7 +58,6 @@ app.use(
           return callback(null, true);
         }
 
-        // Block everything else
         return callback(new Error(`CORS: Origin ${origin} not allowed`));
       } catch {
         return callback(new Error("CORS: Invalid origin"));
@@ -75,19 +66,15 @@ app.use(
     credentials: true,
   })
 );
-//    process.env.FRONTEND_URL_STAGING || 'https://staging.example.com',
 
-app.use(express.json({ limit: '10kb' })); // Body parser, limit data size
+app.use(express.json({ limit: '10kb' }));
 
-// --- Advanced Security Middleware ---
-// 1. Set Security HTTP headers with specific Referrer Policy for CORS compatibility
 app.use(
   helmet({
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   })
 );
 
-// 2. Custom NoSQL Sanitization (Express 5 Compatible)
 app.use((req, res, next) => {
   const sanitize = (obj) => {
     if (obj && typeof obj === "object") {
@@ -101,7 +88,6 @@ app.use((req, res, next) => {
     }
   };
 
-  // We clone to avoid read-only property errors in Express 5
   if (req.query) {
     const cleanQuery = { ...req.query };
     sanitize(cleanQuery);
@@ -118,31 +104,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// 3. Data Sanitization against XSS (Handled by custom sanitizers and React)
-// app.use(xss()); // Removed
-
-// 4. Prevent Parameter Pollution
 app.use(hpp());
 
-// 5. Rate Limiting
 const globalLimiter = rateLimit({
   max: 1000,
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
   message: 'Too many requests from this IP, please try again in an hour!',
-  validate: { trustProxy: false } // Fix for ERR_ERL_PERMISSIVE_TRUST_PROXY
+  validate: { trustProxy: false }
 });
-// app.use('/api', globalLimiter);
 
 const authLimiter = rateLimit({
-  max: 20, // Limit to 20 attempts per 10 minutes
+  max: 20,
   windowMs: 10 * 60 * 1000,
   message: 'Too many authentication attempts, please try again in 10 minutes!',
-  validate: { trustProxy: false } // Fix for ERR_ERL_PERMISSIVE_TRUST_PROXY
+  validate: { trustProxy: false }
 });
-// app.use('/api/auth', authLimiter);
 
 // --- Import Routes ---
-// Auth System Routes
 const authRoutes = require("./routes/authRoutes");
 const referralRoutes = require("./routes/referralRoutes");
 const ledgerRoutes = require("./routes/ledgerRoutes");
@@ -150,9 +128,8 @@ const onchainRoutes = require("./routes/onchainRoutes");
 const temporaryLedgerRoutes = require("./routes/temporaryLedgerRoutes");
 const swiftTransferRoutes = require("./routes/swiftTransferRoutes");
 const phantomDepositRoutes = require("./routes/phantomDepositRoutes");
-// Renamed from auth-system/depositRoutes to distinguish from xrp system's deposit handling
-const hierarchyRoutes = require("./routes/hierarchyRoutes"); // Import hierarchy routes
-const userRoutes = require("./routes/userRoutes"); // <-- Import user routes
+const hierarchyRoutes = require("./routes/hierarchyRoutes");
+const userRoutes = require("./routes/userRoutes");
 const promotionRoutes = require("./routes/promotionRoutes");
 const supportRoutes = require("./routes/support.js");
 const withdrawalRoutes = require("./routes/withdrawalRoutes");
@@ -170,41 +147,37 @@ const adminMiningRoutes = require("./routes/adminMiningRoutes");
 const referralRewardsRoutes = require("./routes/referralRewardsRoutes");
 
 // XRP System Routes
-// Renamed from xrp/depositRoutes to distinguish
 const depositRoutes = require("./routes/depositRoutes");
 
 const {
   startAutoPositioningCron,
-} = require("./controllers/ledgerController.js"); // :arrow_left: NEW
+} = require("./controllers/ledgerController.js");
 
-const depositPoller = require("./jobs/depositPoller"); // Import the new deposit poller
+const depositPoller = require("./jobs/depositPoller");
 const bep20Watcher = require("./jobs/bep20Watcher");
-const withdrawalReconciler = require("./jobs/withdrawalReconciler"); // :arrow_left: NEW: Import withdrawal reconciler job
-const reconcilePendingWithdrawals = require("./jobs/reconcilePendingWithdrawals"); // Pending-withdrawal reconciler
+const withdrawalReconciler = require("./jobs/withdrawalReconciler");
+const reconcilePendingWithdrawals = require("./jobs/reconcilePendingWithdrawals");
 const OutboxProcessor = require("./jobs/OutboxProcessor");
 const {
   scheduleDailyRoiBatchJob,
   enqueueMissedDailyRoiBatchIfNeeded,
 } = require("./jobs/cronJobs");
 const { scheduleDailyTscMiningJob } = require("./jobs/dailyTscMiningCron");
+const { scheduleStakingRewardsCron } = require("./jobs/stakingRewardsCron");
 const {
   handleDailyRoiBatch,
   handleDailyRoiUser,
   handleRoiCascade,
 } = require("./jobs/eventHandlers");
 
-let outboxProcessor; // Declare outboxProcessor
+let outboxProcessor;
 let server;
 let dailyRoiCronTask;
 let tscMiningCronTask;
+let stakingRewardsCronTask;
 
 const PORT = process.env.PORT || 5000;
 
-// Function to start the application (server, outbox, cron)
-
-// awaits the singleton
-
-// Mount Routers (can be done before or after listen, but DB should be ready for requests)
 app.get("/", (req, res) => {
   res.send("Unified API Running...");
 });
@@ -217,8 +190,8 @@ app.use("/api/ledger", ledgerRoutes);
 app.use("/api/onchain", onchainRoutes);
 app.use("/api/temp-ledger", temporaryLedgerRoutes);
 app.use("/api/swift-transfers", swiftTransferRoutes);
-app.use("/api/hierarchy", hierarchyRoutes); // Mount hierarchy routes
-app.use("/api/users", userRoutes); // <-- Use user routes
+app.use("/api/hierarchy", hierarchyRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/support/hierarchy", supportHierarchyRoutes);
@@ -234,7 +207,6 @@ app.use("/api/mining", miningRoutes);
 app.use("/api/admin/mining", adminMiningRoutes);
 app.use("/api/referral-rewards", referralRewardsRoutes);
 
-// Global Error Handler (Place after routes)
 app.use((err, req, res, next) => {
   console.error("Unhandled Error:", err.stack);
   res.status(500).send("Something broke unexpectedly!");
@@ -252,7 +224,6 @@ if (process.env.NODE_ENV !== "test") {
 
         app.locals.db = mongoose.connection.db;
 
-        // Auto-seed countries if collection is empty (failsafe for production)
         const Country = require("./models/Country");
         Country.countDocuments()
           .then(async (count) => {
@@ -290,15 +261,14 @@ if (process.env.NODE_ENV !== "test") {
           console.error("Failed to enqueue missed DAILY_ROI_BATCH:", err)
         );
         tscMiningCronTask = scheduleDailyTscMiningJob();
+        stakingRewardsCronTask = scheduleStakingRewardsCron();
 
-        // Automatically start the Master Cron Jobs Runner
         require("./CroneJobs");
       });
     });
 } else {
 
 }
-
 
 // Graceful Shutdown
 const gracefulShutdown = async (signal) => {
@@ -307,7 +277,6 @@ const gracefulShutdown = async (signal) => {
   );
   if (server) {
     server.close(async () => {
-
       await shutdownServices();
     });
   } else {
@@ -317,9 +286,7 @@ const gracefulShutdown = async (signal) => {
 
 const shutdownServices = async () => {
   if (outboxProcessor) {
-
     outboxProcessor.stop();
-
   }
   if (dailyRoiCronTask) {
     dailyRoiCronTask.stop();
@@ -329,9 +296,12 @@ const shutdownServices = async () => {
     tscMiningCronTask.stop();
     tscMiningCronTask = null;
   }
+  if (stakingRewardsCronTask) {
+    stakingRewardsCronTask.stop();
+    stakingRewardsCronTask = null;
+  }
   try {
     await mongoose.disconnect();
-
   } catch (err) {
     console.error("Error during MongoDB disconnection:", err);
   }
@@ -342,7 +312,7 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 process.on("unhandledRejection", (err, promise) => {
-  console.error(`Unhandled Rejection at:', promise, 'reason:', err.message`);
+  console.error("Unhandled Rejection at:", promise, "reason:", err.message);
   console.error(err.stack);
   gracefulShutdown("UNHANDLED_REJECTION").then(() => process.exit(1));
 });
