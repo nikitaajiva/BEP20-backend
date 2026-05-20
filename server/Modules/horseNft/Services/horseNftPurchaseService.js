@@ -136,6 +136,8 @@ async function getOrCreateLedgerForSession(userId, session = null) {
     ledger.wallets = {};
   }
 
+  // NOTE: In this codebase, wallets.bnb acts as the primary USDT balance alias.
+  // Native/BEP20 deposits and withdrawals use wallets.bnb to represent USDT.
   ledger.wallets.bnb = ensureDecimal128(ledger.wallets.bnb || "0.0");
   return ledger;
 }
@@ -149,6 +151,7 @@ async function debitInternalUsdtWallet({
 }) {
   const amountD128 = ensureDecimal128(String(amount));
   const ledger = await getOrCreateLedgerForSession(userId, session);
+  // Using ledger.wallets.bnb as the internal USDT wallet balance
   const currentBalance = ensureDecimal128(ledger.wallets.bnb || "0.0");
 
   if (compareDecimal128(currentBalance, amountD128) < 0) {

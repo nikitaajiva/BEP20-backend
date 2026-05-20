@@ -72,6 +72,8 @@ async function getOrCreateLedgerForSession(userId, session = null) {
     ledger.wallets = {};
   }
 
+  // NOTE: In this codebase, wallets.bnb acts as the primary USDT balance alias.
+  // Native/BEP20 deposits and withdrawals use wallets.bnb to represent USDT.
   ledger.wallets.bnb = ensureDecimal128(ledger.wallets.bnb || "0.0");
   return ledger;
 }
@@ -85,6 +87,7 @@ async function creditInternalUsdtWallet({
 }) {
   const amountD128 = ensureDecimal128(String(amount));
   const ledger = await getOrCreateLedgerForSession(userId, session);
+  // Using ledger.wallets.bnb as the internal USDT wallet balance
   ledger.wallets.bnb = addDecimal128(ledger.wallets.bnb || "0.0", amountD128);
   ledger.markModified("wallets");
   await ledger.save(session ? { session } : undefined);
@@ -319,45 +322,16 @@ async function runHorseNftPayouts({
       continue;
     }
 
-    if (!sessionSupported) {
-      try {
-        await HorseNftPayout.create({
-          user: purchase.user,
-          userHorseNft: purchase._id,
-          package: purchase.package?._id || purchase.package,
-          tierCode: purchase.tierCode,
-          payoutAsset: "USDT",
-          payoutAmountUSDT,
-          payoutPeriodStart,
-          payoutPeriodEnd,
-          status: "SKIPPED",
-          idempotencyKey,
-          failureReason: "Automatic payout credit unavailable in current DB topology.",
-          metadata: {
-            triggeredBy,
-            dividendFrequency: purchase.dividendFrequency,
-          },
-        });
-      } catch (writeError) {
-        // Ignore duplicate write races here and treat the payout as skipped.
-      }
-
-      summary.skippedCount += 1;
-      summary.skipped.push({
-        ...preview,
-        reason: "AUTO_CREDIT_UNAVAILABLE",
-      });
-      continue;
-    }
-
     const session = sessionSupported ? await mongoose.startSession() : null;
 
     try {
-      if (!session) {
+      if (!session && sessionSupported) {
         throw new Error("HORSE_NFT_PAYOUT_SESSION_REQUIRED");
       }
 
-      session.startTransaction();
+      if (session) {
+        session.startTransaction();
+      }
 
       const freshPurchase = await UserHorseNft.findById(purchase._id).session(session);
       if (!freshPurchase) {
@@ -366,10 +340,12 @@ async function runHorseNftPayouts({
 
       const duplicateCheck = await HorseNftPayout.findOne({ idempotencyKey }).session(session);
       if (duplicateCheck) {
-        if (session.inTransaction()) {
+        if (session && session.inTransaction()) {
           await session.abortTransaction();
         }
-        session.endSession();
+        if (session) {
+          session.endSession();
+        }
         summary.skippedCount += 1;
         summary.skipped.push({
           ...preview,
@@ -420,8 +396,10 @@ async function runHorseNftPayouts({
       );
       await freshPurchase.save({ session });
 
-      await session.commitTransaction();
-      session.endSession();
+      if (session) {
+        await session.commitTransaction();
+        session.endSession();
+      }
 
       summary.processedCount += 1;
       summary.totalPaidUSDT = toAmountNumber(

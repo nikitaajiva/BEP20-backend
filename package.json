@@ -7,7 +7,9 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "dc": "node scripts/rewards/distributeDifferentialCascade.js",
-    "dcb": "node scripts/rewards/distributeCommunityPositioningBonus.js"
+    "dcb": "node scripts/rewards/distributeCommunityPositioningBonus.js",
+    "smoke:horse-nft": "node server/scripts/smokeHorseNft.js",
+    "verify:horse-nft": "node server/scripts/verifyHorseNftLifecycle.js"
   },
   "keywords": [],
   "author": "",
