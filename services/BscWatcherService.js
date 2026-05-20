@@ -15,6 +15,12 @@ class BscWatcherService {
     this.isWatching = false;
     this.lastProcessedBlock = 0;
     this.processingBlocks = new Set();
+    this.blockPollIntervalMs = Number(
+      process.env.BSC_WATCHER_POLL_MS || process.env.WATCHER_POLL_MS || 6000
+    );
+    this.blockPollTimer = null;
+    this.listenerRetryTimer = null;
+    this.activeProvider = null;
   }
 
   get provider() {
@@ -52,11 +58,20 @@ class BscWatcherService {
       console.error("❌ Error during initial block sync:", error);
     }
 
+    this.startPolling();
     this.setupListeners();
   }
 
   setupListeners() {
+    if (!this.isWatching) return;
+
     const provider = this.provider;
+    if (!provider) {
+      console.warn("🔻 BSC watcher running in HTTP polling mode only.");
+      return;
+    }
+
+    this.activeProvider = provider;
 
     // Subscribe to new blocks for real-time tracking (WSS)
     provider.on("block", async (blockNumber) => {
@@ -70,11 +85,87 @@ class BscWatcherService {
     // Error handling with auto-recovery
     provider.on("error", (error) => {
       console.error("⚠️ WebSocket Provider Error, attempting to re-setup in 10s:", error);
-      provider.removeAllListeners("block");
-      setTimeout(() => {
-        this.setupListeners();
-      }, 10000);
+      this.resetRealtimeListener(provider);
     });
+
+    const socket = provider.websocket || provider._websocket || null;
+    if (socket && typeof socket.on === "function") {
+      socket.on("error", (error) => {
+        console.error("⚠️ BSC watcher socket error. Falling back to polling:", error?.message || error);
+        this.resetRealtimeListener(provider);
+      });
+
+      socket.on("close", (code, reason) => {
+        console.warn(
+          `⚠️ BSC watcher socket closed (${code}). Falling back to polling:${reason ? ` ${reason.toString()}` : ""}`
+        );
+        this.resetRealtimeListener(provider);
+      });
+    }
+  }
+
+  resetRealtimeListener(provider) {
+    if (provider && typeof provider.removeAllListeners === "function") {
+      provider.removeAllListeners("block");
+      provider.removeAllListeners("error");
+    }
+
+    if (this.listenerRetryTimer) {
+      clearTimeout(this.listenerRetryTimer);
+    }
+
+    this.listenerRetryTimer = setTimeout(() => {
+      this.listenerRetryTimer = null;
+      this.setupListeners();
+    }, 10000);
+  }
+
+  startPolling() {
+    if (this.blockPollTimer) return;
+
+    const pollLatestBlocks = async () => {
+      if (!this.isWatching) return;
+
+      try {
+        const currentBlock = await this.httpProvider.getBlockNumber();
+        if (currentBlock <= this.lastProcessedBlock) return;
+
+        for (let block = this.lastProcessedBlock + 1; block <= currentBlock; block += 1) {
+          await this.processBlock(block);
+        }
+      } catch (error) {
+        console.error("❌ Error while polling latest BSC blocks:", error);
+      }
+    };
+
+    this.blockPollTimer = setInterval(() => {
+      pollLatestBlocks().catch((error) => {
+        console.error("❌ Unhandled BSC polling failure:", error);
+      });
+    }, this.blockPollIntervalMs);
+
+    pollLatestBlocks().catch((error) => {
+      console.error("❌ Initial BSC polling failure:", error);
+    });
+  }
+
+  stop() {
+    this.isWatching = false;
+
+    if (this.blockPollTimer) {
+      clearInterval(this.blockPollTimer);
+      this.blockPollTimer = null;
+    }
+
+    if (this.listenerRetryTimer) {
+      clearTimeout(this.listenerRetryTimer);
+      this.listenerRetryTimer = null;
+    }
+
+    if (this.activeProvider && typeof this.activeProvider.removeAllListeners === "function") {
+      this.activeProvider.removeAllListeners("block");
+      this.activeProvider.removeAllListeners("error");
+    }
   }
 
   async processBlock(blockNumber, isSyncing = false) {
