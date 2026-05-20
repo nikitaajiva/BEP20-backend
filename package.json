@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "dc": "node scripts/rewards/distributeDifferentialCascade.js",
     "dcb": "node scripts/rewards/distributeCommunityPositioningBonus.js",
+    "credit:internal-usdt": "node scripts/creditInternalUsdt.js",
     "smoke:horse-nft": "node server/scripts/smokeHorseNft.js",
     "verify:horse-nft": "node server/scripts/verifyHorseNftLifecycle.js"
   },
