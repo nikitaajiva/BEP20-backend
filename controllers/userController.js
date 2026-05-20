@@ -268,13 +268,35 @@ const stakeTokens = async (req, res) => {
             throw debitErr;
         }
 
-        // Add new plan to stakingPlans array
+        // Compute APY based on duration
+        const daysNum = Number(days);
+        const computedApy = daysNum >= 365 ? 0.28 : daysNum >= 180 ? 0.22 : daysNum >= 90 ? 0.18 : 0.10;
+        const apyToStore = ratePct ? Number(ratePct) / 100 : computedApy;
+
+        const startDateNow = new Date();
+        const endDateCalc = new Date(startDateNow.getTime() + (daysNum * 86400000));
+
+        // Create document in dedicated TokenStaking collection
+        const stakingDoc = await TokenStaking.create({
+            user: userId,
+            amount: Number(amount),
+            days: daysNum,
+            startDate: startDateNow,
+            endDate: endDateCalc,
+            status: 'active',
+            apy: apyToStore,
+            tokenAmount: Number(tokenAmount || tscAmount || 0),
+            earnedRewards: 0,
+            lastRewardedAt: null,
+        });
+
+        // Add new plan to legacy stakingPlans array for backward compatibility
         const newPlan = {
             amount: Number(amount),
-            days: Number(days),
-            startDate: new Date(),
+            days: daysNum,
+            startDate: startDateNow,
             status: "active",
-            apy: ratePct, // Store the APY for record
+            apy: ratePct,
             tokenAmount: Number(tokenAmount || tscAmount || 0)
         };
 
@@ -299,6 +321,7 @@ const stakeTokens = async (req, res) => {
 
         res.status(200).json({
             message: 'Staking plan added successfully.',
+            stakingDoc,
             stakingPlans: user.stakingPlans,
         });
 
@@ -608,16 +631,13 @@ const getPortfolioDetails = async (req, res) => {
           };
         });
 
-        // 2. Token Staking mappings & calculations
-        const stakingPlansArr = [
-          ...(user?.stakingPlan?.amount ? [{ ...user.stakingPlan.toObject?.() || user.stakingPlan, isPrimary: true }] : []),
-          ...(user?.stakingPlans || [])
-        ];
-        const tokenStaking = stakingPlansArr.map((stake, index) => {
+        // 2. Token Staking — read from dedicated TokenStaking collection
+        const stakingDocs = await TokenStaking.find({ user: userId }).lean();
+        const tokenStaking = stakingDocs.map((stake, index) => {
           const daysPassed = Math.max(0, Math.floor((new Date() - new Date(stake.startDate)) / 86400000));
           const progress = Math.min(100, (daysPassed / stake.days) * 100);
           
-          const apy = stake.days >= 365 ? 0.28 : stake.days >= 180 ? 0.22 : stake.days >= 90 ? 0.18 : 0.10;
+          const apy = stake.apy || (stake.days >= 365 ? 0.28 : stake.days >= 180 ? 0.22 : stake.days >= 90 ? 0.18 : 0.10);
           const amt = parseFloat(stake.amount || stake.stakeAmount || "0");
           const dailyYield = (amt * apy / 365);
           const estReward = (amt * apy * stake.days / 365);
@@ -625,7 +645,7 @@ const getPortfolioDetails = async (req, res) => {
           const tierName = stake.days >= 365 ? "Premium" : stake.days >= 180 ? "Advanced" : stake.days >= 90 ? "Growth" : "Starter";
 
           const startDate = stake.startDate || new Date();
-          const endDate = new Date(new Date(startDate).getTime() + (stake.days * 86400000));
+          const endDate = stake.endDate || new Date(new Date(startDate).getTime() + (stake.days * 86400000));
 
           return {
             id: stake._id || `stake_${index}`,
