@@ -662,7 +662,8 @@ const getPortfolioDetails = async (req, res) => {
             estReward: Number(estReward.toFixed(2)),
             daysPassed,
             daysRemaining,
-            progress: Number(progress.toFixed(2))
+            progress: Number(progress.toFixed(2)),
+            earnedRewards: stake.earnedRewards || 0
           };
         });
 
