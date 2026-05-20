@@ -37,7 +37,8 @@ const RewardTransactionSchema = new mongoose.Schema(
         "TSC_VESTING_LOCK",
         "TSC_VESTING_RELEASE",
         "TSC_TO_TKC_SWAP",
-        "ADMIN_ADJUSTMENT"
+        "ADMIN_ADJUSTMENT",
+        "HORSE_NFT_BONUS"
       ],
       required: true,
       index: true,

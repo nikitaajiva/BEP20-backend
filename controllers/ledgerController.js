@@ -663,9 +663,9 @@ const getAssetHistory = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Filter specifically for asset history event types
-    let eventTypes = ["NFT_PURCHASE", "STAKING_DEPOSIT"];
+    let eventTypes = ["NFT_PURCHASE", "HORSE_NFT_PURCHASE", "STAKING_DEPOSIT"];
     if (type === "nft") {
-      eventTypes = ["NFT_PURCHASE"];
+      eventTypes = ["NFT_PURCHASE", "HORSE_NFT_PURCHASE"];
     } else if (type === "staking") {
       eventTypes = ["STAKING_DEPOSIT"];
     }
@@ -696,7 +696,7 @@ const getAssetHistory = async (req, res) => {
           date: entry.ts || new Date(),
           time: entry.ts ? new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "",
           eventType: entry.eventType || "",
-          assetType: entry.eventType === "NFT_PURCHASE" ? "Horse NFT" : "Token Staking",
+          assetType: (entry.eventType === "NFT_PURCHASE" || entry.eventType === "HORSE_NFT_PURCHASE") ? "Horse NFT" : "Token Staking",
           amountUsdt: safeAmt ? parseFloat(safeAmt).toFixed(2) : "0.00",
           amountToken: safeTsc ? parseFloat(safeTsc).toFixed(4) : "0.0000",
           ratePct: safeRate ? parseFloat(safeRate).toFixed(2) : null,

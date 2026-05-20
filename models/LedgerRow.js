@@ -47,7 +47,9 @@ const LedgerRowSchema = new mongoose.Schema(
         "WITHDRAWAL_REFUND", // Manual credit to airdrop wallet by support/admin
         "CLAIM_AUTOPOSITIONED",
         "STAKING_DEPOSIT",
-        "NFT_PURCHASE"
+        "NFT_PURCHASE",
+        "HORSE_NFT_PURCHASE",
+        "HORSE_NFT_PAYOUT"
         // Add more event types as needed
       ],
     },

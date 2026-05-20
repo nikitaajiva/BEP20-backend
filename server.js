@@ -168,6 +168,10 @@ const nftRoutes = require("./routes/nftRoutes");
 const miningRoutes = require("./routes/miningRoutes");
 const adminMiningRoutes = require("./routes/adminMiningRoutes");
 const referralRewardsRoutes = require("./routes/referralRewardsRoutes");
+const horseNftRoutes = require("./server/Modules/horseNft/Routes/horseNftRoutes");
+const adminHorseNftRoutes = require("./server/Modules/horseNft/Routes/adminHorseNftRoutes");
+const { seedDefaultHorseNftPackages } = require("./server/Modules/horseNft/Services/horseNftPackageService");
+const { scheduleHorseNftPayoutCron } = require("./server/jobs/horseNftPayoutCron");
 
 // XRP System Routes
 // Renamed from xrp/depositRoutes to distinguish
@@ -197,6 +201,7 @@ let outboxProcessor; // Declare outboxProcessor
 let server;
 let dailyRoiCronTask;
 let tscMiningCronTask;
+let horseNftPayoutCronTask;
 
 const PORT = process.env.PORT || 5000;
 
@@ -233,6 +238,8 @@ app.use("/api/nft", nftRoutes);
 app.use("/api/mining", miningRoutes);
 app.use("/api/admin/mining", adminMiningRoutes);
 app.use("/api/referral-rewards", referralRewardsRoutes);
+app.use("/api/horse-nft", horseNftRoutes);
+app.use("/api/admin/horse-nft", adminHorseNftRoutes);
 
 // Global Error Handler (Place after routes)
 app.use((err, req, res, next) => {
@@ -290,6 +297,16 @@ if (process.env.NODE_ENV !== "test") {
           console.error("Failed to enqueue missed DAILY_ROI_BATCH:", err)
         );
         tscMiningCronTask = scheduleDailyTscMiningJob();
+        if (String(process.env.HORSE_NFT_ENABLED || "").trim().toLowerCase() === "true") {
+          seedDefaultHorseNftPackages()
+            .then((packages) => {
+              console.log(`[Boot] Horse NFT packages ready: ${packages.length}`);
+            })
+            .catch((err) => {
+              console.error("[Boot] Horse NFT package seed failed:", err);
+            });
+        }
+        horseNftPayoutCronTask = scheduleHorseNftPayoutCron();
 
         // Automatically start the Master Cron Jobs Runner
         require("./CroneJobs");
@@ -328,6 +345,10 @@ const shutdownServices = async () => {
   if (tscMiningCronTask) {
     tscMiningCronTask.stop();
     tscMiningCronTask = null;
+  }
+  if (horseNftPayoutCronTask) {
+    horseNftPayoutCronTask.stop();
+    horseNftPayoutCronTask = null;
   }
   try {
     await mongoose.disconnect();
