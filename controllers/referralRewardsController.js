@@ -87,7 +87,11 @@ const getReferralRewardsSummary = async (req, res) => {
         {
           $group: {
             _id: null,
-            totalTsc: { $sum: { $toDouble: '$tscAmount' } },
+            totalTsc: { 
+              $sum: { 
+                $convert: { input: '$tscAmount', to: 'double', onError: 0, onNull: 0 } 
+              } 
+            },
             count: { $sum: 1 },
           },
         },
@@ -116,7 +120,11 @@ const getReferralRewardsSummary = async (req, res) => {
         {
           $group: {
             _id: null,
-            totalTsc: { $sum: { $toDouble: '$tscAmount' } },
+            totalTsc: { 
+              $sum: { 
+                $convert: { input: '$tscAmount', to: 'double', onError: 0, onNull: 0 } 
+              } 
+            },
             count: { $sum: 1 },
           },
         },
