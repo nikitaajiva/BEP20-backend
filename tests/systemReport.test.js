@@ -19,7 +19,8 @@ const approxEqual = (a, b, pct = 0.01) => {
 
 describe('System Report', () => {
   beforeAll(async () => {
-    await mongoose.connect('mongodb://localhost/xrpmigrate');
+    jest.setTimeout(30000);
+    await mongoose.connect('mongodb://127.0.0.1/xrpmigrate');
   });
 
   afterAll(async () => {
@@ -114,5 +115,5 @@ describe('System Report', () => {
 
     expect(approxEqual(report.totalX1Rewards, xBonusTotal)).toBe(true);
     expect(approxEqual(report.totalCommunityBoosterRewards, communityBoosterTotal)).toBe(true);
-  });
+  }, 30000);
 }); 

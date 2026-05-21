@@ -33,7 +33,7 @@ const CONFIG = {
   // Token staking APY bands per lock-up period (as decimals, divide by 365 for daily)
   STAKING_APY: {
     30:  { min: new Decimal("0.05"),  max: new Decimal("0.10") },  //  5–10%
-    90:  { min: new Decimal("0.11"),  max: new Decimal("0.18") },  // 11–18%
+    90:  { min: new Decimal("0.11"),  max: new Decimal("0.12") },  // 11–12%
     180: { min: new Decimal("0.19"),  max: new Decimal("0.22") },  // 19–22%
     365: { min: new Decimal("0.23"),  max: new Decimal("0.28") },  // 23–28%
   },

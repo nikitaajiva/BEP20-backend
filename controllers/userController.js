@@ -270,7 +270,7 @@ const stakeTokens = async (req, res) => {
 
         // Compute APY based on duration
         const daysNum = Number(days);
-        const computedApy = daysNum >= 365 ? 0.28 : daysNum >= 180 ? 0.22 : daysNum >= 90 ? 0.18 : 0.10;
+        const computedApy = daysNum >= 365 ? 0.28 : daysNum >= 180 ? 0.22 : daysNum >= 90 ? 0.12 : 0.10;
         const apyToStore = ratePct ? Number(ratePct) / 100 : computedApy;
 
         const startDateNow = new Date();
@@ -637,7 +637,7 @@ const getPortfolioDetails = async (req, res) => {
           const daysPassed = Math.max(0, Math.floor((new Date() - new Date(stake.startDate)) / 86400000));
           const progress = Math.min(100, (daysPassed / stake.days) * 100);
           
-          const apy = stake.apy || (stake.days >= 365 ? 0.28 : stake.days >= 180 ? 0.22 : stake.days >= 90 ? 0.18 : 0.10);
+          const apy = stake.apy || (stake.days >= 365 ? 0.28 : stake.days >= 180 ? 0.22 : stake.days >= 90 ? 0.12 : 0.10);
           const amt = parseFloat(stake.amount || stake.stakeAmount || "0");
           // Daily yield is 0 until the first cron run (which sets lastRewardedAt)
           const dailyYield = stake.lastRewardedAt !== null ? (amt * apy / 365) : 0;

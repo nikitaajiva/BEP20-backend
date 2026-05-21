@@ -4,7 +4,7 @@ const defaultConfig = {
   token_config: { total_supply: 2000000000, token_price: 0.01, network: "Solana" },
   staking_tiers: {
     "30": { min_apy: 5, max_apy: 10 },
-    "90": { min_apy: 11, max_apy: 18 },
+    "90": { min_apy: 11, max_apy: 12 },
     "180": { min_apy: 19, max_apy: 22 },
     "365": { min_apy: 23, max_apy: 28 }
   },

@@ -13,7 +13,7 @@ let stakingCronTask = null;
 function getApyForDays(days) {
   if (days >= 365) return 0.28;
   if (days >= 180) return 0.22;
-  if (days >= 90) return 0.18;
+  if (days >= 90) return 0.12;
   return 0.10;
 }
 

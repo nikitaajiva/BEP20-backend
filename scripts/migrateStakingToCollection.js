@@ -49,7 +49,7 @@ async function migrateStakingData() {
         // Compute APY
         let apy = plan.apy;
         if (apy === undefined) {
-          apy = days >= 365 ? 0.28 : days >= 180 ? 0.22 : days >= 90 ? 0.18 : 0.10;
+          apy = days >= 365 ? 0.28 : days >= 180 ? 0.22 : days >= 90 ? 0.12 : 0.10;
         } else if (apy > 1) {
           apy = apy / 100; // Normalise percentage to decimal format
         }
