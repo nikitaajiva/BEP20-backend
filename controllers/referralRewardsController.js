@@ -174,7 +174,7 @@ const getMyReferralTree = async (req, res) => {
     const currentUser = req.user;
 
     const l1Users = await User.find({ sponsorId: currentUser._id })
-      .select('_id username uhid email joiningTimeStamp registrationTs communitySize directDownlines stakingPlan stakingPlans nftPackages sponsorId')
+      .select('_id username uhid email joiningTimeStamp registrationTs communitySize directDownlines stakingPlan stakingPlans nftPackages sponsorId xRank nodeTier positioningRank whatsappContact country countryCode')
       .lean();
 
     if (l1Users.length === 0) {
@@ -193,7 +193,7 @@ const getMyReferralTree = async (req, res) => {
     for (let depth = 2; depth <= 5; depth++) {
       if (currentLevelIds.length === 0) break;
       const children = await User.find({ sponsorId: { $in: currentLevelIds } })
-        .select('_id username uhid email joiningTimeStamp registrationTs communitySize directDownlines stakingPlan stakingPlans nftPackages sponsorId')
+        .select('_id username uhid email joiningTimeStamp registrationTs communitySize directDownlines stakingPlan stakingPlans nftPackages sponsorId xRank nodeTier positioningRank whatsappContact country countryCode')
         .lean();
       
       if (depth === 2) l2Count = children.length;
