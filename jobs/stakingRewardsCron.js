@@ -39,6 +39,13 @@ async function processStakingRewards() {
 
   for (const stake of activeStakes) {
     try {
+      // Skip if purchased today (must wait until the next day after the purchase calendar date)
+      const purchaseDateStr = new Date(stake.startDate || stake.createdAt).toISOString().slice(0, 10);
+      if (purchaseDateStr === todayDateStr) {
+        console.log(`[StakingRewardsCron] Skipping stake ${stake._id} purchased today (${purchaseDateStr})`);
+        continue;
+      }
+
       // Skip if already rewarded today
       if (stake.lastRewardedAt) {
         const lastRewardDate = new Date(stake.lastRewardedAt).toISOString().slice(0, 10);

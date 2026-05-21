@@ -639,7 +639,8 @@ const getPortfolioDetails = async (req, res) => {
           
           const apy = stake.apy || (stake.days >= 365 ? 0.28 : stake.days >= 180 ? 0.22 : stake.days >= 90 ? 0.18 : 0.10);
           const amt = parseFloat(stake.amount || stake.stakeAmount || "0");
-          const dailyYield = (amt * apy / 365);
+          // Daily yield is 0 until the first cron run (which sets lastRewardedAt)
+          const dailyYield = stake.lastRewardedAt !== null ? (amt * apy / 365) : 0;
           const estReward = (amt * apy * stake.days / 365);
           const daysRemaining = Math.max(0, stake.days - daysPassed);
           const tierName = stake.days >= 365 ? "Premium" : stake.days >= 180 ? "Advanced" : stake.days >= 90 ? "Growth" : "Starter";
