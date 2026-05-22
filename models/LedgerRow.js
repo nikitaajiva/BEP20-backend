@@ -49,7 +49,11 @@ const LedgerRowSchema = new mongoose.Schema(
         "STAKING_DEPOSIT",
         "NFT_PURCHASE",
         "HORSE_NFT_PURCHASE",
-        "HORSE_NFT_PAYOUT"
+        "HORSE_NFT_PAYOUT",
+        "REFERRAL_L1_STAKING",
+        "REFERRAL_L2_STAKING",
+        "REFERRAL_L1_MINING",
+        "REFERRAL_L2_MINING"
         // Add more event types as needed
       ],
     },

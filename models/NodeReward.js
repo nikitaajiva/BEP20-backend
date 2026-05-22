@@ -25,7 +25,24 @@ const NodeRewardSchema = new mongoose.Schema({
     narrative: {
         type: String,
         required: true
+    },
+    // Source withdrawal amount that triggered this airdrop
+    withdrawalAmount: {
+        type: Decimal128,
+        default: null
+    },
+    // The percentage share this tier pool receives (e.g. 0.20 for P1 = 20%)
+    tierSharePct: {
+        type: Number,
+        default: null
+    },
+    // Traceability back to the withdrawal event
+    triggeringWithdrawalId: {
+        type: String,
+        default: null,
+        index: true
     }
 }, { timestamps: true });
 
 module.exports = mongoose.model('NodeReward', NodeRewardSchema);
+

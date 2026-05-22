@@ -4,6 +4,8 @@ const {
   getCascadeRewards,
   getBoosterRewards,
   getNodeRewards,
+  getAirdropPoolStats,
+  getAirdropPoolHistory,
 } = require("../controllers/rewardsController");
 const { protect, blockDuringCron } = require("../middleware/authMiddleware"); // Assuming you have this middleware
 
@@ -14,4 +16,9 @@ router.get("/cascade", protect, getCascadeRewards);
 router.get("/booster", protect, getBoosterRewards);
 router.get("/node", protect, getNodeRewards);
 
+// Airdrop Pool (P1-P9 Node Tier Rewards)
+router.get("/airdrop-pool", protect, getAirdropPoolStats);
+router.get("/airdrop-pool/history", protect, getAirdropPoolHistory);
+
 module.exports = router;
+

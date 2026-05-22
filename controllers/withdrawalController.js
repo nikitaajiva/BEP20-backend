@@ -87,7 +87,7 @@ const getTotalEcosystemFeeByUser = async (userId) => {
 };
 /* Get Total Economy fees paide by user Ends Here */
 
-const distributeNodeFeeAirdrop = async (withdrawalAmount, triggeringUserId) => {
+const distributeNodeFeeAirdrop = async (withdrawalAmount, triggeringUserId, triggeringWithdrawalId = null) => {
   try {
     const amountVal = parseFloat(withdrawalAmount.toString());
     if (amountVal <= 0) return;
@@ -117,13 +117,16 @@ const distributeNodeFeeAirdrop = async (withdrawalAmount, triggeringUserId) => {
       const sharePerUser = tierPool / qualifiedUsers.length;
 
       for (const qUser of qualifiedUsers) {
-        // Create NodeReward entry
+        // Create NodeReward entry with full traceability fields
         await NodeReward.create({
           userId: qUser._id,
           nodeTier: tier,
           amount: mongoose.Types.Decimal128.fromString(sharePerUser.toFixed(6)),
           rewardType: "fee_airdrop",
-          narrative: `Earned P1-P9 Node Airdrop: 2% withdrawal fee share from network activity.`
+          narrative: `${tier} Node Airdrop: ${(sharePct * 100).toFixed(1)}% pool share of 2% withdrawal fee from network activity.`,
+          withdrawalAmount: mongoose.Types.Decimal128.fromString(amountVal.toFixed(6)),
+          tierSharePct: sharePct,
+          triggeringWithdrawalId: triggeringWithdrawalId || null
         });
 
         // Credit to the user's community rewards wallet in Ledger
@@ -142,6 +145,7 @@ const distributeNodeFeeAirdrop = async (withdrawalAmount, triggeringUserId) => {
     console.error("❌ Error distributing node fee airdrop:", error);
   }
 };
+
 
 const withdrawUSDT = async (req, res) => {
   try {

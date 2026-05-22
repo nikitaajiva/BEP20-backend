@@ -377,8 +377,130 @@ const getNodeRewards = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/rewards/airdrop-pool
+ * Returns aggregated airdrop pool statistics for the authenticated user.
+ * Includes current node tier, lifetime earnings, period summaries, and community wallet balance.
+ */
+const getAirdropPoolStats = async (req, res) => {
+  try {
+    const user = req.user;
+    const userId = user._id;
+
+    const now = new Date();
+    const last30DaysStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const last7DaysStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Aggregate lifetime, 30d, and 7d totals in a single query
+    const [stats] = await NodeReward.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: null,
+          lifetimeEarnings: { $sum: { $toDouble: "$amount" } },
+          rewardCount: { $sum: 1 },
+          last30DayEarnings: {
+            $sum: {
+              $cond: [{ $gte: ["$createdAt", last30DaysStart] }, { $toDouble: "$amount" }, 0]
+            }
+          },
+          last7DayEarnings: {
+            $sum: {
+              $cond: [{ $gte: ["$createdAt", last7DaysStart] }, { $toDouble: "$amount" }, 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Get community rewards balance from ledger
+    const ledger = await Ledger.findOne({ userId }).select("wallets.communityRewards").lean();
+    const communityRewardsBalance = parseFloat(ledger?.wallets?.communityRewards?.toString?.() || "0").toFixed(6);
+
+    // Node tier share percentages (same as withdrawal controller)
+    const TIER_SHARES = {
+      P1: 20, P2: 15, P3: 12.5, P4: 11.5, P5: 10.5,
+      P6: 9.5, P7: 8.5, P8: 7.5, P9: 5.0
+    };
+
+    const nodeTier = user.nodeTier || null;
+    const tierSharePct = nodeTier ? (TIER_SHARES[nodeTier] || null) : null;
+
+    return res.json({
+      success: true,
+      data: {
+        nodeTier,
+        tierSharePct,
+        communityRewardsBalance,
+        lifetimeEarnings: parseFloat((stats?.lifetimeEarnings || 0).toFixed(6)),
+        last30DayEarnings: parseFloat((stats?.last30DayEarnings || 0).toFixed(6)),
+        last7DayEarnings: parseFloat((stats?.last7DayEarnings || 0).toFixed(6)),
+        rewardCount: stats?.rewardCount || 0,
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error in getAirdropPoolStats API:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+/**
+ * GET /api/rewards/airdrop-pool/history?page=1&limit=20
+ * Returns paginated NodeReward history for the authenticated user.
+ */
+const getAirdropPoolHistory = async (req, res) => {
+  try {
+    const user = req.user;
+    const userId = user._id;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const [rewards, total] = await Promise.all([
+      NodeReward.find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      NodeReward.countDocuments({ userId })
+    ]);
+
+    // Serialize Decimal128 values to strings/numbers
+    const serialized = rewards.map(r => ({
+      id: r._id.toString(),
+      nodeTier: r.nodeTier,
+      rewardType: r.rewardType,
+      amount: parseFloat(r.amount?.toString?.() || "0"),
+      narrative: r.narrative,
+      withdrawalAmount: r.withdrawalAmount ? parseFloat(r.withdrawalAmount.toString()) : null,
+      tierSharePct: r.tierSharePct ? (r.tierSharePct * 100) : null,
+      triggeringWithdrawalId: r.triggeringWithdrawalId || null,
+      createdAt: r.createdAt,
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        rewards: serialized,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error in getAirdropPoolHistory API:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
 module.exports = {
   getCascadeRewards,
   getBoosterRewards,
   getNodeRewards,
+  getAirdropPoolStats,
+  getAirdropPoolHistory,
 };
+

@@ -299,6 +299,15 @@ if (process.env.NODE_ENV !== "test") {
           console.error("Failed to enqueue missed DAILY_ROI_BATCH:", err)
         );
         tscMiningCronTask = scheduleDailyTscMiningJob();
+        const { seedDefaultMiningNftTiers } = require("./services/miningNftSeeder");
+        seedDefaultMiningNftTiers()
+          .then(() => {
+            console.log("[Boot] Mining NFT Tiers checked/seeded successfully.");
+          })
+          .catch((err) => {
+            console.error("[Boot] Mining NFT Tiers seed failed:", err);
+          });
+
         if (String(process.env.HORSE_NFT_ENABLED || "").trim().toLowerCase() === "true") {
           seedDefaultHorseNftPackages()
             .then((packages) => {

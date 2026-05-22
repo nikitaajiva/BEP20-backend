@@ -316,13 +316,100 @@ const stakeTokens = async (req, res) => {
             walletTo: 'STAKING_HUB',
             tscAmount: tscAmount,
             ratePct: ratePct,
+            refId: stakingDoc._id.toString(),
             narrative: `Staked ${amount} USDT (${tscAmount || '0'} TSC) for ${days} days at ${ratePct || '0'}% APY. Paid ${requiredSol} SOL @ $${solUsdRate}/SOL.`,
         });
+
+        // ── Auto-Unlock Mining NFT (N1–N5) integrated into Token Staking ──
+        let createdNft = null;
+        let tierCode = null;
+        const stakeAmt = Number(amount);
+        if (stakeAmt >= 10000) {
+            tierCode = "N5";
+        } else if (stakeAmt >= 3000) {
+            tierCode = "N4";
+        } else if (stakeAmt >= 1000) {
+            tierCode = "N3";
+        } else if (stakeAmt >= 500) {
+            tierCode = "N2";
+        } else if (stakeAmt >= 100) {
+            tierCode = "N1";
+        }
+
+        if (tierCode) {
+            try {
+                const mongoose = require('mongoose');
+                const NftTier = require('../models/NftTier');
+                const ProtocolConfig = require('../models/ProtocolConfig');
+                const UserNft = require('../models/UserNft');
+                const { creditTscAvailable } = require('../services/internalTokenLedgerService');
+
+                const tier = await NftTier.findOne({ code: tierCode, isActive: true });
+                if (tier) {
+                    const protocolConfig = await ProtocolConfig.findOne({ key: "default" });
+                    const count = await UserNft.countDocuments({ tierCode });
+                    const serialNo = `${tierCode}-${String(count + 1).padStart(6, "0")}`;
+                    const mintPriceU = Number(tier.mintPriceU.toString());
+                    const tscPrice = protocolConfig ? Number(protocolConfig.tscInitialPriceUSDT.toString()) : 0.01;
+                    const allocationAmount = mintPriceU / tscPrice;
+
+                    const currentMultiplier = (protocolConfig && protocolConfig.isTscLaunched)
+                        ? tier.poolMultiplierAfterTsc
+                        : tier.poolMultiplierBeforeTsc;
+
+                    createdNft = await UserNft.create({
+                        user: userId,
+                        tierCode: tier.code,
+                        tierName: tier.name,
+                        serialNo,
+                        mintPriceU: tier.mintPriceU,
+                        miningPower: tier.miningPower,
+                        powerCoefficient: tier.powerCoefficient,
+                        poolMultiplierBeforeTsc: tier.poolMultiplierBeforeTsc,
+                        poolMultiplierAfterTsc: tier.poolMultiplierAfterTsc,
+                        currentPoolMultiplier: currentMultiplier,
+                        dailyYieldRatePercent: tier.dailyYieldRatePercent,
+                        tscAllocationAmount: mongoose.Types.Decimal128.fromString(allocationAmount.toString()),
+                        status: "STAKED",
+                        paymentAsset: "USDT",
+                        paymentAmount: mongoose.Types.Decimal128.fromString("0"),
+                        mintedAt: new Date(),
+                        stakedAt: new Date(),
+                        metadata: {
+                            source: "STAKING_AUTO_UNLOCK",
+                            tscAllocationFormula: "mintPriceU / tscInitialPriceUSDT",
+                            stakingDocId: stakingDoc._id.toString(),
+                            stakingAmount: stakeAmt
+                        }
+                    });
+
+                    // Credit TSC Allocation for unlocked NFT
+                    await creditTscAvailable({
+                        userId,
+                        amount: allocationAmount,
+                        type: "NFT_TSC_ALLOCATION",
+                        idempotencyKey: `NFT_TSC_ALLOCATION:AUTO:${createdNft._id.toString()}`,
+                        referenceId: createdNft._id.toString(),
+                        sourceNft: createdNft._id,
+                        metadata: {
+                            tierCode: tier.code,
+                            mintPriceU: mintPriceU,
+                            tscInitialPriceUSDT: tscPrice,
+                            source: "STAKING_AUTO_UNLOCK",
+                            stakingDocId: stakingDoc._id.toString()
+                        }
+                    });
+                }
+            } catch (nftErr) {
+                console.error("Error auto-unlocking Mining NFT during token staking:", nftErr);
+            }
+        }
 
         res.status(200).json({
             message: 'Staking plan added successfully.',
             stakingDoc,
             stakingPlans: user.stakingPlans,
+            unlockedNft: createdNft || null
         });
 
     } catch (error) {
@@ -477,6 +564,8 @@ const getNodeStatus = async (req, res) => {
             return res.status(404).json({ message: "User not found." });
         }
 
+        const UserNft = require("../models/UserNft");
+
         const getOwnMiningPower = (u) => {
             if (!u.nftPackages) return 0;
             return u.nftPackages
@@ -484,15 +573,29 @@ const getNodeStatus = async (req, res) => {
                 .reduce((sum, p) => sum + (p.miningPower || 0), 0);
         };
 
-        const ownPower = getOwnMiningPower(user);
+        const getNewMiningPower = async (uIds) => {
+            if (!uIds || uIds.length === 0) return 0;
+            const result = await UserNft.aggregate([
+                { $match: { user: { $in: uIds }, status: "STAKED" } },
+                { $group: { _id: null, totalPower: { $sum: "$miningPower" } } }
+            ]);
+            return result.length > 0 ? Number(result[0].totalPower.toString()) : 0;
+        };
+
+        const ownLegacyPower = getOwnMiningPower(user);
+        const ownNewPower = await getNewMiningPower([userId]);
+        const ownPower = ownLegacyPower + ownNewPower;
 
         // Fetch downline users (all users where 'path' includes this user)
-        const downlineUsers = await User.find({ path: userId });
+        const downlineUsers = await User.find({ path: userId }).select('_id nftPackages');
+        const downlineIds = downlineUsers.map(u => u._id);
         
-        let teamPower = 0;
+        let teamLegacyPower = 0;
         for (const dUser of downlineUsers) {
-            teamPower += getOwnMiningPower(dUser);
+            teamLegacyPower += getOwnMiningPower(dUser);
         }
+        const teamNewPower = await getNewMiningPower(downlineIds);
+        const teamPower = teamLegacyPower + teamNewPower;
 
         const totalPower = ownPower + teamPower;
 

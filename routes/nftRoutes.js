@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getPublicNftTiers,
   mintNft,
+  purchaseMiningNft,
   getMyNfts,
   getMyNftById,
   stakeMyNft,
@@ -15,6 +16,7 @@ const router = express.Router();
 
 router.get("/tiers", protect, getPublicNftTiers);
 router.post("/mint", protect, mintNft);
+router.post("/purchase", protect, purchaseMiningNft);
 router.get("/my", protect, getMyNfts);
 router.get("/staked", protect, getMyStakedNfts);
 router.get("/my/:id", protect, getMyNftById);

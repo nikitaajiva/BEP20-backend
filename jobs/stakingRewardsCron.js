@@ -1,11 +1,13 @@
 const cron = require("node-cron");
 const TokenStaking = require("../models/TokenStaking");
+const { distributeReferralRewards } = require("../services/referralRewardService");
 
 /**
  * Staking Rewards Cron Job
  * Runs daily at 01:00 UTC.
- * For every active staking position whose lock-up has NOT expired,
- * computes the daily yield and adds it to `earnedRewards`.
+ * For every active staking position whose lock-up has NOT expired:
+ *   1. Computes the daily yield and adds it to `earnedRewards`.
+ *   2. Distributes L1 (10%) and L2 (5%) referral rewards to sponsors automatically.
  */
 
 let stakingCronTask = null;
@@ -13,7 +15,7 @@ let stakingCronTask = null;
 function getApyForDays(days) {
   if (days >= 365) return 0.28;
   if (days >= 180) return 0.22;
-  if (days >= 90) return 0.12;
+  if (days >= 90)  return 0.12;
   return 0.10;
 }
 
@@ -59,7 +61,7 @@ async function processStakingRewards() {
 
       if (dailyYield <= 0) continue;
 
-      // Atomically increment earnedRewards and update lastRewardedAt
+      // 1. Atomically increment earnedRewards and update lastRewardedAt
       await TokenStaking.updateOne(
         { _id: stake._id },
         {
@@ -70,6 +72,16 @@ async function processStakingRewards() {
 
       processed++;
       totalCredited += dailyYield;
+
+      // 2. Distribute L1 (10%) + L2 (5%) referral rewards to sponsors
+      await distributeReferralRewards({
+        earnerId:    stake.user,
+        rewardUsdt:  dailyYield,
+        refId:       stake._id.toString(),
+        rewardType:  "STAKING",
+        session:     null,
+      });
+
     } catch (err) {
       console.error(`[StakingRewardsCron] Error processing stake ${stake._id}:`, err.message);
     }

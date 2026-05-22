@@ -457,3 +457,213 @@ exports.getMyStakedNfts = async (req, res) => {
     });
   }
 };
+
+exports.purchaseMiningNft = async (req, res) => {
+  const client = mongoose.connection.getClient();
+  const topologyType = client?.topology?.description?.type;
+  const useTransaction = topologyType === "ReplicaSetWithPrimary" || topologyType === "ReplicaSetNoPrimary" || topologyType === "Sharded";
+
+  const session = useTransaction ? await mongoose.startSession() : null;
+  if (session) {
+    session.startTransaction();
+  }
+
+  try {
+    const userId = req.user._id;
+    const { tierCode, paymentAsset = "SOL", idempotencyKey } = req.body || {};
+
+    if (!tierCode) {
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      return res.status(400).json({
+        success: false,
+        message: "tierCode is required.",
+      });
+    }
+
+    if (idempotencyKey) {
+      const RewardTransaction = require("../models/RewardTransaction");
+      const existingTx = await RewardTransaction.findOne({ idempotencyKey }).session(session);
+      if (existingTx) {
+        const existingNft = await UserNft.findById(existingTx.referenceId || existingTx.sourceNft).session(session);
+        if (existingNft) {
+          if (session) {
+            await session.abortTransaction();
+            session.endSession();
+          }
+          return res.status(200).json({
+            success: true,
+            message: "NFT already purchased (idempotent).",
+            data: serializeUserNft(existingNft),
+          });
+        }
+      }
+    }
+
+    const tier = await NftTier.findOne({ code: tierCode, isActive: true }).session(session);
+
+    if (!tier) {
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      return res.status(404).json({
+        success: false,
+        message: "NFT tier not found or inactive.",
+      });
+    }
+
+    const protocolConfig = await ProtocolConfig.findOne({ key: "default" }).session(session);
+
+    if (!protocolConfig) {
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      return res.status(500).json({
+        success: false,
+        message: "Protocol config missing. Please seed config first.",
+      });
+    }
+
+    // Fetch live SOL price from CoinGecko
+    let solUsdRate = 150; // fallback
+    try {
+      const axios = require('axios');
+      const rateRes = await axios.get(
+        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+        { timeout: 5000 }
+      );
+      const rate = rateRes.data?.solana?.usd;
+      if (rate && rate > 0) solUsdRate = rate;
+    } catch (rateErr) {
+      console.warn('[purchaseMiningNft] Could not fetch live SOL rate, using fallback:', solUsdRate);
+    }
+
+    const mintPriceUsdt = toNumber(tier.mintPriceU);
+    const requiredSol = parseFloat((mintPriceUsdt / solUsdRate).toFixed(9));
+    const allocationAmount = calculateTscAllocation({ tier, protocolConfig });
+
+    // 1. Debit internal SOL wallet
+    try {
+      await debitInternalSolWallet({
+        userId,
+        amountSol: requiredSol,
+        session,
+      });
+    } catch (debitErr) {
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      if (debitErr.message === "INSUFFICIENT_INTERNAL_SOL_BALANCE") {
+        return res.status(402).json({
+          success: false,
+          errorCode: "INSUFFICIENT_BALANCE",
+          message: `Insufficient wallet balance. You need ${requiredSol} SOL (≈ $${mintPriceUsdt} USDT at current rate of $${solUsdRate}/SOL).`,
+          requiredSol,
+          solUsdRate,
+        });
+      }
+      throw debitErr;
+    }
+
+    // 2. Generate serial number and create NFT (status: STAKED!)
+    const currentMultiplier = protocolConfig.isTscLaunched
+      ? tier.poolMultiplierAfterTsc
+      : tier.poolMultiplierBeforeTsc;
+
+    const serialNo = await generateNftSerialNo(tier.code, session);
+
+    const [createdNft] = await UserNft.create(
+      [
+        {
+          user: userId,
+          tierCode: tier.code,
+          tierName: tier.name,
+          serialNo,
+          mintPriceU: tier.mintPriceU,
+          miningPower: tier.miningPower,
+          powerCoefficient: tier.powerCoefficient,
+          poolMultiplierBeforeTsc: tier.poolMultiplierBeforeTsc,
+          poolMultiplierAfterTsc: tier.poolMultiplierAfterTsc,
+          currentPoolMultiplier: currentMultiplier,
+          dailyYieldRatePercent: tier.dailyYieldRatePercent,
+          tscAllocationAmount: toDecimal128(allocationAmount),
+          status: "STAKED", // Auto-staked!
+          paymentAsset,
+          paymentAmount: toDecimal128(requiredSol),
+          mintedAt: new Date(),
+          stakedAt: new Date(),
+          metadata: {
+            source: "INTERNAL_PURCHASE",
+            tscAllocationFormula: "mintPriceU / tscInitialPriceUSDT",
+            solUsdRate,
+          },
+        },
+      ],
+      { session }
+    );
+
+    // 3. Credit initial TSC allocation
+    await creditTscAvailable({
+      userId,
+      amount: allocationAmount,
+      type: "NFT_TSC_ALLOCATION",
+      idempotencyKey:
+        idempotencyKey ||
+        `NFT_TSC_ALLOCATION:${createdNft._id.toString()}`,
+      referenceId: createdNft._id.toString(),
+      sourceNft: createdNft._id,
+      metadata: {
+        tierCode: tier.code,
+        mintPriceU: mintPriceUsdt,
+        tscInitialPriceUSDT: toNumber(protocolConfig.tscInitialPriceUSDT),
+      },
+      session,
+    });
+
+    // 4. Create LedgerRow history entry
+    const { createLedgerEntry } = require("../jobs/helpers/ledgerHelpers");
+    const narrative = `Purchased Mining NFT ${tier.code} — Power: ${toNumber(tier.miningPower)}, Coefficient: ${toNumber(tier.powerCoefficient)}×. Paid ${requiredSol} SOL @ $${solUsdRate}/SOL.`;
+    await createLedgerEntry({
+      userId,
+      eventType: "NFT_PURCHASE",
+      amount: requiredSol,
+      walletFrom: "SOL_INTERNAL",
+      walletTo: "NFT_MINT",
+      tscAmount: allocationAmount,
+      narrative,
+      refId: createdNft._id.toString(),
+    }, session);
+
+    if (session) {
+      await session.commitTransaction();
+      session.endSession();
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Mining NFT purchased and staked successfully.",
+      data: serializeUserNft(createdNft),
+    });
+
+  } catch (error) {
+    if (session) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      session.endSession();
+    }
+
+    console.error("Purchase Mining NFT error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to purchase Mining NFT.",
+      errorCode: error.message,
+    });
+  }
+};

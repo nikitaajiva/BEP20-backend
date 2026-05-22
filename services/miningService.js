@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const UserNft = require("../models/UserNft");
 const MiningSnapshot = require("../models/MiningSnapshot");
 const { creditTscAvailable } = require("./internalTokenLedgerService");
+const { distributeReferralRewards } = require("./referralRewardService");
 
 const toNumber = (value) => Number(value?.toString?.() || value || 0);
 
@@ -178,6 +179,18 @@ const runDailyTscMining = async ({ miningDate, triggeredBy = "SYSTEM" } = {}) =>
             formula: formulaDesc,
           },
           session,
+        });
+
+        // 3. Distribute L1 (10%) + L2 (5%) referral rewards to sponsors
+        //    Convert minedTsc to USDT at TSC launch price (0.01 USDT/TSC)
+        const TSC_PRICE_USDT = parseFloat(process.env.TSC_LAUNCH_PRICE_USDT || "0.01");
+        const miningRewardUsdt = minedTsc * TSC_PRICE_USDT;
+        await distributeReferralRewards({
+          earnerId:   nft.user,
+          rewardUsdt: miningRewardUsdt,
+          refId:      snapshot._id.toString(),
+          rewardType: "MINING",
+          session:    null, // separate from mining session so a referral failure doesn't rollback mining
         });
 
         if (session) {

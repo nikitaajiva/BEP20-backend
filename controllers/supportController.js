@@ -6073,7 +6073,7 @@ exports.exportAirdroprewards = async (req, res) => {
 
 exports.getSystemReport = async (req, res) => {
   /* ── Serve from cache if still fresh ── */
-  const forceRefresh = req.query.refresh === "1";
+  const forceRefresh = req?.query?.refresh === "1";
   if (!forceRefresh && _systemReportCache && (Date.now() - _systemReportCacheAt) < SYSTEM_REPORT_TTL_MS) {
     res.set("X-Cache", "HIT");
     res.set("Cache-Control", "public, max-age=120");

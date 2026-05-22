@@ -55,22 +55,42 @@ const getReferralRewardsSummary = async (req, res) => {
     const l1Rate = toFloat(config?.referralLevel1Percent) || 10; // default 10%
     const l2Rate = toFloat(config?.referralLevel2Percent) || 5;  // default 5%
 
-    // ── 4. Aggregate L1 referral reward rows from LedgerRow ─────────────────
-    // These are rows credited TO the current user for L1 mints.
-    // We look for NFT_PURCHASE rows where userId = currentUser AND refId matches an L1 user
-    // OR the narrative contains an L1 reference.
-    //
-    // Strategy: sum all tscAmount rows where:
-    //   userId = currentUser._id AND eventType includes NFT_PURCHASE-related referral events
-    //   AND the refId (the minter) is in l1Ids or l2Ids
-    //
-    // Since the project may store these under different eventTypes, we check both
-    // NFT_PURCHASE and BOOST_BONUS (which was used for referral bonuses in older code).
-    // We differentiate L1 vs L2 via refId matching.
+    // ── 4. New automatic USDT referral reward rows (from referralRewardService)
+    //       These are credited directly TO the current user by the cron jobs.
+    const newL1EventTypes = ['REFERRAL_L1_STAKING', 'REFERRAL_L1_MINING'];
+    const newL2EventTypes = ['REFERRAL_L2_STAKING', 'REFERRAL_L2_MINING'];
 
-    const referralEventTypes = ['NFT_PURCHASE', 'BOOST_BONUS', 'ROI_CASCADE'];
+    const sumUsdtRows = async (eventTypes) => {
+      const agg = await LedgerRow.aggregate([
+        {
+          $match: {
+            userId: currentUser._id,
+            eventType: { $in: eventTypes },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalUsdt: {
+              $sum: {
+                $convert: { input: '$amount', to: 'double', onError: 0, onNull: 0 },
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+      return agg.length > 0 ? agg[0] : { totalUsdt: 0, count: 0 };
+    };
 
-    // L1 aggregate
+    const [l1UsdtAgg, l2UsdtAgg] = await Promise.all([
+      sumUsdtRows(newL1EventTypes),
+      sumUsdtRows(newL2EventTypes),
+    ]);
+
+    // ── 5. Legacy TSC token earnings (old event types via refId matching) ────
+    const legacyEventTypes = ['NFT_PURCHASE', 'BOOST_BONUS', 'ROI_CASCADE'];
+
     let l1TokenEarnings = 0;
     let l1TxCount = 0;
 
@@ -80,17 +100,17 @@ const getReferralRewardsSummary = async (req, res) => {
         {
           $match: {
             userId: currentUser._id,
-            eventType: { $in: referralEventTypes },
+            eventType: { $in: legacyEventTypes },
             refId: { $in: l1IdStrings },
           },
         },
         {
           $group: {
             _id: null,
-            totalTsc: { 
-              $sum: { 
-                $convert: { input: '$tscAmount', to: 'double', onError: 0, onNull: 0 } 
-              } 
+            totalTsc: {
+              $sum: {
+                $convert: { input: '$tscAmount', to: 'double', onError: 0, onNull: 0 },
+              },
             },
             count: { $sum: 1 },
           },
@@ -103,7 +123,6 @@ const getReferralRewardsSummary = async (req, res) => {
       }
     }
 
-    // L2 aggregate
     let l2TokenEarnings = 0;
     let l2TxCount = 0;
 
@@ -113,17 +132,17 @@ const getReferralRewardsSummary = async (req, res) => {
         {
           $match: {
             userId: currentUser._id,
-            eventType: { $in: referralEventTypes },
+            eventType: { $in: legacyEventTypes },
             refId: { $in: l2IdStrings },
           },
         },
         {
           $group: {
             _id: null,
-            totalTsc: { 
-              $sum: { 
-                $convert: { input: '$tscAmount', to: 'double', onError: 0, onNull: 0 } 
-              } 
+            totalTsc: {
+              $sum: {
+                $convert: { input: '$tscAmount', to: 'double', onError: 0, onNull: 0 },
+              },
             },
             count: { $sum: 1 },
           },
@@ -136,24 +155,30 @@ const getReferralRewardsSummary = async (req, res) => {
       }
     }
 
-    const totalTokenEarnings = l1TokenEarnings + l2TokenEarnings;
-
+    // ── 6. Build response ────────────────────────────────────────────────────
     return res.json({
       success: true,
       data: {
         l1: {
           count: l1Users.length,
+          usdtEarnings: parseFloat((l1UsdtAgg.totalUsdt || 0).toFixed(6)),
+          usdtTxCount: l1UsdtAgg.count || 0,
           tokenEarnings: parseFloat(l1TokenEarnings.toFixed(6)),
           transactionCount: l1TxCount,
           ratePercent: l1Rate,
         },
         l2: {
           count: l2Users.length,
+          usdtEarnings: parseFloat((l2UsdtAgg.totalUsdt || 0).toFixed(6)),
+          usdtTxCount: l2UsdtAgg.count || 0,
           tokenEarnings: parseFloat(l2TokenEarnings.toFixed(6)),
           transactionCount: l2TxCount,
           ratePercent: l2Rate,
         },
-        totalTokenEarnings: parseFloat(totalTokenEarnings.toFixed(6)),
+        totalUsdtEarnings: parseFloat(
+          ((l1UsdtAgg.totalUsdt || 0) + (l2UsdtAgg.totalUsdt || 0)).toFixed(6)
+        ),
+        totalTokenEarnings: parseFloat((l1TokenEarnings + l2TokenEarnings).toFixed(6)),
       },
     });
   } catch (err) {
@@ -161,6 +186,8 @@ const getReferralRewardsSummary = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error fetching referral rewards summary.' });
   }
 };
+
+
 
 /**
  * GET /api/referral-rewards/my-tree
@@ -201,6 +228,18 @@ const getMyReferralTree = async (req, res) => {
       currentLevelIds = children.map(u => u._id);
     }
 
+    // Query staked UserNft values for all downline node IDs to sum in the tree
+    const UserNft = require("../models/UserNft");
+    const nodeIds = allNodes.map(n => n._id);
+    const userNfts = await UserNft.find({ user: { $in: nodeIds }, status: "STAKED" }).lean();
+
+    const nftValueByUser = {};
+    userNfts.forEach(nft => {
+      const uid = nft.user.toString();
+      const mintPrice = parseFloat(nft.mintPriceU?.toString() || "0");
+      nftValueByUser[uid] = (nftValueByUser[uid] || 0) + mintPrice;
+    });
+
     // Build the nested tree from flat allNodes
     const nodesByParent = {};
     allNodes.forEach(n => {
@@ -228,7 +267,9 @@ const getMyReferralTree = async (req, res) => {
           enrichedChildren = enrichTreeNodes(node.children);
           enrichedChildren.forEach(child => {
             const childOwnStakes = (child.stakingPlans || []).reduce((acc, s) => acc + (s.amount || 0), 0) || child.stakingPlan?.amount || 0;
-            const childOwnNfts = (child.nftPackages || []).reduce((acc, p) => acc + (p.mintPrice || 0), 0);
+            const legacyOwnNfts = (child.nftPackages || []).reduce((acc, p) => acc + (p.mintPrice || 0), 0);
+            const newOwnNfts = nftValueByUser[child._id.toString()] || 0;
+            const childOwnNfts = legacyOwnNfts + newOwnNfts;
 
             teamStakes += childOwnStakes + (child.teamStakes || 0);
             teamNfts += childOwnNfts + (child.teamNfts || 0);
