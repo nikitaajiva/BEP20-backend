@@ -218,7 +218,33 @@ const getMyReferralTree = async (req, res) => {
       }));
     };
 
-    const treeNodes = buildTree(currentUser._id, 1);
+    const enrichTreeNodes = (nodes) => {
+      return nodes.map(node => {
+        let teamStakes = 0;
+        let teamNfts = 0;
+        let enrichedChildren = [];
+
+        if (node.children && node.children.length > 0) {
+          enrichedChildren = enrichTreeNodes(node.children);
+          enrichedChildren.forEach(child => {
+            const childOwnStakes = (child.stakingPlans || []).reduce((acc, s) => acc + (s.amount || 0), 0) || child.stakingPlan?.amount || 0;
+            const childOwnNfts = (child.nftPackages || []).reduce((acc, p) => acc + (p.mintPrice || 0), 0);
+
+            teamStakes += childOwnStakes + (child.teamStakes || 0);
+            teamNfts += childOwnNfts + (child.teamNfts || 0);
+          });
+        }
+
+        return {
+          ...node,
+          children: enrichedChildren,
+          teamStakes,
+          teamNfts
+        };
+      });
+    };
+
+    const treeNodes = enrichTreeNodes(buildTree(currentUser._id, 1));
 
     return res.json({
       success: true,

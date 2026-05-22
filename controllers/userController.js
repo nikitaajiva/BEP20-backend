@@ -598,13 +598,46 @@ const getPortfolioDetails = async (req, res) => {
           starter: "BRONZE", growth: "SILVER", premium: "GOLD",
         };
 
-        const nftRoiMap   = { starter: 45, growth: 55, premium: 65, bronze: 45, silver: 55, gold: 65 };
-        const nftRateMap  = { starter: 0.003, growth: 0.004, premium: 0.005, bronze: 0.003, silver: 0.004, gold: 0.005 };
+        const nftRoiMap   = { starter: 15, growth: 25, premium: 35, bronze: 15, silver: 25, gold: 35 };
+        const nftRateMap  = {
+          starter: 15 / 365 / 100,
+          growth: 25 / 365 / 100,
+          premium: 35 / 365 / 100,
+          bronze: 15 / 365 / 100,
+          silver: 25 / 365 / 100,
+          gold: 35 / 365 / 100
+        };
         const nftPriceMap = {
           starter: 500, growth: 1000, premium: 5000,
           bronze: 500, silver: 1000, gold: 5000,
           N1: 500, N2: 1000, N3: 5000, N4: 10000, N5: 25000
         };
+
+        try {
+          const HorseNftPackage = require('../server/Modules/horseNft/Models/HorseNftPackage');
+          const dbPackages = await HorseNftPackage.find({ isActive: true }).lean();
+          if (dbPackages && dbPackages.length > 0) {
+            dbPackages.forEach(pkg => {
+              const tier = pkg.tierCode;
+              const normTier = (pkg.tierName || "").toLowerCase();
+              const roi = pkg.annualRoiPercent || 0;
+              const rate = roi / 365 / 100;
+              const price = pkg.priceUSDT || 0;
+
+              nftRoiMap[tier] = roi;
+              nftRateMap[tier] = rate;
+              nftPriceMap[tier] = price;
+
+              if (normTier) {
+                nftRoiMap[normTier] = roi;
+                nftRateMap[normTier] = rate;
+                nftPriceMap[normTier] = price;
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Failed to load dynamic Horse NFT packages in getPortfolioDetails:", err);
+        }
 
         const horseNFTs = effectiveNftPackages.map((pkg, index) => {
           const tier = tierNormalize[pkg.tier] || "bronze";
