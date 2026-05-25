@@ -388,10 +388,12 @@ const getAirdropPoolStats = async (req, res) => {
     const userId = user._id;
 
     const now = new Date();
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
     const last30DaysStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const last7DaysStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Aggregate lifetime, 30d, and 7d totals in a single query
+    // Aggregate lifetime, 30d, 7d, and today totals in a single query
     const [stats] = await NodeReward.aggregate([
       { $match: { userId } },
       {
@@ -399,6 +401,11 @@ const getAirdropPoolStats = async (req, res) => {
           _id: null,
           lifetimeEarnings: { $sum: { $toDouble: "$amount" } },
           rewardCount: { $sum: 1 },
+          todayEarnings: {
+            $sum: {
+              $cond: [{ $gte: ["$createdAt", todayStart] }, { $toDouble: "$amount" }, 0]
+            }
+          },
           last30DayEarnings: {
             $sum: {
               $cond: [{ $gte: ["$createdAt", last30DaysStart] }, { $toDouble: "$amount" }, 0]
@@ -433,6 +440,7 @@ const getAirdropPoolStats = async (req, res) => {
         tierSharePct,
         communityRewardsBalance,
         lifetimeEarnings: parseFloat((stats?.lifetimeEarnings || 0).toFixed(6)),
+        todayEarnings: parseFloat((stats?.todayEarnings || 0).toFixed(6)),
         last30DayEarnings: parseFloat((stats?.last30DayEarnings || 0).toFixed(6)),
         last7DayEarnings: parseFloat((stats?.last7DayEarnings || 0).toFixed(6)),
         rewardCount: stats?.rewardCount || 0,
